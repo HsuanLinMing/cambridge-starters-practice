@@ -29,10 +29,10 @@ export default async function LetterPage({ params }: LetterPageProps) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-8 sm:px-6 sm:py-10">
       <Link
-        href="/review"
+        href="/review/words"
         className="inline-flex items-center text-sm text-slate-500 hover:text-slate-800"
       >
-        <span className="mr-1">←</span> 回字母選擇
+        <span className="mr-1">←</span> 回單字複習
       </Link>
 
       <header className="mt-6 text-center">
@@ -49,10 +49,10 @@ export default async function LetterPage({ params }: LetterPageProps) {
           <div className="flex flex-col items-center gap-4 rounded-3xl bg-white p-8 text-center shadow-sm">
             <p className="text-base text-slate-500">這個字母還沒有單字。</p>
             <Link
-              href="/review"
+              href="/review/words"
               className="inline-flex min-h-12 items-center rounded-full bg-amber-300 px-6 py-3 text-base font-bold text-slate-900 shadow-sm transition hover:bg-amber-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200"
             >
-              回字母選擇
+              回單字複習
             </Link>
           </div>
         ) : (

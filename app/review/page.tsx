@@ -1,59 +1,66 @@
 import Link from "next/link";
 import BackToHome from "@/components/BackToHome";
-import { getLetterStatuses } from "@/lib/vocabularyNavigation";
+import ReviewHubCard from "@/components/ReviewHubCard";
 
 export const metadata = {
-  title: "單字複習 · Cambridge Starters Practice",
+  title: "複習中心 · Cambridge Starters Practice",
 };
 
-export default function ReviewPage() {
-  const letters = getLetterStatuses();
-
+export default function ReviewHubPage() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-8 sm:px-6 sm:py-10">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-8 sm:px-6 sm:py-10">
       <BackToHome />
       <header className="mt-4 text-center">
         <h1 className="text-3xl font-black text-slate-900 sm:text-4xl">
-          📚 單字複習
+          📚 複習中心
         </h1>
         <p className="mt-2 text-base text-slate-600 sm:text-lg">
-          選一個字母看看單字
+          選一個方式開始複習！
         </p>
       </header>
 
-      <section className="mt-8">
-        <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5">
-          {letters.map(({ letter, count, enabled }) => (
-            <li key={letter}>
-              {enabled ? (
-                <Link
-                  href={`/review/letter/${letter.toLowerCase()}`}
-                  aria-label={`${letter}，${count} 個單字`}
-                  className="flex aspect-square flex-col items-center justify-center rounded-2xl bg-amber-300 text-slate-900 shadow-md transition hover:-translate-y-0.5 hover:bg-amber-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200"
-                >
-                  <span className="text-4xl font-black sm:text-5xl">
-                    {letter}
-                  </span>
-                  <span className="mt-1 text-xs font-semibold sm:text-sm">
-                    {count} 個單字
-                  </span>
-                </Link>
-              ) : (
-                <div
-                  aria-disabled="true"
-                  aria-label={`${letter}，目前沒有單字`}
-                  className="flex aspect-square flex-col items-center justify-center rounded-2xl bg-slate-100 text-slate-400"
-                >
-                  <span className="text-4xl font-black sm:text-5xl">
-                    {letter}
-                  </span>
-                  <span className="mt-1 text-xs sm:text-sm">—</span>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 sm:gap-6">
+        <ReviewHubCard
+          href="/review/words"
+          emoji="📖"
+          title="單字複習"
+          description="A~Z 單字、圖片、發音、看答案"
+        />
+        <ReviewHubCard
+          status="coming-soon"
+          emoji="🖼️"
+          title="看圖練習"
+          description="看圖選英文、看英文選圖"
+        />
+        <ReviewHubCard
+          status="coming-soon"
+          emoji="🎧"
+          title="聽力練習"
+          description="聽單字、聽句子、選圖片"
+        />
+        <ReviewHubCard
+          status="coming-soon"
+          emoji="💬"
+          title="句型練習"
+          description="This is... / I can see... / There is..."
+        />
+        <ReviewHubCard
+          status="coming-soon"
+          emoji="🎨"
+          title="位置 / 顏色 / 數量"
+          description="in / on / under、red ball、three apples"
+        />
       </section>
+
+      <aside className="mt-10 text-center text-sm text-slate-500">
+        想做完整考卷？請到{" "}
+        <Link
+          href="/quiz"
+          className="font-semibold text-slate-700 underline-offset-2 hover:text-slate-900 hover:underline focus:outline-none focus-visible:underline"
+        >
+          測驗區 →
+        </Link>
+      </aside>
     </main>
   );
 }
