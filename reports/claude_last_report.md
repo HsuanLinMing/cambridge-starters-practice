@@ -1,99 +1,152 @@
-# Claude Code 回報 · P2-1 圖片 fallback 初次載入修補
+# Claude Code 回報 · 補 P3 完整考卷 Session 與作答保存規劃（純文件）
 
 任務日期：2026-05-07
-任務性質：P2-1 修補單一 issue（圖片 fallback 初次載入），不進入 P2-2，不做新功能。
+任務性質：純文件補規劃；**不修改任何程式碼**；不進入 P3 實作；不新增 localStorage 實作。
 
 ## 【本輪修改摘要】
 
-修正 `components/VocabularyCard.tsx` 的圖片載入流程：把原本「先 SSR `<img>`、靠 onError 切 fallback」改為「初始狀態即 fallback，client 端用 `new window.Image()` 預載成功才切到真圖」。SSR 階段已驗證不再輸出 `<img src="/images/...">`，第一次開啟 `/review` 時 apple 卡片直接顯示「A + 圖片準備中」，不再殘留 broken image。順手把 `README.md` 的「目前功能」中對 `/review` 的過時描述更新為現況。`npm run lint` / `typecheck` / `build` 三項全綠，dev 三條路由 200，無 hydration mismatch 警告。
+依任務單在三份文件補入「完整考卷 Session」概念，把測驗區從「單題練習」升級為「**整份考卷的生命週期**」：
+
+- `docs/PRODUCT_SPEC.md`：在「測驗與考前練習方向」中新增「完整考卷 Session」一節，含 4 個子小節：**Session 概念**、**作答進度保存（localStorage）**、**考卷操作**、**交卷與結果頁**。明示第一版**不計時**、保存以 localStorage 為主、考卷可混合多題型 / 多來源、操作含「繼續作答 / 離開這份考卷 / 重新測驗 / 直接交卷」、結果頁含分數 / 紅色錯題 / 正確答案 / 小一友善講解 / 再練習錯題入口。
+- `PROJECT_ROADMAP.md`：把 P3-6 標題從「模擬考與錯題複習」改為「**完整考卷 Session、交卷與錯題複習**」，內容重寫為 5 個分區（完整考卷生成、作答進度保存、考卷操作、交卷與結果頁、計時相關），條目對齊 PRODUCT_SPEC；P5 章節對 P3-6 的指向敘述同步對齊新名字；變更紀錄追加一筆。
+- `README.md`：「下一步」第 2 條（P3 規劃中）擴寫一段，加入完整考卷、localStorage、4 個操作、紅色錯題、第一版不計時 / 不登入 / 不接後端的提示。
+
+P2 維持 🟡 進行中，P3 維持 ⬜ 規劃中，**所有 P3 子項仍 ⬜，未開工**。`/`、`/review`、`/review/letter/[letter]`、`/review/word/[id]`、`/quiz` 動線描述完整保留。`npm run lint` / `typecheck` / `build` 三項全綠，44 條路由仍 prerender。本輪零程式碼變動，未引入登入 / 後端 / 資料庫 / 雲端同步。
 
 ## 【修改檔案清單】
 
-- `components/VocabularyCard.tsx`（圖片 fallback 重寫）
-- `README.md`（「目前功能」段落 `/review` 一行更新，其他不動）
-- `reports/claude_last_report.md`（本回報檔）
+修改：
 
-未動：`/quiz`、`app/review/page.tsx`、`components/CategoryTabs.tsx`、`components/VocabularyReview.tsx`、`lib/*`、`data/*`、`PROJECT_ROADMAP.md`、`docs/*`、`AGENTS.md`、`CLAUDE.md`、`AI_DEV_WORKFLOW.md`、`package.json`。
+- `docs/PRODUCT_SPEC.md`
+  - 「測驗與考前練習方向」新增整節「完整考卷 Session」（位置：「素材策略」之後、「與小一設計原則的關係」之前）。
+  - 「與小一設計原則的關係」末條從「模擬考的計時器預設可關閉」收緊為「**第一版測驗區不計時；未來若加入模擬考計時，預設關閉**」，與新節口徑一致。
+- `PROJECT_ROADMAP.md`
+  - P3-6 標題改名 + 條目重寫為 5 分區（完整考卷生成 4 條 / 作答進度保存 4 條 / 考卷操作 4 條 / 交卷與結果頁 6 條 / 計時相關 2 條，共 20 條全部 ⬜）。
+  - P5（已併入 P3-6）章節對 P3-6 的指向敘述同步對齊新名字。
+  - 變更紀錄追加 2026-05-07 一筆。
+- `README.md`：「下一步」第 2 條（P3 規劃中）擴寫含完整考卷、localStorage、繼續作答 / 離開這份考卷 / 重新測驗 / 直接交卷、評分、紅色錯題、第一版不計時 / 不登入 / 不接後端 / 雲端。
+- `reports/claude_last_report.md`：本回報檔。
+
+未動：`AI_DEV_WORKFLOW.md`、`docs/TASK_ROUTER.md`、`docs/CODEX_VALIDATION_RUNBOOK.md`、`docs/DATA_SCHEMA.md`、`AGENTS.md`、`CLAUDE.md`、`app/`、`components/`、`lib/`、`data/vocabulary.json`、`data/quizzes.json`、`public/`、`package.json`。
 
 ## 【核心邏輯說明】
 
-### 問題根因（與 Codex 推測一致）
+### 1. PRODUCT_SPEC 新節「完整考卷 Session」的位置與分層
 
-舊版本 SSR HTML 直接輸出 `<img src="/images/apple.png">`。瀏覽器一拿到 HTML 就開始載入該資源，404 觸發 `error` 事件**很可能在 React hydration 掛上 `onError` handler 之前發生**——因此 `setImageBroken(true)` 永遠不被觸發，第一張卡上殘留 broken image icon。切到下一張或下一個分類後，元件因 `key={current.id}` remount，新的 `<img>` 渲染與 onError 已都在 client 階段，能正確進入 fallback。
+放在「測驗與考前練習方向」的後段（「素材策略」之後、「與小一設計原則的關係」之前），符合上游→下游的閱讀流：
 
-### 新流程：「初始 fallback + client 預載」
-
-```tsx
-type ImageStatus = "loading" | "ready" | "missing";
-
-const [imageStatus, setImageStatus] = useState<ImageStatus>(() =>
-  item.image ? "loading" : "missing",
-);
-
-useEffect(() => {
-  if (!item.image) return;
-  let cancelled = false;
-  const probe = new window.Image();
-  probe.onload = () => { if (!cancelled) setImageStatus("ready"); };
-  probe.onerror = () => { if (!cancelled) setImageStatus("missing"); };
-  probe.src = item.image;
-  return () => {
-    cancelled = true;
-    probe.onload = null;
-    probe.onerror = null;
-  };
-}, [item.image]);
+```
+題目來源策略 ──┐
+AI 仿真題    ──┤  上游：題目從哪來
+題型清單    ──┤
+素材策略    ──┘
+完整考卷 Session ──┐
+  Session 概念       │
+  作答進度保存       ├ 下游：題目組成考卷後的使用流程
+  考卷操作          │
+  交卷與結果頁       │
+與小一設計原則的關係 ─┘  跨章節的橫向約束
 ```
 
-Render：
+### 2. 「Session 概念」的關鍵定位
 
-```tsx
-{imageStatus === "ready" && item.image
-  ? <img src={item.image} alt={item.word} ... />
-  : <FallbackBlock word={item.word} />}
+特意強調「測驗區的核心使用單位**不是單題練習，而是一份完整考卷**」。這條是設計準則：未來實作時若有人想做「隨機刷題」這種非考卷模式，會在這條碰壁；要打開這扇門，得先回 PRODUCT_SPEC 改規格。
+
+題型清單列了 7 種混合（Listening、Matching、Fill in the blanks、看圖選字、看字選圖、選圖題、選字題），與「題型清單（第一版範圍）」的列表互補：上面列的是「題型本身」，這裡列的是「一份考卷可以塞進哪些題型」，避免讀者誤以為一份考卷只能單一題型。
+
+### 3. 「作答進度保存（localStorage）」的 8 個欄位設計考量
+
+| 欄位 | 為何要存 |
+| --- | --- |
+| `examSessionId` | 一次考試 = 一個 Session；用 id 對應 localStorage key |
+| `examPaperId` | 對應「考卷模板」，重新測驗時可開新 Session 但同一份模板 |
+| `questionOrder` | 題目順序在生成時打散，恢復時要保持同樣順序，不能恢復後又洗一次牌 |
+| `answers` | 每題作答（題 id → 選的選項 / 填的字） |
+| `currentIndex` | 「做到第幾題」進度指標，「繼續作答」就從這裡接 |
+| `submitted` | 區分「未交卷可恢復」vs「已交卷看結果」 |
+| `score` | 已交卷時填入；未交卷為 null |
+| `wrongQuestionIds` | 已交卷時填入答錯題 id 清單，給「再練習錯題」用 |
+
+明示「**詳細 schema 由 P3-1 實作時定案**」——本輪只給概念，避免把實作細節定死導致 P3-1 沒空間。
+
+特別標註：「同一個 `examPaperId` 可重新測驗產生**新的 Session**（保留舊 Session 直到使用者選擇刪除或被覆蓋）」——這條會影響後續「重新測驗」操作的行為，讓 Codex 與 Claude 在實作時對「舊 Session 要不要保留」有共識。
+
+### 4. 「考卷操作」四個動作的設計
+
+四個動作明確切分，不混淆：
+
+- **繼續作答**：從 `currentIndex` 接著做下一題（用既有 Session）。
+- **離開這份考卷**：保留進度回首頁（**不**刪 Session）。
+- **重新測驗**：放棄目前 Session、開新 Session（題目順序可重新打散）。明示「**前要顯示確認提示**」避免小朋友誤觸——這是小一友善的具體設計。
+- **直接交卷**：未答題視為未作答（**不強迫小朋友寫滿**）。這條也是小一友善：給孩子「我可以先交了」的退路。
+
+四個動作要求「按鈕大、文字短、不藏在選單裡」，呼應「國小低年級使用者設計原則」。
+
+### 5. 「交卷與結果頁」的鼓勵 > 懲罰原則
+
+明示「紅色僅代表『這題要看一下』，不是責備」。講解語氣指引：
+
+- ❌ 不用「你錯了」「不對」這類負面字眼
+- ✅ 用「正確答案是 ___」「下次可以注意 ___ 唷」
+
+這條來自小一友善設計原則，落實到具體文案層面，避免 Claude / Codex 實作時憑直覺寫成「答錯！」這種大人風格。
+
+「再練習錯題」入口列為「後續功能延伸」，不在 P3-6 第一版必做範圍內，給未來輪次留路。
+
+### 6. ROADMAP P3-6 重寫策略
+
+舊版 P3-6 是 5 條混在一起的清單。新版用 5 個分區把任務切清楚：
+
+```
+完整考卷生成        4 條  ── 對齊 PRODUCT_SPEC「Session 概念」
+作答進度保存       4 條  ── 對齊「作答進度保存（localStorage）」
+考卷操作          4 條  ── 對齊「考卷操作」四動作
+交卷與結果頁       6 條  ── 對齊「交卷與結果頁」
+計時相關          2 條  ── 從原版「計時器」獨立出來，明示第一版不計時
+                 ────
+合計             20 條  全部 ⬜
 ```
 
-### 為何這樣寫不會被 React 19 lint 抓
+讓未來 Codex 驗收 P3-6 時可以分區檢查（例如「『考卷操作』四動作都到了嗎？」「『計時相關』有沒有不小心開啟？」），不需逐條對 PRODUCT_SPEC。
 
-`react-hooks/set-state-in-effect` 規則阻擋的是「effect body 內同步呼叫 setState」。本次的 effect body 只做兩件事：建立 `probe` 物件、掛 callback、設 `src`。setState 全部在 `onload` / `onerror` callback 內被呼叫——這是「外部資源同步」場景，正是 React 文件指明 effect 該做的事。Lint 結果驗證：`npm run lint` 0 警告 0 錯誤。
+「計時相關」獨立出來，明示「第一版不計時 / 未來若加計時則設為可選功能、預設關閉」，避免未來輪次有人「順手」加上計時器。
 
-### 為何不會 hydration mismatch
+### 7. P5 章節對 P3-6 的指向同步
 
-- SSR：`useState` 初始化函式在 server 上跑，根據 `item.image` 是否為真值決定 `"loading"` 或 `"missing"`。`item.image` 是純資料 prop，server / client 一致 → 初始 state 一致。
-- Hydration：client 第一次 render 結果與 SSR 完全相同（都顯示 fallback）。
-- Mount 後：useEffect 才開始預載並可能切到 `"ready"`。React 視為 client-side update，不算 mismatch。
+P5 章節（已併入 P3-6）原本寫「已併入新版 P3-6『模擬考與錯題複習』」，本輪 P3-6 改名後，把這句的引用同步改為新名字「完整考卷 Session、交卷與錯題複習」，避免兩處名字漂移。
 
-實測 dev log 無 hydration warning。
+變更紀錄則保留歷史：保留先前命名「P3-6 模擬考與錯題複習」（那是當時的命名）、本輪變更紀錄寫明「將 P3-6 標題從『模擬考與錯題複習』改為『完整考卷 Session、交卷與錯題複習』」，未來翻歷史可看到改名脈絡。
 
-### 為何不會在切換單字時看到舊圖
+### 8. README 的「下一步」擴寫策略
 
-父層 `VocabularyReview.tsx` 用 `<VocabularyCard key={current.id} item={current} />`，切換單字時 `key` 變化 → 整個 component remount → `useState` 初始化函式重新跑（拿新 `item.image`）→ `imageStatus` 回到 `"loading"`，等預載結果。沒有舊 state 殘留。
+任務單希望「保持簡短，不大幅重寫」。我的取捨：
 
-### 為何「載入中」與「缺檔」共用同一個 fallback 視覺
+- **不**新增獨立章節，而是把新內容塞進「下一步」第 2 條（P3 規劃中），用一段較長的文字描述「未來測驗區會支援整份考卷、可保存進度、四個操作、評分結果」。
+- 重複的硬邊界（不計時 / 不登入 / 不接後端 / 雲端）用粗體強調，方便新進的 AI agent 一眼看到。
+- 仍指向 `docs/PRODUCT_SPEC.md` 的「測驗與考前練習方向」當權威來源。
 
-兩種情境都顯示「色塊 + 首字母 + 圖片準備中」。原因：
+### 9. 與「目前明確不做」邊界對齊
 
-1. **避免閃爍**：如果載入中顯示一種視覺、缺檔顯示另一種，使用者切到下一張時會在兩種 placeholder 間跳動。
-2. **小一友善**：對小一而言「圖片正在來」與「圖片不在」的差別並不重要，重點是不要看到 broken icon。
-3. **視覺一致**：dev 環境下圖片仍是 404，讓 loading 與 missing 共用樣式可確保 dev / 未來 prod 兩端一致。
+新內容在三個地方明確點出與既有硬邊界對齊：
 
-當素材就位後，預載成功才會切到真圖；過渡通常 < 100ms，使用者幾乎察覺不到。
+- PRODUCT_SPEC「作答進度保存」：「不需要後端、資料庫或雲端同步——見『目前明確不做』」。
+- ROADMAP P3-6「作答進度保存」：「不上後端 / 不上雲端 / 不做登入（見 ROADMAP 末尾『目前明確不做』）」。
+- README「下一步」：「**第一版不計時、不登入、不接後端 / 雲端**」。
 
-### 移除的東西
-
-- `imageBroken` state 與 `setImageBroken` setter 全部刪除。
-- `<img>` 上的 `onError={() => setImageBroken(true)}` 屬性移除（不再需要，因為只有 `imageStatus === "ready"` 才會渲染 `<img>`）。
-- `// eslint-disable-next-line @next/next/no-img-element` 保留——本輪維持 `<img>`（任務單明示不重構）。
+這樣未來輪次無論翻哪份文件，都會踩到同一條硬邊界。
 
 ## 【新增了哪些能力】
 
-- 第一次開啟 `/review` 時，缺圖卡片**第一幀**就顯示 fallback，不再經歷「broken icon → fallback」的閃爍。
-- 圖片 fallback 對「來不及掛 onError」「圖片真的 404」「沒有 image 欄位」三種情境提供一致行為。
-- SSR HTML 不再洩露未必存在的圖片路徑，網路 panel 上不再有針對 `/images/*.png` 的隱性 404 預載（瀏覽器只會在 client 端 `probe.src` 賦值後才去嘗試）。
+- 測驗區規格首次定義「**完整考卷 Session**」概念，把核心使用單位從「單題」升級為「整份考卷的生命週期」。
+- 規格首次明示**作答進度保存的 8 個欄位**，給 P3-1 實作時的具體起點。
+- 規格首次明示**考卷四個操作**（繼續 / 離開 / 重新 / 直接交卷）與「重新測驗前需確認提示」的小一友善設計。
+- 規格首次明示**結果頁鼓勵 > 懲罰**的具體文案指引（避免「你錯了」用「正確答案是 ___」）。
+- ROADMAP P3-6 從 5 條鬆散清單變成 20 條分 5 區的結構化規劃，未來 Codex 驗收可分區檢查。
+- README 的「下一步」第一次明確點出「不計時 / 不登入 / 不接後端 / 雲端」三條硬邊界。
 
 ## 【新增/調整測試】
 
-無。任務單明確未指派測試框架。本輪以人工 smoke test 為驗收手段。
+無。本輪純文件規劃，依任務單禁止導入測試框架。
 
 ## 【測試結果】
 
@@ -101,66 +154,51 @@ Render：
 
 - `npm run lint` → **通過**（0 警告 0 錯誤）。
 - `npm run typecheck` → **通過**（exit 0）。
-- `npm run build` → **通過**：
+- `npm run build` → **通過**：`/`、`/quiz`、`/review`、`/review/letter/[letter]`（26 條）、`/review/word/[id]`（12 條）、`/_not-found` 全部 prerender。
 
-  ```
-  ▲ Next.js 16.2.5 (Turbopack)
-  ✓ Compiled successfully in 897ms
-  ✓ Generating static pages using 7 workers (6/6) in 160ms
-  Route (app)
-  ┌ ○ / ├ ○ /_not-found ├ ○ /quiz └ ○ /review
-  ○ (Static) prerendered as static content
-  ```
+文件層面 grep 驗證（重點命中）：
 
-人工 smoke test（`npm run dev` + curl）：
+- **PRODUCT_SPEC**：四個子小節（Session 概念 / 作答進度保存 / 考卷操作 / 交卷與結果頁）皆出現；8 個 localStorage 欄位皆命中（`examSessionId`、`examPaperId`、`questionOrder`、`currentIndex`、`submitted`、`wrongQuestionIds`、加上文中提到的 `answers`、`score`）；四個操作字串皆命中（繼續作答、離開這份考卷、重新測驗、直接交卷）；7 個考卷可混題型皆命中（Listening、Matching、Fill in the blanks、看圖選字、看字選圖、選圖題、選字題）；「錯誤題目用紅色標示」、「簡單講解」、「再練習錯題」、「第一版不計時」皆命中。先前重要內容（產品定位、目前明確不做、國小低年級使用者設計原則、單字複習主流程、AI 仿真題、official_sample）全部保留。
+- **ROADMAP**：P3-6 標題改為「完整考卷 Session、交卷與錯題複習」；5 個分區（完整考卷生成、作答進度保存、考卷操作、交卷與結果頁、計時相關）皆命中；具體欄位（`examSessionId` / `wrongQuestionIds`）與四操作（離開這份考卷 / 重新測驗 / 直接交卷）皆命中；「再練習錯題」「第一版不計時」皆命中；P3 標題仍為「⬜ 規劃中」、P3 子項區內**無** ✅ / 🟡；P1~P5 區段內**無**「登入 / 註冊 / 會員 / 付費 / 訂閱 / 金流 / 公開部署 / App Store / Google Play / 商業化 / 資料庫 / 後端 API」誤入近期任務。
+- **README**：「完整考卷」「localStorage」「繼續作答」「重新測驗」「直接交卷」「第一版不計時」「紅色」皆命中；P2 動線描述（`/review/letter/[letter]`、`/review/word/[id]`、A~Z 字母入口）與專案定位描述（本機自用、不做登入）完整保留。
 
-| 路徑 | 狀態 |
-| --- | --- |
-| `/` | 200，標題「Cambridge Starters Practice」未變動 |
-| `/review` | 200，含「📚 單字複習」「🍎 食物」「🐶 動物」「🎨 顏色」「🔢 數字」「apple」「發音」 |
-| `/quiz` | 200，標題「測驗區 · Cambridge Starters Practice」未變動 |
-
-**關鍵驗證**：
-
-```
-$ grep -oE '<img[^>]*src="/images/[^"]*"[^>]*>' /tmp/csp-p2fix-review.html
-(no broken <img> in SSR HTML — fallback active)
-
-$ grep -c '圖片準備中' /tmp/csp-p2fix-review.html
-1
-
-$ grep -oE '>A<' /tmp/csp-p2fix-review.html | head -3
->A<
-```
-
-SSR HTML 已**不**含 `<img src="/images/...">`，已含「圖片準備中」一次（apple 卡片），已含首字母 `A`。修補確認生效。
-
-dev log 無 hydration warning、無 React error、無 audio 相關錯誤；切換 / 與 /quiz 也無連動破壞。
+依 runbook 第 4 節，純文件改動可略過 `npm run dev`。
 
 ## 【仍未處理】
 
-- 真實圖片與音檔素材（P2-2，本輪刻意不動）。
-- 「翻牌」式互動（P2-2）。
-- 補齊更多分類的範例單字（P2-2）。
-- P1 兩條可選 housekeeping（`.editorconfig`、GitHub repo / 遠端）。
+- P3 6 個子階段全部 ⬜，本輪不開工（任務單明示）。
+- P2-4（翻牌、真實素材、補齊單字、category 補充模式）。
+- P1 兩條可選 housekeeping。
 - `npm audit` 兩個 moderate 警告（任務單禁止處理）。
+- `docs/DATA_SCHEMA.md` 對 Question 型別與 Exam Session 型別的擴充（屬 P3-1 任務）。
 
 ## 【後續建議】
 
-1. **請 Codex 用「驗收 9 段」做一次 P2-1 收尾驗收**，重點：
-   - 開瀏覽器確認第一張 apple 卡片**不再看到 broken image icon**（之前 Codex 卡點）。
-   - 在 Network panel 確認 `/images/apple.png` 仍會被請求（`probe.src` 觸發），但**不影響畫面**。
-   - 確認音檔 fallback 仍依先前驗收結果正常運作（本輪未動該段邏輯）。
-2. **長期方向（等真實素材就位後）**：可改回 `next/image` 並把預載責任交還給 Next.js image optimization。本輪維持 `<img>` 是因為素材未齊；改回的時機建議是「至少有 5 個分類的真圖」。
-3. **P2-2 任務單建議優先序（請 ChatGPT 收斂）**：補齊各分類的範例單字 → 翻牌互動 → 真實圖片（建議先用自繪 256×256 PNG 或簡單 placeholder 服務）→ 真實音檔（建議用 TTS 自製，避開官方版權）。
-4. **可選優化**（**本輪未做**，仅列入建議）：若素材路徑已知必定缺檔，未來可在 `lib/data.ts` 加一個 `imageAvailable` 旗標統一管理，避免每次都讓 `probe` 跑一次 404 請求。但目前單字數量很少，無顯著效益，待 P2-2 補真實素材時再評估。
+1. **請 Codex 用「驗收 9 段」做純文件回歸**，重點：
+   - PRODUCT_SPEC「完整考卷 Session」是否與「目前明確不做」清單相容（特別是「不上雲、不登入、不接後端」三條硬邊界）。
+   - ROADMAP P3-6 的 20 條條目是否與 PRODUCT_SPEC 子小節一一對應（漏掉哪條應列入「建議的最小修補點」）。
+   - 「考卷可混合多題型」的 7 種題型是否與「題型清單（第一版範圍）」的 8 種題型對齊（其中「聽指令做動作」可能不會單獨成題、屬可選；建議 Codex 標出落差讓下一輪 Claude 補齊或註明）。
+2. **P3-1 開工前的最小準備（請 ChatGPT 收斂）**：
+   - 在 `docs/DATA_SCHEMA.md` 新增「Exam Paper」型別（題目組成模板）與「Exam Session」型別（localStorage schema）。
+   - Question 型別擴充 `source` / `difficulty` / `topic` / `audio` / `ttsScript` / `transcript` / `imagePrompt` 欄位（P3-1 既有規劃）+ 本輪新增題型 discriminator（看字選圖、選圖題、選字題等）。
+   - helper 拆 `lib/examNavigation.ts`（對齊 `lib/vocabularyNavigation.ts` 命名風格）處理「目前題 / 上一題 / 下一題 / 進度」純函式。
+3. **localStorage 實作時的注意事項（提早記下，免得實作時遺漏）**：
+   - localStorage key 命名建議統一前綴（例如 `csp:examSession:<examSessionId>`）避免污染本機其他應用。
+   - 同一個 `examPaperId` 可能有多個歷史 Session（重新測驗會新開）；列表頁需要能列出該 paper 的歷次紀錄並提供清理。
+   - 結構若日後變動，可在 Session 物件加 `schemaVersion` 欄位給未來遷移用。
+4. **「再練習錯題」的優先序建議**：本輪定位為「後續功能延伸」，建議 P3-6 第一版先**不做**，等基本 Session / 交卷 / 結果頁全部跑得起來再加。如果太早做會讓 P3-6 第一版開發時間翻倍。
+5. **本輪未碰但下一輪可能會碰的硬邊界**：「**重新測驗前需確認提示**」是 UI 層的小一友善設計；未來 Claude 實作時要記得寫進 `<AlertDialog>` 之類的元件，不能只用 `window.confirm`（後者文字無法繁中本地化得很好）。
 
 ## 【Roadmap 同步檢查】
 
-本輪屬「P2-1 收尾修補」，**不涉及 Roadmap 條目翻牌**。對照 `PROJECT_ROADMAP.md`：
+對照 `PROJECT_ROADMAP.md`，本輪實際變動：
 
-- P2-1 五條（`/review` 串接、分類切換、單字卡 UI、圖片 fallback、發音 fallback）目前狀態維持 ✅，本輪是讓「圖片 fallback」這條從「程式存在但首載未生效」收斂成「程式存在且首載即生效」，狀態本質不變。
-- P2 階段標題維持 🟡（仍有 P2-2 待做）。
-- P1 / P3 / P4 / P5 皆未動。
+- ✅ **P1**：未動。
+- 🟡 **P2**：仍 🟡 進行中，P2-1 / P2-2 / P2-3 ✅、P2-4 ⬜ 全部維持原狀。
+- ⬜ **P3**：仍「⬜ 規劃中」，6 個子階段全部 ⬜，未開工。
+  - **P3-6 改名 + 重寫**：標題從「模擬考與錯題複習」→「**完整考卷 Session、交卷與錯題複習**」；條目從 5 條重寫為 5 分區共 20 條，全部維持 ⬜。
+- ⬜ **P4 / P5**：仍「⬜ 已併入 P3-x」；P5 對 P3-6 的指向敘述同步對齊新名字。
+- ➕ **目前明確不做**：未動，本輪新增內容已在規格與條目中明示與此節對齊（不上雲、不登入、不接後端 / 雲端）。
+- 變更紀錄追加 2026-05-07 一筆。
 
-如 Codex 本次驗收結論為「驗收通過」，建議由 ChatGPT 在下一輪指派 Claude Code 開始 P2-2（補範例單字 → 翻牌互動）。
+**沒有任何條目從 ⬜ 翻為 ✅ 或 🟡**，符合任務單「不要把 P3 標成進行中」「不要把任何 P3 子項標成完成」「不要改動 P2-2 / P2-3 已完成狀態」「不要把 P2 整體標完成」要求。

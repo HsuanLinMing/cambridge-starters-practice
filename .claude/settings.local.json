@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm --version)"
+      "Bash(npm --version)",
+      "Bash(npm run *)",
+      "Bash(pkill -f \"next dev\")",
+      "Read(//private/tmp/**)",
+      "Bash(grep -oE '回 ?[A-Z][^<]{0,10}' /tmp/csp-p2-az-apple.html)",
+      "Bash(grep -oE '回[^<]{0,15}' /tmp/csp-p2-az-apple.html)",
+      "Bash(awk '/^## 測驗與考前練習方向/,/^## 第一版 MVP 範圍/' /Users/linxuanming/Documents/cambridge-starters-practice/docs/PRODUCT_SPEC.md)",
+      "Bash(awk *)"
     ]
   }
 }

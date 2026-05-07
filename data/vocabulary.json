@@ -11,6 +11,17 @@
     "audio": "/audio/apple.mp3"
   },
   {
+    "id": "ant",
+    "word": "ant",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "螞蟻",
+    "exampleEn": "An ant is small.",
+    "exampleZh": "螞蟻很小。",
+    "image": "/images/ant.png",
+    "audio": "/audio/ant.mp3"
+  },
+  {
     "id": "banana",
     "word": "banana",
     "pos": "noun",
@@ -20,39 +31,6 @@
     "exampleZh": "香蕉是黃色的。",
     "image": "/images/banana.png",
     "audio": "/audio/banana.mp3"
-  },
-  {
-    "id": "cat",
-    "word": "cat",
-    "pos": "noun",
-    "category": "animals",
-    "translation": "貓",
-    "exampleEn": "The cat is on the mat.",
-    "exampleZh": "貓在地墊上。",
-    "image": "/images/cat.png",
-    "audio": "/audio/cat.mp3"
-  },
-  {
-    "id": "dog",
-    "word": "dog",
-    "pos": "noun",
-    "category": "animals",
-    "translation": "狗",
-    "exampleEn": "My dog is happy.",
-    "exampleZh": "我的狗很開心。",
-    "image": "/images/dog.png",
-    "audio": "/audio/dog.mp3"
-  },
-  {
-    "id": "red",
-    "word": "red",
-    "pos": "adjective",
-    "category": "colors",
-    "translation": "紅色的",
-    "exampleEn": "The ball is red.",
-    "exampleZh": "球是紅色的。",
-    "image": "/images/red.png",
-    "audio": "/audio/red.mp3"
   },
   {
     "id": "blue",
@@ -66,6 +44,61 @@
     "audio": "/audio/blue.mp3"
   },
   {
+    "id": "book",
+    "word": "book",
+    "pos": "noun",
+    "category": "school",
+    "translation": "書",
+    "exampleEn": "I read a book.",
+    "exampleZh": "我讀一本書。",
+    "image": "/images/book.png",
+    "audio": "/audio/book.mp3"
+  },
+  {
+    "id": "boy",
+    "word": "boy",
+    "pos": "noun",
+    "category": "family",
+    "translation": "男孩",
+    "exampleEn": "The boy is happy.",
+    "exampleZh": "男孩很開心。",
+    "image": "/images/boy.png",
+    "audio": "/audio/boy.mp3"
+  },
+  {
+    "id": "cat",
+    "word": "cat",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "貓",
+    "exampleEn": "The cat is on the mat.",
+    "exampleZh": "貓在地墊上。",
+    "image": "/images/cat.png",
+    "audio": "/audio/cat.mp3"
+  },
+  {
+    "id": "cow",
+    "word": "cow",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "牛",
+    "exampleEn": "The cow is big.",
+    "exampleZh": "牛很大。",
+    "image": "/images/cow.png",
+    "audio": "/audio/cow.mp3"
+  },
+  {
+    "id": "dog",
+    "word": "dog",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "狗",
+    "exampleEn": "My dog is happy.",
+    "exampleZh": "我的狗很開心。",
+    "image": "/images/dog.png",
+    "audio": "/audio/dog.mp3"
+  },
+  {
     "id": "one",
     "word": "one",
     "pos": "number",
@@ -75,6 +108,17 @@
     "exampleZh": "我有一支筆。",
     "image": "/images/one.png",
     "audio": "/audio/one.mp3"
+  },
+  {
+    "id": "red",
+    "word": "red",
+    "pos": "adjective",
+    "category": "colors",
+    "translation": "紅色的",
+    "exampleEn": "The ball is red.",
+    "exampleZh": "球是紅色的。",
+    "image": "/images/red.png",
+    "audio": "/audio/red.mp3"
   },
   {
     "id": "two",
