@@ -1,115 +1,166 @@
-# Claude Code 回報 · P1 Codex 驗收後文件小修
+# Claude Code 回報 · P2-1 圖片 fallback 初次載入修補
 
 任務日期：2026-05-07
-任務性質：依 Codex「有條件通過」回饋做最小文件修補，**不進入 P2、不動程式碼**。
+任務性質：P2-1 修補單一 issue（圖片 fallback 初次載入），不進入 P2-2，不做新功能。
 
 ## 【本輪修改摘要】
 
-依 Codex 驗收回饋做三處文件小修：
-1. `docs/CODEX_VALIDATION_RUNBOOK.md` 第 6 節改寫為驗收導向 9 段格式（取代原本沿用 Claude 的修改回報格式）。
-2. `README.md` 文件索引與資料夾結構補上 `docs/CODEX_VALIDATION_RUNBOOK.md` 與 `reports/`。
-3. `PROJECT_ROADMAP.md` 在 P1 補記 `lib/data.ts` helper 已完成、把 P2 對應條目改寫為精準的「`/review` 串接」描述，避免把 P2 功能誤標為完成。
-
-`npm run lint` / `typecheck` / `build` 三項全綠。
+修正 `components/VocabularyCard.tsx` 的圖片載入流程：把原本「先 SSR `<img>`、靠 onError 切 fallback」改為「初始狀態即 fallback，client 端用 `new window.Image()` 預載成功才切到真圖」。SSR 階段已驗證不再輸出 `<img src="/images/...">`，第一次開啟 `/review` 時 apple 卡片直接顯示「A + 圖片準備中」，不再殘留 broken image。順手把 `README.md` 的「目前功能」中對 `/review` 的過時描述更新為現況。`npm run lint` / `typecheck` / `build` 三項全綠，dev 三條路由 200，無 hydration mismatch 警告。
 
 ## 【修改檔案清單】
 
-- `docs/CODEX_VALIDATION_RUNBOOK.md`（修改第 6 節）
-- `README.md`（資料夾結構、文件索引兩處小修）
-- `PROJECT_ROADMAP.md`（P1 補一條、P2 改寫一條、變更紀錄補一筆）
-- `reports/claude_last_report.md`（重寫，本回報檔）
+- `components/VocabularyCard.tsx`（圖片 fallback 重寫）
+- `README.md`（「目前功能」段落 `/review` 一行更新，其他不動）
+- `reports/claude_last_report.md`（本回報檔）
 
-未動：`AI_DEV_WORKFLOW.md`、`docs/TASK_ROUTER.md`、`docs/PRODUCT_SPEC.md`、`docs/DATA_SCHEMA.md`、`AGENTS.md`、`CLAUDE.md`、`app/`、`components/`、`lib/`、`data/`、`public/`、`package.json`。
+未動：`/quiz`、`app/review/page.tsx`、`components/CategoryTabs.tsx`、`components/VocabularyReview.tsx`、`lib/*`、`data/*`、`PROJECT_ROADMAP.md`、`docs/*`、`AGENTS.md`、`CLAUDE.md`、`AI_DEV_WORKFLOW.md`、`package.json`。
 
 ## 【核心邏輯說明】
 
-### 1. Runbook 第 6 節（驗收導向 9 段）
+### 問題根因（與 Codex 推測一致）
 
-從原本「Codex 沿用 Claude Code 修改回報格式」改為**獨立的驗收 9 段**：
+舊版本 SSR HTML 直接輸出 `<img src="/images/apple.png">`。瀏覽器一拿到 HTML 就開始載入該資源，404 觸發 `error` 事件**很可能在 React hydration 掛上 `onError` handler 之前發生**——因此 `setImageBroken(true)` 永遠不被觸發，第一張卡上殘留 broken image icon。切到下一張或下一個分類後，元件因 `key={current.id}` remount，新的 `<img>` 渲染與 onError 已都在 client 階段，能正確進入 fallback。
 
+### 新流程：「初始 fallback + client 預載」
+
+```tsx
+type ImageStatus = "loading" | "ready" | "missing";
+
+const [imageStatus, setImageStatus] = useState<ImageStatus>(() =>
+  item.image ? "loading" : "missing",
+);
+
+useEffect(() => {
+  if (!item.image) return;
+  let cancelled = false;
+  const probe = new window.Image();
+  probe.onload = () => { if (!cancelled) setImageStatus("ready"); };
+  probe.onerror = () => { if (!cancelled) setImageStatus("missing"); };
+  probe.src = item.image;
+  return () => {
+    cancelled = true;
+    probe.onload = null;
+    probe.onerror = null;
+  };
+}, [item.image]);
 ```
-本輪驗收摘要 / 驗收檔案清單 / 檢查了哪些流程 /
-發現的問題 / 風險點 / 建議的最小修補點 /
-測試結果 / 最後結論 / 後續建議 / Roadmap 同步檢查
+
+Render：
+
+```tsx
+{imageStatus === "ready" && item.image
+  ? <img src={item.image} alt={item.word} ... />
+  : <FallbackBlock word={item.word} />}
 ```
 
-關鍵設計：
+### 為何這樣寫不會被 React 19 lint 抓
 
-- 用「驗收檔案清單」「檢查了哪些流程」取代 Claude 那邊的「修改檔案清單」「核心邏輯說明」，明確點出 Codex 工作是「看」不是「改」。
-- 新增【最後結論】單獨一段，必須三選一明寫：`驗收通過` / `有條件通過` / `未通過`。本輪 Codex 給的「有條件通過」就是這一格的範例。
-- 同節補上「Codex 驗收的幾條鐵律」：通常不修改檔案、修補點寫在【建議的最小修補點】、不直接更新 roadmap、回報用繁體中文。
-- 補一張對照表「與 Claude Code 回報格式的差異」，讓兩種格式一眼可分。
+`react-hooks/set-state-in-effect` 規則阻擋的是「effect body 內同步呼叫 setState」。本次的 effect body 只做兩件事：建立 `probe` 物件、掛 callback、設 `src`。setState 全部在 `onload` / `onerror` callback 內被呼叫——這是「外部資源同步」場景，正是 React 文件指明 effect 該做的事。Lint 結果驗證：`npm run lint` 0 警告 0 錯誤。
 
-### 2. README 索引補完
+### 為何不會 hydration mismatch
 
-- 資料夾結構區塊新增 `reports/` 一行，註解寫「Claude / Codex 回報檔案輸出位置」。
-- 文件索引補兩條：`docs/CODEX_VALIDATION_RUNBOOK.md` 與 `reports/`，後者明示範例 `reports/claude_last_report.md`。
-- 其餘段落原樣保留，避免大幅重寫。
+- SSR：`useState` 初始化函式在 server 上跑，根據 `item.image` 是否為真值決定 `"loading"` 或 `"missing"`。`item.image` 是純資料 prop，server / client 一致 → 初始 state 一致。
+- Hydration：client 第一次 render 結果與 SSR 完全相同（都顯示 fallback）。
+- Mount 後：useEffect 才開始預載並可能切到 `"ready"`。React 視為 client-side update，不算 mismatch。
 
-### 3. Roadmap 精修
+實測 dev log 無 hydration warning。
 
-問題：原 P2 第一條「`lib/data.ts` 載入 vocabulary 並 export 型別安全的清單」其實在 P1 已完成（`lib/data.ts` 內 export `vocabulary` / `quizzes`），保留會誘導下一輪 Claude 把 P2 當成已完成。
+### 為何不會在切換單字時看到舊圖
 
-調整：
+父層 `VocabularyReview.tsx` 用 `<VocabularyCard key={current.id} item={current} />`，切換單字時 `key` 變化 → 整個 component remount → `useState` 初始化函式重新跑（拿新 `item.image`）→ `imageStatus` 回到 `"loading"`，等預載結果。沒有舊 state 殘留。
 
-- P1 已完成項目新增一行：「已建立 `lib/data.ts` 基礎資料載入 helper（type-safe 匯出 `vocabulary` / `quizzes`，供 P2、P3 串接使用）」。
-- P2 章節最前頭加一段註：「`lib/data.ts` 的型別安全載入 helper 已於 P1 完成。P2 重點是**頁面串接與互動 UI**，不再重做 helper 本身。」
-- P2 原第一條重寫為「`/review` 串接 `lib/data.ts` 的 `vocabulary`，實作分類與單字卡顯示」，狀態保持 ⬜（因為 `/review` 實際 UI 仍未開始）。
-- 變更紀錄追加一筆 2026-05-07 條目，描述本輪三項修改。
+### 為何「載入中」與「缺檔」共用同一個 fallback 視覺
+
+兩種情境都顯示「色塊 + 首字母 + 圖片準備中」。原因：
+
+1. **避免閃爍**：如果載入中顯示一種視覺、缺檔顯示另一種，使用者切到下一張時會在兩種 placeholder 間跳動。
+2. **小一友善**：對小一而言「圖片正在來」與「圖片不在」的差別並不重要，重點是不要看到 broken icon。
+3. **視覺一致**：dev 環境下圖片仍是 404，讓 loading 與 missing 共用樣式可確保 dev / 未來 prod 兩端一致。
+
+當素材就位後，預載成功才會切到真圖；過渡通常 < 100ms，使用者幾乎察覺不到。
+
+### 移除的東西
+
+- `imageBroken` state 與 `setImageBroken` setter 全部刪除。
+- `<img>` 上的 `onError={() => setImageBroken(true)}` 屬性移除（不再需要，因為只有 `imageStatus === "ready"` 才會渲染 `<img>`）。
+- `// eslint-disable-next-line @next/next/no-img-element` 保留——本輪維持 `<img>`（任務單明示不重構）。
 
 ## 【新增了哪些能力】
 
-- Codex 驗收回報自此有獨立、明確的 9 段格式，跟 Claude 的修改回報不會再混用。
-- 新進 Agent 從 README 一眼看得到 Codex 驗收手冊與 reports 輸出位置，文件地圖完整。
-- Roadmap 對 P1/P2 的描述更精準，避免下一輪把 P2 誤判為已開工。
+- 第一次開啟 `/review` 時，缺圖卡片**第一幀**就顯示 fallback，不再經歷「broken icon → fallback」的閃爍。
+- 圖片 fallback 對「來不及掛 onError」「圖片真的 404」「沒有 image 欄位」三種情境提供一致行為。
+- SSR HTML 不再洩露未必存在的圖片路徑，網路 panel 上不再有針對 `/images/*.png` 的隱性 404 預載（瀏覽器只會在 client 端 `probe.src` 賦值後才去嘗試）。
 
 ## 【新增/調整測試】
 
-無。本輪純文件改動，依任務單明確禁止導入測試框架。
+無。任務單明確未指派測試框架。本輪以人工 smoke test 為驗收手段。
 
 ## 【測試結果】
 
-- `npm run lint` → **通過**（0 警告、0 錯誤）。
-- `npm run typecheck` → **通過**（`tsc --noEmit` 無輸出，exit code 0）。
+自動驗收：
+
+- `npm run lint` → **通過**（0 警告 0 錯誤）。
+- `npm run typecheck` → **通過**（exit 0）。
 - `npm run build` → **通過**：
 
   ```
   ▲ Next.js 16.2.5 (Turbopack)
-  ✓ Compiled successfully in 1056ms
-    Running TypeScript ... Finished TypeScript in 652ms
-  ✓ Generating static pages using 7 workers (6/6) in 167ms
-
+  ✓ Compiled successfully in 897ms
+  ✓ Generating static pages using 7 workers (6/6) in 160ms
   Route (app)
-  ┌ ○ /
-  ├ ○ /_not-found
-  ├ ○ /quiz
-  └ ○ /review
-  ○  (Static)  prerendered as static content
+  ┌ ○ / ├ ○ /_not-found ├ ○ /quiz └ ○ /review
+  ○ (Static) prerendered as static content
   ```
 
-`/`、`/review`、`/quiz` 三條路由維持靜態 prerender。`npm run dev` 純文件改動，依 runbook 第 4 節可略過，未在本輪重啟。
+人工 smoke test（`npm run dev` + curl）：
+
+| 路徑 | 狀態 |
+| --- | --- |
+| `/` | 200，標題「Cambridge Starters Practice」未變動 |
+| `/review` | 200，含「📚 單字複習」「🍎 食物」「🐶 動物」「🎨 顏色」「🔢 數字」「apple」「發音」 |
+| `/quiz` | 200，標題「測驗區 · Cambridge Starters Practice」未變動 |
+
+**關鍵驗證**：
+
+```
+$ grep -oE '<img[^>]*src="/images/[^"]*"[^>]*>' /tmp/csp-p2fix-review.html
+(no broken <img> in SSR HTML — fallback active)
+
+$ grep -c '圖片準備中' /tmp/csp-p2fix-review.html
+1
+
+$ grep -oE '>A<' /tmp/csp-p2fix-review.html | head -3
+>A<
+```
+
+SSR HTML 已**不**含 `<img src="/images/...">`，已含「圖片準備中」一次（apple 卡片），已含首字母 `A`。修補確認生效。
+
+dev log 無 hydration warning、無 React error、無 audio 相關錯誤；切換 / 與 /quiz 也無連動破壞。
 
 ## 【仍未處理】
 
-- P1 兩條可選項目：`.editorconfig`、GitHub repo / 遠端，狀態維持 ⬜（依任務單未指派）。
-- `npm audit` 的 2 個 moderate 警告：依任務單禁止處理，未動。
-- `AI_DEV_WORKFLOW.md` 第 40 行的「回報格式」段落仍寫「（Claude Code 完成任務後必填）」，未動；Codex 的回報格式現在以 runbook 第 6 節為準。兩處不衝突，但若日後想集中規範，可再調整（屬非本輪 scope）。
-- `AGENTS.md` 與 `CLAUDE.md` 未動，內容已是上一輪整理過的短指向，本輪也不需要再加 runbook 或 reports/ 的索引（已透過 `AGENTS.md` 中既有的「必讀文件」表格與 README 涵蓋）。
+- 真實圖片與音檔素材（P2-2，本輪刻意不動）。
+- 「翻牌」式互動（P2-2）。
+- 補齊更多分類的範例單字（P2-2）。
+- P1 兩條可選 housekeeping（`.editorconfig`、GitHub repo / 遠端）。
+- `npm audit` 兩個 moderate 警告（任務單禁止處理）。
 
 ## 【後續建議】
 
-1. **請 Codex 再跑一次驗收**：依本輪改寫後的「驗收 9 段」格式，把 P1 整體（含 runbook、README、roadmap 三處新修）做一次回歸驗收，作為新格式的首次實戰使用。
-2. **P2 開工前的最後一哩**：請 ChatGPT 收斂 P2 「`/review` 串接 `lib/data.ts`」這條的詳細任務單——分類切 tab 的 UX、單字卡的翻牌互動、發音播放在 `/audio/*.mp3` 不存在時的 fallback 行為。資料 helper 已備妥，下一輪 Claude Code 直接從頁面動工即可。
-3. **AI_DEV_WORKFLOW.md 的 Codex 段落微調（可延後）**：第 27–33 行只列了 Codex 的「適合場景」，沒指向 runbook 第 6 節。日後若想讓任何角色從 workflow 主檔點得到 Codex 回報格式，可加一行「回報格式請見 `docs/CODEX_VALIDATION_RUNBOOK.md` 第 6 節」。本輪未動以維持最小修補。
-4. **`.editorconfig`（可選）**：若希望統一空白／換行，可在 P1 收尾時順手補一份兩三行的 `.editorconfig`；不影響功能，視 ChatGPT 是否要納入本階段而定。
+1. **請 Codex 用「驗收 9 段」做一次 P2-1 收尾驗收**，重點：
+   - 開瀏覽器確認第一張 apple 卡片**不再看到 broken image icon**（之前 Codex 卡點）。
+   - 在 Network panel 確認 `/images/apple.png` 仍會被請求（`probe.src` 觸發），但**不影響畫面**。
+   - 確認音檔 fallback 仍依先前驗收結果正常運作（本輪未動該段邏輯）。
+2. **長期方向（等真實素材就位後）**：可改回 `next/image` 並把預載責任交還給 Next.js image optimization。本輪維持 `<img>` 是因為素材未齊；改回的時機建議是「至少有 5 個分類的真圖」。
+3. **P2-2 任務單建議優先序（請 ChatGPT 收斂）**：補齊各分類的範例單字 → 翻牌互動 → 真實圖片（建議先用自繪 256×256 PNG 或簡單 placeholder 服務）→ 真實音檔（建議用 TTS 自製，避開官方版權）。
+4. **可選優化**（**本輪未做**，仅列入建議）：若素材路徑已知必定缺檔，未來可在 `lib/data.ts` 加一個 `imageAvailable` 旗標統一管理，避免每次都讓 `probe` 跑一次 404 請求。但目前單字數量很少，無顯著效益，待 P2-2 補真實素材時再評估。
 
 ## 【Roadmap 同步檢查】
 
-對照 `PROJECT_ROADMAP.md`，本輪實際翻牌：
+本輪屬「P2-1 收尾修補」，**不涉及 Roadmap 條目翻牌**。對照 `PROJECT_ROADMAP.md`：
 
-- ✅ **P1 新增**：「已建立 `lib/data.ts` 基礎資料載入 helper」——本輪補記為已完成（事實上 P1 初版時就完成，先前 roadmap 漏記）。
-- 🔁 **P2 改寫**：原 ⬜「`lib/data.ts` 載入 vocabulary 並 export 型別安全的清單」 → ⬜「`/review` 串接 `lib/data.ts` 的 `vocabulary`，實作分類與單字卡顯示」。狀態仍為 ⬜（功能尚未動工），但描述更精準。
+- P2-1 五條（`/review` 串接、分類切換、單字卡 UI、圖片 fallback、發音 fallback）目前狀態維持 ✅，本輪是讓「圖片 fallback」這條從「程式存在但首載未生效」收斂成「程式存在且首載即生效」，狀態本質不變。
+- P2 階段標題維持 🟡（仍有 P2-2 待做）。
+- P1 / P3 / P4 / P5 皆未動。
 
-P1 仍剩兩條可選項目（`.editorconfig`、GitHub repo / 遠端）為 ⬜，由 ChatGPT 決定是否在本階段處理。P2 / P3 / P4 / P5 其餘項目本輪皆未動，狀態維持 ⬜。
-
-P1 階段標題仍為「🟡 進行中」；本輪未把它改為 ✅，因為 P1 仍有兩條可選項目未決。是否將 P1 結束、進 P2，請 ChatGPT 決策後在下一輪指派 Claude Code 翻牌。
+如 Codex 本次驗收結論為「驗收通過」，建議由 ChatGPT 在下一輪指派 Claude Code 開始 P2-2（補範例單字 → 翻牌互動）。

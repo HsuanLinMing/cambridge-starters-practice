@@ -4,7 +4,7 @@
 
 ---
 
-## P1 基礎架構（🟡 進行中）
+## P1 基礎架構（✅ 已完成）
 
 - ✅ Next.js + TypeScript + Tailwind 初始化
 - ✅ 資料夾結構：`app/`、`components/`、`data/`、`lib/`、`public/{images,audio}`、`docs/`
@@ -16,19 +16,30 @@
 - ✅ AI workflow 文件規範補齊（語言規則、Codex 驗收前置閱讀）
 - ✅ Codex 驗收手冊建立（`docs/CODEX_VALIDATION_RUNBOOK.md`）
 - ✅ AGENTS.md / CLAUDE.md 規則指向整理
-- ⬜ 加入 `.editorconfig`（可選）
-- ⬜ 加入簡單的 GitHub repo / 遠端（可選）
 
-## P2 單字複習（⬜ 未開始）
+### 可選 housekeeping（不阻擋 P2）
+
+- ⬜ 加入 `.editorconfig`
+- ⬜ 加入簡單的 GitHub repo / 遠端
+
+## P2 單字複習（🟡 進行中）
 
 > 註：`lib/data.ts` 的型別安全載入 helper 已於 P1 完成。P2 重點是**頁面串接與互動 UI**，不再重做 helper 本身。
+> UI / UX 一律遵守 `docs/PRODUCT_SPEC.md` 的「國小低年級使用者設計原則」。
 
-- ⬜ `/review` 串接 `lib/data.ts` 的 `vocabulary`，實作分類與單字卡顯示
-- ⬜ 複習區：以分類（colors / animals / food …）切 tab
-- ⬜ 單字卡 UI：圖片 + 英文 + 中文 + 例句
-- ⬜ 發音播放（HTMLAudioElement，靜態 mp3）
+### P2-1 單字複習頁第一版（本輪）
+
+- ✅ `/review` 串接 `lib/data.ts` 的 `vocabulary`
+- ✅ 分類切換（CategoryTabs，依資料動態列出）
+- ✅ 單字卡 UI：圖片區 + 英文 + 中文 + 例句 + 發音按鈕
+- ✅ 圖片 fallback：缺圖時改為首字母色塊，不破壞畫面
+- ✅ 發音播放 fallback：缺音檔或播放失敗時顯示「音檔準備中」提示
+
+### P2-2 後續強化（尚未開始）
+
 - ⬜ 「翻牌」式互動：先看圖猜，再翻看答案
 - ⬜ 真實圖片與發音檔（先 placeholder，再分批補上）
+- ⬜ 補齊更多分類（family / body / school / home / weather / actions）的範例單字
 
 ## P3 基礎測驗（⬜ 未開始）
 
@@ -58,3 +69,4 @@
 - 2026-05-07：初版建立。
 - 2026-05-07：P1 收尾——`lint` / `typecheck` / `build` 全綠；補齊 AI workflow 語言規範與 Codex 驗收前置閱讀；新增 `docs/CODEX_VALIDATION_RUNBOOK.md`；整理 `AGENTS.md` / `CLAUDE.md` 為短指向。
 - 2026-05-07：Codex 驗收後文件小修——將 runbook 第 6 節改為驗收導向 9 段格式；README 文件索引補上 runbook 與 `reports/`；P1 補記 `lib/data.ts` helper 已完成、P2 對應條目改寫為「`/review` 串接」精準描述，避免把 P2 功能誤標為完成。
+- 2026-05-07：P1 收尾收斂為「✅ 已完成」、housekeeping 改為可選分區；P2 進入「🟡 進行中」，完成 P2-1 單字複習頁第一版（分類切換、單字卡、圖片與音檔 fallback）；`docs/PRODUCT_SPEC.md` 補入「國小低年級使用者設計原則」。
