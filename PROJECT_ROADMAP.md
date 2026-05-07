@@ -68,15 +68,29 @@
 - ✅ 底部輔助提示「想做完整考卷？請到測驗區。」連到 `/quiz`（**視覺層級低於主入口卡**，避免讓人誤把考卷功能當成複習中心主功能；`/quiz` 仍維持骨架，本輪未動）
 - ✅ 平板同 Wi-Fi 使用策略補入 `README.md` 與 `docs/PRODUCT_SPEC.md`
 
-### P2-4C 真實素材與複習類型實作（尚未開始）
+### P2-4C 真實素材與複習類型實作（🟡 進行中）
 
 > 註：本子階段把舊版 P2-4B 的「真實素材」收尾任務，與 P2-4B 新增的「準備中」入口未來實作合併在同一階段。
 > 各個複習類型（看圖、聽力、句型、位置 / 顏色 / 數量）的具體實作細節，待 ChatGPT 收斂為獨立任務單後再交給 Claude Code 動工。
 
+#### P2-4C-1 看圖練習第一版（已完成）
+
+- ✅ 新增 `/review/picture` 看圖練習頁（server page + `<PicturePractice>` client 元件）
+- ✅ 題型「看圖選英文」4 選 1
+- ✅ Deterministic 選項生成（避免 hydration mismatch）：正確答案 + 後 3 個 vocabulary 循環取，正確答案位置 = `index % 4`
+- ✅ 點選後即時答對 / 答錯回饋，鼓勵語氣，答錯顯示正確答案
+- ✅ 「下一題」按鈕切換，全部題庫循環，無 crash
+- ✅ 圖片缺檔 fallback（與 `VocabularyCard` 同風格：首字母 + 「圖片準備中」、client 預載成功才切真圖）
+- ✅ 進度指示「第 X 題 / 共 N 題」
+- ✅ `/review` 看圖練習卡片從 coming-soon 改為 ready，連 `/review/picture`
+- ✅ 不做分數保存、不做交卷、不做 localStorage（屬 `/quiz` 測驗區範圍）
+
+#### P2-4C-2 後續複習類型與素材（尚未開始）
+
 - ⬜ 真實圖片（自繪或 placeholder 256×256 PNG，分批補上）
 - ⬜ 真實音檔（建議用 TTS 自製，避免官方版權）
 - ⬜ 補齊更多單字（往未覆蓋字母 I / K / L / N / Q / U / V / X / Z 推進）
-- ⬜ 看圖練習實作（看圖選英文、看英文選圖）
+- ⬜ 看圖練習擴充：第二題型「看英文選圖」（Reading & Writing 真實考試常見變體）
 - ⬜ 聽力練習實作（聽單字 / 聽句子、選圖片）
 - ⬜ 句型練習實作（`This is...` / `I can see...` / `There is...`）
 - ⬜ 位置 / 顏色 / 數量練習實作（介系詞、顏色 + 名詞、數字 + 名詞）
@@ -222,3 +236,4 @@
 - 2026-05-07：完成 P2-4A——`data/vocabulary.json` 從 12 筆擴充至 54 筆（覆蓋 17 字母 / 11 分類，依字典序排列）；`components/VocabularyCard.tsx` 新增 `revealMode` prop（預設 false 保留 P2-1 行為），詳情頁啟用後初始隱藏 translation / exampleEn / exampleZh，由「🔍 看答案」/「🙈 再想一次」雙態切換；切換上一個 / 下一個時靠 `key={current.id}` remount 自動回到收起狀態；`app/review/word/[id]/page.tsx` 對 `<VocabularyCard>` 傳入 `revealMode`。P2-4 章節拆為 P2-4A（已完成）與 P2-4B（真實素材、補齊更多單字、category 補充模式，尚未開始），P2 整體仍 🟡 進行中。
 - 2026-05-07：完成 P2-4B——`/review` 從 A~Z 字母網格改為**複習中心首頁**，含 6 個入口卡（單字複習、看圖練習、聽力練習、句型練習、位置 / 顏色 / 數量、考題練習）；新增 `components/ReviewHubCard.tsx` 支援 ready / coming-soon 兩態（後者卡片淡化、不可點、顯示「準備中」徽章）；A~Z 字母網格搬到 `/review/words`，`/review/letter/[letter]` 返回 link 從「回字母選擇」改為「回單字複習」（指向 `/review/words`）；單字複習與考題練習為 ready，其餘四個入口為 coming-soon。文件同步：`README.md` 新增「在平板上使用（同 Wi-Fi 區網）」章節說明 Mac dev server + 平板區網 IP + iPad Safari 加入主畫面 + Vercel 僅作未來可選方案，並修正「下一步」（翻牌互動已於 P2-4A 完成、複習中心首頁已於 P2-4B 完成，故移出待辦）；`docs/PRODUCT_SPEC.md` 在「產品定位」補「第一階段使用方式：Mac 本機 + 平板同 Wi-Fi」、把「主要功能（願景）」的複習區改寫為複習中心 6 入口、「單字複習主流程」進入點改為 `/review/words`。原 P2-4B「真實素材」內容遷移到新 P2-4C 並合併本輪「準備中」入口的未來實作。本輪未動 `/quiz`、未引入登入 / 後端 / 資料庫 / 雲端同步、未真的部署 Vercel。P2 仍 🟡 進行中（P2-4C 尚未開工），P3 仍 ⬜ 規劃中。
 - 2026-05-07：P2-4B 小修——`/review` 複習中心**移除「考題練習」主入口卡**（原 6 卡 → 5 卡），改為頁面底部小型輔助提示「想做完整考卷？請到測驗區」連到 `/quiz`，視覺層級低於 5 張主卡；明確 `/review`（分項能力練習）與 `/quiz`（完整考卷、歷屆 / sample 題、AI 仿真題、交卷評分）的分工。`docs/PRODUCT_SPEC.md` 主要功能段改寫為「`/review` 5 入口 + 底部輔助提示」並修正「單字複習主流程」第 2 步空字母頁返回路徑為 `/review/words`（修 Codex 指出的文件同步問題）；`PROJECT_ROADMAP.md` P2-4B 條目從 6 主入口改為 5 主入口 + 1 底部提示，P2-2 條目補一句「後續已於 P2-4B 將 A~Z 字母入口搬到 `/review/words`」註記。本輪未動其他路由、未動 `/quiz`、未進入 P2-4C 或 P3。
+- 2026-05-07：完成 P2-4C-1——新增 `/review/picture` 看圖練習頁第一版（題型：看圖選英文 4 選 1）。新增 `components/PicturePractice.tsx`（client 元件）含 `PicturePractice` parent（管 `index`）+ 私有 `PictureQuestion`（用 `key={index}` remount 隔離 `selectedSlot` / `imageStatus`，避開 React 19 `react-hooks/set-state-in-effect`）。Deterministic 選項生成：正確答案 + 後 3 個 vocabulary 循環取、正確答案位置 = `index % 4`，避免 hydration mismatch；圖片預載沿用 P2-1 修補後機制（client `new window.Image()` 預載成功才切真圖）；缺圖 fallback 顯示首字母 + 「圖片準備中」與 `VocabularyCard` 一致；答對 / 答錯即時回饋（鼓勵語氣，答錯顯示正確答案）；「下一題」按鈕在未答題時 disabled，全部題庫循環無 crash。`/review` 看圖練習卡從 coming-soon 改為 ready 連 `/review/picture`。文件同步：P2-4C 拆出 P2-4C-1（已完成）+ P2-4C-2（未開始，含真實素材、聽力、句型、位置 / 顏色 / 數量、看圖第二題型）；`README.md` 目前功能補 `/review/picture` 條目；`docs/PRODUCT_SPEC.md` 主要功能（願景）的看圖練習從「規劃中」改為「第一版已實作（4 選 1 看圖選英文）」。本輪未動 `/quiz`、未引入登入 / 後端 / 雲端、未新增 localStorage / 分數保存 / 真實素材 / 依賴 / 測試框架。P2 仍 🟡 進行中（P2-4C 仍進行中），P3 仍 ⬜ 規劃中。

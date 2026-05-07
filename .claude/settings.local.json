@@ -97,7 +97,31 @@
       "Bash(/usr/bin/curl -sS -o /tmp/csp-app.html http://localhost:3000/review/word/apple)",
       "Bash(/usr/bin/grep -oE '<p[^>]*>蘋果</p>' /tmp/csp-app.html)",
       "Bash(/usr/bin/grep -oE 'aria-label=\"顯示中文意思與例句\"' /tmp/csp-app.html)",
-      "Bash(/usr/bin/grep -oE 'href=\"/review/word/[a-z]+\"' /tmp/csp-app.html)"
+      "Bash(/usr/bin/grep -oE 'href=\"/review/word/[a-z]+\"' /tmp/csp-app.html)",
+      "Bash(/usr/bin/curl -sS -o /dev/null -w \"/review/picture -> %{http_code}\\\\n\" http://localhost:3000/review/picture)",
+      "Bash(/usr/bin/grep -oE 'href=\"/review/picture\"' /tmp/csp-rev.html)",
+      "Bash(/usr/bin/grep -oE '聽力練習|句型練習|位置 / 顏色 / 數量' /tmp/csp-rev.html)",
+      "Bash(/usr/bin/curl -sS -o /tmp/csp-pic.html http://localhost:3000/review/picture)",
+      "Bash(/usr/bin/grep -o '<title>[^<]*</title>' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '🖼️ 看圖練習' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '看看圖片，選出正確的英文單字' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '第 1 題 / 共' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE 'aria-label=\"選項：[a-z]+\"' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '🎉 答對了' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '差一點點' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE '<img[^>]*src=\"/images/[^\"]*\"' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE '<span[^>]*>圖片準備中</span>' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE '<span[^>]*>A</span>' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c 'aria-label=\"顯示中文意思與例句\"' /tmp/csp-app.html)",
+      "Bash(/usr/bin/grep -oE '第 ?[0-9]+ ?題[^<]{0,15}' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/head -3)",
+      "Bash(/usr/bin/grep -oE '<div[^>]*text-center text-sm font-semibold[^>]*>[^<]*' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -cE '看圖練習第一版.*已.*完成|P2-4C-1' /Users/linxuanming/Documents/cambridge-starters-practice/README.md)",
+      "Bash(/usr/bin/grep -c '看英文選圖' /Users/linxuanming/Documents/cambridge-starters-practice/README.md)",
+      "Bash(/usr/bin/grep -c 'P2-4C-2' /Users/linxuanming/Documents/cambridge-starters-practice/README.md)",
+      "Bash(/usr/bin/grep -c 'TTS 音檔' /Users/linxuanming/Documents/cambridge-starters-practice/README.md)",
+      "Bash(/usr/bin/grep -c '準備中')",
+      "Bash(/usr/bin/grep -c \"把「準備中」的看圖\" /Users/linxuanming/Documents/cambridge-starters-practice/README.md)"
     ]
   }
 }

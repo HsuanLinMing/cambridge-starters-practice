@@ -27,7 +27,7 @@ export default function ReviewHubPage() {
           description="A~Z 單字、圖片、發音、看答案"
         />
         <ReviewHubCard
-          status="coming-soon"
+          href="/review/picture"
           emoji="🖼️"
           title="看圖練習"
           description="看圖選英文、看英文選圖"
