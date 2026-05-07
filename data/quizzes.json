@@ -1,0 +1,37 @@
+[
+  {
+    "id": "starter-quiz-001",
+    "title": "Starters · 入門小測驗",
+    "description": "8 題快速暖身：顏色、動物、水果。",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "prompt": "Which one is a fruit?",
+        "options": ["cat", "apple", "red", "two"],
+        "answer": "apple"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "prompt": "What colour is the sky?",
+        "options": ["red", "blue", "yellow", "green"],
+        "answer": "blue"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "prompt": "Which animal says 'meow'?",
+        "options": ["dog", "cat", "cow", "duck"],
+        "answer": "cat"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "prompt": "How many cats? 🐱🐱",
+        "options": ["one", "two", "three", "four"],
+        "answer": "two"
+      }
+    ]
+  }
+]

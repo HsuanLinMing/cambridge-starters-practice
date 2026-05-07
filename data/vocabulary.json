@@ -1,0 +1,90 @@
+[
+  {
+    "id": "apple",
+    "word": "apple",
+    "pos": "noun",
+    "category": "food",
+    "translation": "蘋果",
+    "exampleEn": "I like a red apple.",
+    "exampleZh": "我喜歡一顆紅蘋果。",
+    "image": "/images/apple.png",
+    "audio": "/audio/apple.mp3"
+  },
+  {
+    "id": "banana",
+    "word": "banana",
+    "pos": "noun",
+    "category": "food",
+    "translation": "香蕉",
+    "exampleEn": "The banana is yellow.",
+    "exampleZh": "香蕉是黃色的。",
+    "image": "/images/banana.png",
+    "audio": "/audio/banana.mp3"
+  },
+  {
+    "id": "cat",
+    "word": "cat",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "貓",
+    "exampleEn": "The cat is on the mat.",
+    "exampleZh": "貓在地墊上。",
+    "image": "/images/cat.png",
+    "audio": "/audio/cat.mp3"
+  },
+  {
+    "id": "dog",
+    "word": "dog",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "狗",
+    "exampleEn": "My dog is happy.",
+    "exampleZh": "我的狗很開心。",
+    "image": "/images/dog.png",
+    "audio": "/audio/dog.mp3"
+  },
+  {
+    "id": "red",
+    "word": "red",
+    "pos": "adjective",
+    "category": "colors",
+    "translation": "紅色的",
+    "exampleEn": "The ball is red.",
+    "exampleZh": "球是紅色的。",
+    "image": "/images/red.png",
+    "audio": "/audio/red.mp3"
+  },
+  {
+    "id": "blue",
+    "word": "blue",
+    "pos": "adjective",
+    "category": "colors",
+    "translation": "藍色的",
+    "exampleEn": "The sky is blue.",
+    "exampleZh": "天空是藍色的。",
+    "image": "/images/blue.png",
+    "audio": "/audio/blue.mp3"
+  },
+  {
+    "id": "one",
+    "word": "one",
+    "pos": "number",
+    "category": "numbers",
+    "translation": "一",
+    "exampleEn": "I have one pen.",
+    "exampleZh": "我有一支筆。",
+    "image": "/images/one.png",
+    "audio": "/audio/one.mp3"
+  },
+  {
+    "id": "two",
+    "word": "two",
+    "pos": "number",
+    "category": "numbers",
+    "translation": "二",
+    "exampleEn": "Two cats are sleeping.",
+    "exampleZh": "兩隻貓正在睡覺。",
+    "image": "/images/two.png",
+    "audio": "/audio/two.mp3"
+  }
+]
