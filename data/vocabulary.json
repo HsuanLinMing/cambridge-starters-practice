@@ -1,16 +1,5 @@
 [
   {
-    "id": "apple",
-    "word": "apple",
-    "pos": "noun",
-    "category": "food",
-    "translation": "蘋果",
-    "exampleEn": "I like a red apple.",
-    "exampleZh": "我喜歡一顆紅蘋果。",
-    "image": "/images/apple.png",
-    "audio": "/audio/apple.mp3"
-  },
-  {
     "id": "ant",
     "word": "ant",
     "pos": "noun",
@@ -22,6 +11,39 @@
     "audio": "/audio/ant.mp3"
   },
   {
+    "id": "apple",
+    "word": "apple",
+    "pos": "noun",
+    "category": "food",
+    "translation": "蘋果",
+    "exampleEn": "I like a red apple.",
+    "exampleZh": "我喜歡一顆紅蘋果。",
+    "image": "/images/apple.png",
+    "audio": "/audio/apple.mp3"
+  },
+  {
+    "id": "baby",
+    "word": "baby",
+    "pos": "noun",
+    "category": "family",
+    "translation": "嬰兒",
+    "exampleEn": "The baby is happy.",
+    "exampleZh": "嬰兒很開心。",
+    "image": "/images/baby.png",
+    "audio": "/audio/baby.mp3"
+  },
+  {
+    "id": "bag",
+    "word": "bag",
+    "pos": "noun",
+    "category": "school",
+    "translation": "書包",
+    "exampleEn": "This is my bag.",
+    "exampleZh": "這是我的書包。",
+    "image": "/images/bag.png",
+    "audio": "/audio/bag.mp3"
+  },
+  {
     "id": "banana",
     "word": "banana",
     "pos": "noun",
@@ -31,6 +53,28 @@
     "exampleZh": "香蕉是黃色的。",
     "image": "/images/banana.png",
     "audio": "/audio/banana.mp3"
+  },
+  {
+    "id": "bird",
+    "word": "bird",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "鳥",
+    "exampleEn": "I see a bird.",
+    "exampleZh": "我看到一隻鳥。",
+    "image": "/images/bird.png",
+    "audio": "/audio/bird.mp3"
+  },
+  {
+    "id": "black",
+    "word": "black",
+    "pos": "adjective",
+    "category": "colors",
+    "translation": "黑色的",
+    "exampleEn": "The cat is black.",
+    "exampleZh": "貓是黑色的。",
+    "image": "/images/black.png",
+    "audio": "/audio/black.mp3"
   },
   {
     "id": "blue",
@@ -66,6 +110,28 @@
     "audio": "/audio/boy.mp3"
   },
   {
+    "id": "bread",
+    "word": "bread",
+    "pos": "noun",
+    "category": "food",
+    "translation": "麵包",
+    "exampleEn": "I eat bread.",
+    "exampleZh": "我吃麵包。",
+    "image": "/images/bread.png",
+    "audio": "/audio/bread.mp3"
+  },
+  {
+    "id": "cake",
+    "word": "cake",
+    "pos": "noun",
+    "category": "food",
+    "translation": "蛋糕",
+    "exampleEn": "The cake is sweet.",
+    "exampleZh": "蛋糕是甜的。",
+    "image": "/images/cake.png",
+    "audio": "/audio/cake.mp3"
+  },
+  {
     "id": "cat",
     "word": "cat",
     "pos": "noun",
@@ -75,6 +141,17 @@
     "exampleZh": "貓在地墊上。",
     "image": "/images/cat.png",
     "audio": "/audio/cat.mp3"
+  },
+  {
+    "id": "chair",
+    "word": "chair",
+    "pos": "noun",
+    "category": "school",
+    "translation": "椅子",
+    "exampleEn": "Sit on the chair.",
+    "exampleZh": "坐在椅子上。",
+    "image": "/images/chair.png",
+    "audio": "/audio/chair.mp3"
   },
   {
     "id": "cow",
@@ -88,6 +165,17 @@
     "audio": "/audio/cow.mp3"
   },
   {
+    "id": "desk",
+    "word": "desk",
+    "pos": "noun",
+    "category": "school",
+    "translation": "書桌",
+    "exampleEn": "The book is on the desk.",
+    "exampleZh": "書在書桌上。",
+    "image": "/images/desk.png",
+    "audio": "/audio/desk.mp3"
+  },
+  {
     "id": "dog",
     "word": "dog",
     "pos": "noun",
@@ -97,6 +185,226 @@
     "exampleZh": "我的狗很開心。",
     "image": "/images/dog.png",
     "audio": "/audio/dog.mp3"
+  },
+  {
+    "id": "door",
+    "word": "door",
+    "pos": "noun",
+    "category": "home",
+    "translation": "門",
+    "exampleEn": "Open the door.",
+    "exampleZh": "打開門。",
+    "image": "/images/door.png",
+    "audio": "/audio/door.mp3"
+  },
+  {
+    "id": "duck",
+    "word": "duck",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "鴨子",
+    "exampleEn": "The duck can swim.",
+    "exampleZh": "鴨子會游泳。",
+    "image": "/images/duck.png",
+    "audio": "/audio/duck.mp3"
+  },
+  {
+    "id": "egg",
+    "word": "egg",
+    "pos": "noun",
+    "category": "food",
+    "translation": "蛋",
+    "exampleEn": "I eat one egg.",
+    "exampleZh": "我吃一顆蛋。",
+    "image": "/images/egg.png",
+    "audio": "/audio/egg.mp3"
+  },
+  {
+    "id": "eye",
+    "word": "eye",
+    "pos": "noun",
+    "category": "body",
+    "translation": "眼睛",
+    "exampleEn": "My eyes are big.",
+    "exampleZh": "我的眼睛很大。",
+    "image": "/images/eye.png",
+    "audio": "/audio/eye.mp3"
+  },
+  {
+    "id": "father",
+    "word": "father",
+    "pos": "noun",
+    "category": "family",
+    "translation": "爸爸",
+    "exampleEn": "This is my father.",
+    "exampleZh": "這是我的爸爸。",
+    "image": "/images/father.png",
+    "audio": "/audio/father.mp3"
+  },
+  {
+    "id": "fish",
+    "word": "fish",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "魚",
+    "exampleEn": "The fish is small.",
+    "exampleZh": "魚很小。",
+    "image": "/images/fish.png",
+    "audio": "/audio/fish.mp3"
+  },
+  {
+    "id": "five",
+    "word": "five",
+    "pos": "number",
+    "category": "numbers",
+    "translation": "五",
+    "exampleEn": "I have five pens.",
+    "exampleZh": "我有五支筆。",
+    "image": "/images/five.png",
+    "audio": "/audio/five.mp3"
+  },
+  {
+    "id": "foot",
+    "word": "foot",
+    "pos": "noun",
+    "category": "body",
+    "translation": "腳",
+    "exampleEn": "My foot is small.",
+    "exampleZh": "我的腳很小。",
+    "image": "/images/foot.png",
+    "audio": "/audio/foot.mp3"
+  },
+  {
+    "id": "four",
+    "word": "four",
+    "pos": "number",
+    "category": "numbers",
+    "translation": "四",
+    "exampleEn": "Four cats are here.",
+    "exampleZh": "四隻貓在這裡。",
+    "image": "/images/four.png",
+    "audio": "/audio/four.mp3"
+  },
+  {
+    "id": "friend",
+    "word": "friend",
+    "pos": "noun",
+    "category": "family",
+    "translation": "朋友",
+    "exampleEn": "She is my friend.",
+    "exampleZh": "她是我的朋友。",
+    "image": "/images/friend.png",
+    "audio": "/audio/friend.mp3"
+  },
+  {
+    "id": "frog",
+    "word": "frog",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "青蛙",
+    "exampleEn": "The frog can jump.",
+    "exampleZh": "青蛙會跳。",
+    "image": "/images/frog.png",
+    "audio": "/audio/frog.mp3"
+  },
+  {
+    "id": "girl",
+    "word": "girl",
+    "pos": "noun",
+    "category": "family",
+    "translation": "女孩",
+    "exampleEn": "The girl is reading.",
+    "exampleZh": "女孩正在看書。",
+    "image": "/images/girl.png",
+    "audio": "/audio/girl.mp3"
+  },
+  {
+    "id": "green",
+    "word": "green",
+    "pos": "adjective",
+    "category": "colors",
+    "translation": "綠色的",
+    "exampleEn": "The leaf is green.",
+    "exampleZh": "葉子是綠色的。",
+    "image": "/images/green.png",
+    "audio": "/audio/green.mp3"
+  },
+  {
+    "id": "hand",
+    "word": "hand",
+    "pos": "noun",
+    "category": "body",
+    "translation": "手",
+    "exampleEn": "Wash your hands.",
+    "exampleZh": "洗你的手。",
+    "image": "/images/hand.png",
+    "audio": "/audio/hand.mp3"
+  },
+  {
+    "id": "horse",
+    "word": "horse",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "馬",
+    "exampleEn": "The horse can run.",
+    "exampleZh": "馬會跑。",
+    "image": "/images/horse.png",
+    "audio": "/audio/horse.mp3"
+  },
+  {
+    "id": "house",
+    "word": "house",
+    "pos": "noun",
+    "category": "home",
+    "translation": "房子",
+    "exampleEn": "This is my house.",
+    "exampleZh": "這是我的房子。",
+    "image": "/images/house.png",
+    "audio": "/audio/house.mp3"
+  },
+  {
+    "id": "jump",
+    "word": "jump",
+    "pos": "verb",
+    "category": "actions",
+    "translation": "跳",
+    "exampleEn": "I can jump high.",
+    "exampleZh": "我可以跳很高。",
+    "image": "/images/jump.png",
+    "audio": "/audio/jump.mp3"
+  },
+  {
+    "id": "milk",
+    "word": "milk",
+    "pos": "noun",
+    "category": "food",
+    "translation": "牛奶",
+    "exampleEn": "I drink milk.",
+    "exampleZh": "我喝牛奶。",
+    "image": "/images/milk.png",
+    "audio": "/audio/milk.mp3"
+  },
+  {
+    "id": "mother",
+    "word": "mother",
+    "pos": "noun",
+    "category": "family",
+    "translation": "媽媽",
+    "exampleEn": "This is my mother.",
+    "exampleZh": "這是我的媽媽。",
+    "image": "/images/mother.png",
+    "audio": "/audio/mother.mp3"
+  },
+  {
+    "id": "mouse",
+    "word": "mouse",
+    "pos": "noun",
+    "category": "animals",
+    "translation": "老鼠",
+    "exampleEn": "I see a mouse.",
+    "exampleZh": "我看到一隻老鼠。",
+    "image": "/images/mouse.png",
+    "audio": "/audio/mouse.mp3"
   },
   {
     "id": "one",
@@ -110,6 +418,39 @@
     "audio": "/audio/one.mp3"
   },
   {
+    "id": "orange",
+    "word": "orange",
+    "pos": "noun",
+    "category": "food",
+    "translation": "橘子",
+    "exampleEn": "I like an orange.",
+    "exampleZh": "我喜歡橘子。",
+    "image": "/images/orange.png",
+    "audio": "/audio/orange.mp3"
+  },
+  {
+    "id": "pen",
+    "word": "pen",
+    "pos": "noun",
+    "category": "school",
+    "translation": "筆",
+    "exampleEn": "This is a pen.",
+    "exampleZh": "這是一支筆。",
+    "image": "/images/pen.png",
+    "audio": "/audio/pen.mp3"
+  },
+  {
+    "id": "pencil",
+    "word": "pencil",
+    "pos": "noun",
+    "category": "school",
+    "translation": "鉛筆",
+    "exampleEn": "I have a pencil.",
+    "exampleZh": "我有一支鉛筆。",
+    "image": "/images/pencil.png",
+    "audio": "/audio/pencil.mp3"
+  },
+  {
     "id": "red",
     "word": "red",
     "pos": "adjective",
@@ -121,6 +462,94 @@
     "audio": "/audio/red.mp3"
   },
   {
+    "id": "rice",
+    "word": "rice",
+    "pos": "noun",
+    "category": "food",
+    "translation": "米飯",
+    "exampleEn": "I eat rice.",
+    "exampleZh": "我吃米飯。",
+    "image": "/images/rice.png",
+    "audio": "/audio/rice.mp3"
+  },
+  {
+    "id": "ruler",
+    "word": "ruler",
+    "pos": "noun",
+    "category": "school",
+    "translation": "尺",
+    "exampleEn": "This is a ruler.",
+    "exampleZh": "這是一把尺。",
+    "image": "/images/ruler.png",
+    "audio": "/audio/ruler.mp3"
+  },
+  {
+    "id": "run",
+    "word": "run",
+    "pos": "verb",
+    "category": "actions",
+    "translation": "跑",
+    "exampleEn": "I can run fast.",
+    "exampleZh": "我可以跑得很快。",
+    "image": "/images/run.png",
+    "audio": "/audio/run.mp3"
+  },
+  {
+    "id": "sit",
+    "word": "sit",
+    "pos": "verb",
+    "category": "actions",
+    "translation": "坐",
+    "exampleEn": "Please sit down.",
+    "exampleZh": "請坐下。",
+    "image": "/images/sit.png",
+    "audio": "/audio/sit.mp3"
+  },
+  {
+    "id": "sun",
+    "word": "sun",
+    "pos": "noun",
+    "category": "weather",
+    "translation": "太陽",
+    "exampleEn": "The sun is hot.",
+    "exampleZh": "太陽很熱。",
+    "image": "/images/sun.png",
+    "audio": "/audio/sun.mp3"
+  },
+  {
+    "id": "teacher",
+    "word": "teacher",
+    "pos": "noun",
+    "category": "school",
+    "translation": "老師",
+    "exampleEn": "She is my teacher.",
+    "exampleZh": "她是我的老師。",
+    "image": "/images/teacher.png",
+    "audio": "/audio/teacher.mp3"
+  },
+  {
+    "id": "three",
+    "word": "three",
+    "pos": "number",
+    "category": "numbers",
+    "translation": "三",
+    "exampleEn": "I see three birds.",
+    "exampleZh": "我看到三隻鳥。",
+    "image": "/images/three.png",
+    "audio": "/audio/three.mp3"
+  },
+  {
+    "id": "tree",
+    "word": "tree",
+    "pos": "noun",
+    "category": "other",
+    "translation": "樹",
+    "exampleEn": "The tree is tall.",
+    "exampleZh": "樹很高。",
+    "image": "/images/tree.png",
+    "audio": "/audio/tree.mp3"
+  },
+  {
     "id": "two",
     "word": "two",
     "pos": "number",
@@ -130,5 +559,38 @@
     "exampleZh": "兩隻貓正在睡覺。",
     "image": "/images/two.png",
     "audio": "/audio/two.mp3"
+  },
+  {
+    "id": "water",
+    "word": "water",
+    "pos": "noun",
+    "category": "food",
+    "translation": "水",
+    "exampleEn": "I drink water.",
+    "exampleZh": "我喝水。",
+    "image": "/images/water.png",
+    "audio": "/audio/water.mp3"
+  },
+  {
+    "id": "white",
+    "word": "white",
+    "pos": "adjective",
+    "category": "colors",
+    "translation": "白色的",
+    "exampleEn": "Snow is white.",
+    "exampleZh": "雪是白色的。",
+    "image": "/images/white.png",
+    "audio": "/audio/white.mp3"
+  },
+  {
+    "id": "yellow",
+    "word": "yellow",
+    "pos": "adjective",
+    "category": "colors",
+    "translation": "黃色的",
+    "exampleEn": "The sun is yellow.",
+    "exampleZh": "太陽是黃色的。",
+    "image": "/images/yellow.png",
+    "audio": "/audio/yellow.mp3"
   }
 ]

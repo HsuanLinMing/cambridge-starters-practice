@@ -40,7 +40,7 @@ export default async function WordPage({ params }: WordPageProps) {
       </Link>
 
       <section className="mt-6">
-        <VocabularyCard item={nav.current} />
+        <VocabularyCard item={nav.current} revealMode />
       </section>
 
       <nav
