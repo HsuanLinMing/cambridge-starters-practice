@@ -134,7 +134,10 @@
       "Bash(/usr/bin/sort)",
       "Bash([ -d \"/Users/linxuanming/Documents/cambridge-starters-practice/source_materials/$d\" ])",
       "Bash(/usr/bin/grep -n 'schema 支援 4 種\\\\|4 種 source 都有' /Users/linxuanming/Documents/cambridge-starters-practice/reports/claude_last_report.md)",
-      "Bash(/usr/bin/grep *)"
+      "Bash(/usr/bin/grep *)",
+      "Bash(/usr/bin/wc *)",
+      "Bash(/usr/bin/tail -20)",
+      "Bash(/usr/bin/tail -25)"
     ]
   }
 }

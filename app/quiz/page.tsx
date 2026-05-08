@@ -73,6 +73,9 @@ export default function QuizPage() {
         <p className="mt-1 text-xs text-slate-400">
           P3-6-A 最小可玩第一版（範例資料）｜順序：Listening → Reading &amp; Writing
         </p>
+        <p className="mt-1 text-xs text-slate-400">
+          目前為練習版，題型逐步對齊正式 Cambridge Starters
+        </p>
       </header>
 
       <section className="mt-8">

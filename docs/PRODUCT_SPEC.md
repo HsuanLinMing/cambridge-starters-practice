@@ -266,6 +266,53 @@
 - 答錯不懲罰，鼓勵性回饋；答對給簡單視覺正向回饋（不需大量動畫）。
 - 第一版測驗區**不計時**；未來若加入模擬考計時，預設關閉，避免時間壓力嚇到小一。
 
+## 長期目標：自家仿真 Starters 模擬考系統
+
+本專案的長期方向是逐步打造**接近真正 Cambridge Pre A1 Starters 的自家模擬考系統**——讓孩子在考前能熟悉完整考試流程，包含 Listening、Reading & Writing、Speaking 三大段。
+
+長期目標仍在「**自家 / 家中練習**」場景下使用，**不公開、不商業化、不偽稱官方**。實作排程見 `PROJECT_ROADMAP.md` 的 P3-7 / P3-8 / P3-9（正式題型模板化）+ P4（Speaking Examiner Agent）+ P5（完整仿真考試體驗）。
+
+### 設計原則
+
+- **目標**：自用 / 家中練習 / 熟悉考試流程，**不是商業考試模擬器**。
+- **對齊正式考試體驗**，但**不使用官方受版權素材**。
+- **題目以自製 / AI 仿真 / 人工審核為主**：所有題目都會走「先草稿 → 審核 → 進正式 JSON」流程（見 P3-3 / P3-8）。
+- **官方資料只作為題型結構與 wordlist 參考**：不複製官方原文、不重製官方圖片 / 音檔（見 P3-7 與 `source_materials/README.md`「官方資源與歷史題整理原則」）。
+- **Speaking 會以 TTS + 錄音 + AI 回饋模擬**（P4），但**所有 AI 評分只是練習建議**，不是官方成績。
+- **AI 評分與「目前明確不做」邊界相容**：客觀題的 AI 評分仍不做（以資料中的 `answer` 比對為準）；Speaking 屬開放式回答，AI 提供的是**鼓勵性練習回饋**——定位是「練習建議 / 不是考試評分」，UI 處處標示。
+
+### Speaking Examiner Agent
+
+Speaking 模擬考官**不是單次呼叫 AI 評分**，而是設計成一個 **Speaking Examiner Agent（口說考官代理）**——agent-based flow，有狀態機、有回合控制、有考官台詞、有評分規則。
+
+核心設計：
+
+- 扮演 Cambridge Starters 口說考官，以**友善鼓勵**語氣帶小朋友走完 Speaking Part 1~4。
+- **小孩不是單次丟一句回答給 AI**，而是由 Agent 帶著完成整個流程。
+- Agent 透過 TTS 扮演考官語音；小孩透過麥克風錄音回答。
+- 系統將錄音透過 STT 轉文字後，交給 Agent / 評分器分析。
+- Agent 可根據回答做**簡單追問**或**進入下一題**——非無狀態單句批改。
+- Agent 內部狀態（每個 turn）至少含：`currentPart` / `currentQuestionIndex` / `examinerPrompt` / `expectedAnswerType` / `childResponse` / `transcript` / `feedback` / `score`（pronunciation / vocabulary / response relevance / confidence 觀察點）/ `nextAction`。
+- 每一回合的 part / examiner prompt / TTS script / child audio / transcript / AI feedback / score 都會保存於 localStorage（**不上雲、不上後端**）。
+- 回饋必須**小朋友友善、以鼓勵為主**，不糾正細節文法錯誤——以「能溝通」為合格門檻。
+- **AI 分數只能作為練習回饋**，不是 Cambridge 官方成績。
+- UI 必須清楚標示「**AI 練習回饋，非官方考試分數**」（出現在每個評分畫面）。
+- **不做 Cambridge 等級對應宣稱**（不寫「相當於 Pre A1 / A1 / A2」之類）。
+
+Agent 的目標是**模擬考官互動流程**，讓孩子練習「聽懂指令 → 回答問題 → 維持簡短對話」的能力，**而不是只做單句英文批改**。
+
+詳細實作規劃見 `PROJECT_ROADMAP.md` 的 P4-1 ~ P4-9。
+
+### 完整仿真考試體驗（P5）
+
+把 Listening + Reading & Writing + Speaking 串成一份完整模擬考：
+
+- TTS 考官貫穿全流程；Speaking 由 Examiner Agent 接管。
+- 成績紀錄、家長檢視、弱點分析、錯題與口說弱點複習皆走本機 localStorage。
+- 仍維持「**不上雲、不上線、不做帳號、不做雲端同步、不做付費**」（見「目前明確不做」）。
+- 所有 AI 評分一律明示「**練習回饋，非官方成績**」。
+- **不做能力等級評定**，不做進度焦慮提示。
+
 ## 第一版 MVP 範圍
 
 對應 `PROJECT_ROADMAP.md` 的 P1–P3：
@@ -306,8 +353,10 @@
 
 ### AI / 自動化（部分在 Roadmap 中，但本清單仍要點明邊界）
 
-- 不做 AI **評分**（自動判答以資料中的 `answer` 比對為準，不交給 AI）
-- 不做自動網路爬蟲抓題（題目素材一律由使用者手動匯入，見「測驗與考前練習方向」）
+- 不做**客觀題的 AI 評分**——multiple-choice / fill-blank / matching 等 answer 在資料中可比對的題型，自動判答一律以資料中的 `answer` 比對為準，不交給 AI。
+- **P4 Speaking Examiner Agent 提供的「口說練習回饋」不是 AI 評分**——定位是**鼓勵性練習建議**，UI 處處標示「練習回饋 / 不是官方成績」；不對外宣稱能預測 Cambridge 官方分數，也不做 Pre A1 / A1 / A2 等級對應。
+- 不做自動網路爬蟲抓題（題目素材一律由使用者手動匯入，見「測驗與考前練習方向」與 `source_materials/README.md`）。
+- 不下載 Cambridge 官方 PDF / 圖片 / 音檔（即使本機；連結與人工筆記則整理於 P3-7 「官方資源索引」，見 `PROJECT_ROADMAP.md`）。
 
 ### 其他
 

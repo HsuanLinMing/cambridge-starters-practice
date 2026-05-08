@@ -44,6 +44,40 @@ function getSectionTag(question: ExamQuestion): SectionTag {
   return question.type === "listening-choice" ? "listening" : "reading-writing";
 }
 
+/**
+ * 練習版題型 → 正式 Cambridge Pre A1 Starters parts 的近似對應。
+ * 「preview」表示本練習尚未完整對齊該 part；UI 文案會補一句「練習版，逐步對齊正式 Starters」。
+ */
+type StarterPartInfo = {
+  /** 顯示給使用者的 Part 標籤（含 preview 字樣） */
+  partLabel: string;
+  /** 該題型對應的中文題型描述 */
+  zhTitle: string;
+};
+
+function getStarterPartInfo(question: ExamQuestion): StarterPartInfo {
+  switch (question.type) {
+    case "listening-choice":
+      return { partLabel: "Part 3", zhTitle: "聽音選圖" };
+    case "picture-choice":
+      return {
+        partLabel: "Part 1 / Part 2 preview",
+        zhTitle: "看圖判斷 / 看圖選答案",
+      };
+    case "word-choice":
+      return { partLabel: "Part 3", zhTitle: "看圖認字 / 拼字練習" };
+    case "multiple-choice":
+      return { partLabel: "Part 4 preview", zhTitle: "短句選字" };
+    case "fill-blank":
+      return { partLabel: "Part 4", zhTitle: "短文 / 句子填空" };
+    case "matching":
+      return {
+        partLabel: "Part 5 preview",
+        zhTitle: "圖文配對 / 故事理解預備",
+      };
+  }
+}
+
 function normalize(s: string): string {
   return s.trim().toLowerCase();
 }
@@ -127,6 +161,7 @@ export default function QuizPlay({ questions }: QuizPlayProps) {
 
   const sectionTag = getSectionTag(current);
   const section = SECTION_LABELS[sectionTag];
+  const partInfo = getStarterPartInfo(current);
   const sectionAccent =
     sectionTag === "listening"
       ? "bg-sky-100 text-sky-800"
@@ -144,8 +179,12 @@ export default function QuizPlay({ questions }: QuizPlayProps) {
           <span>Section {section.number}</span>
           <span aria-hidden>·</span>
           <span>{section.en}</span>
+          <span aria-hidden>｜</span>
+          <span>{section.zh}</span>
         </div>
-        <p className="mt-1 text-xs text-slate-500">{section.zh}</p>
+        <p className="mt-2 text-sm font-bold text-slate-700">
+          {partInfo.partLabel}：{partInfo.zhTitle}
+        </p>
         <div className="mt-2 text-sm font-semibold text-slate-500">
           第 {currentIndex + 1} 題 / 共 {total} 題
         </div>

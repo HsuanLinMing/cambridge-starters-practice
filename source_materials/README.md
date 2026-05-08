@@ -55,6 +55,30 @@ P3 schema 詳細欄位見 [`../docs/DATA_SCHEMA.md`](../docs/DATA_SCHEMA.md) 的
 - ❌ **不要 hard-link 或 reference 公開網路上的官方素材 URL**。
 - ❌ **不要在草稿或正式 JSON 中放外部圖片 / 音檔 URL**——`image` / `audio` 一律本機路徑（`/images/<filename>` 或 `/audio/<filename>`）。
 
+## 官方資源與歷史題整理原則
+
+> 本節對應 `PROJECT_ROADMAP.md` 的 **P3-7 官方資源索引與人工整理流程**。未來會在 `source_materials/`（與規劃中的 `docs/OFFICIAL_RESOURCES.md`）整理 Cambridge Pre A1 Starters 官方公開資源；整理時請嚴守以下「可以做 / 不可做」邊界。
+
+### ✅ 可以做
+
+- ✅ **保存官方資源連結**（official format 頁、sample papers 頁、wordlist、mock test toolkit URL、Lyrics & instructions 等）。
+- ✅ **保存人工整理的題型結構筆記**（每個 Part 有幾題、選項類型、出題風格、考點），用自己的話描述、不抄原文。
+- ✅ **保存自製題**（基於題型結構、用自家 vocabulary 自寫，標 `source: "custom"`）。
+- ✅ **保存 AI 仿真題**（依 P3-3 / P3-8 流程生成，標 `source: "ai_generated"`，先進 `ai_generated/`、經人工審核後再轉正式 JSON）。
+- ✅ **保存自己畫的圖片**（自製 SVG / 自繪重畫；放 `../public/images/`，本資料夾僅放文字描述 / 草稿）。
+- ✅ **保存自製音檔**（TTS 自製、自錄音；放 `../public/audio/`）。
+
+### ❌ 不可做
+
+- ❌ **不要寫自動爬蟲**抓 Cambridge 官方網站或任何官方 / 第三方題庫網站。
+- ❌ **不要把官方 PDF / 官方圖片 / 官方音檔 commit 到 repo**（即使本專案目前不公開 repo 仍不可，避免未來誤推上公開平台時觸雷）。
+- ❌ **不要直接複製歷屆題內容進正式題庫**——不抄、不改寫、不變形。歷屆題只能在人工筆記中**用自己的話**描述「這個 Part 大致長什麼樣」。
+- ❌ **不要使用網路圖片當正式題目素材**——一律自製或請 AI 出 `imagePrompt` 由人手繪。
+- ❌ **不要聲稱 AI 題目是官方題**（必標 `source: "ai_generated"`；不假裝為 `official_sample` / `past_paper`）。
+- ❌ **不要把官方資源連結 hard-link 進題目 JSON 的 `image` / `audio` 欄位**——連結只放在 `docs/OFFICIAL_RESOURCES.md`（規劃中）等人工筆記檔，不進題庫資料。
+
+> 簡言之：官方資源**只用來理解題型結構**；正式題庫的內容**永遠是自製或經人工審核的 AI 仿真題**。
+
 ## Git 政策
 
 本資料夾配合 `source_materials/.gitignore` 排除原始二進位素材：

@@ -101,9 +101,24 @@ npm run build       # 產出正式 build
   - **看字選圖**：英文單字題目區（淡藍背景與看圖選字的淡黃區別）+ 4 個圖片選項（每個選項缺圖時各自顯示首字母 fallback）。
   - 共通：deterministic 選項生成（避免 hydration mismatch）、即時答對 / 答錯鼓勵回饋（答錯顯示正確答案）、答對 emerald / 答錯 rose / 其他選項淡化、「下一題」循環全題庫；切換題型自動回到第 1 題且狀態完全重置。**不做分數保存、不做交卷、不做 localStorage**——那些屬 `/quiz` 測驗區範圍。
   - 圖片素材：第一批 10 個自製 SVG 已接入（apple / cat / dog / book / red / blue / one / two / mother / father），其餘 44 個單字仍是 placeholder path、由 fallback 處理；不使用 Cambridge 官方圖片、歷屆考題圖片或網路抓圖
-- `/quiz`：**測驗區 P3-6-A 最小可玩第一版**——載入 P3-1 範例考卷（`data/exam-papers.example.json` + `data/p3-example-questions.json`），題目排序貼近正式 Cambridge Starters：**Section 1 Listening（`listening-choice`）→ Section 2 Reading & Writing（`picture-choice` → `word-choice` → `multiple-choice` → `fill-blank` → `matching`）**；題目卡頂端顯示對應段落徽章（sky / amber 配色 + 中文小字「聽力練習」/「閱讀與書寫練習」）。6 題型最小渲染、一題一頁、未答題「下一題」disabled、最後一題顯示「看結果」、完成畫面「答對 N/M 題」+ 鼓勵文案 + 「🔁 重新開始」。圖片缺檔 fallback（首字母 + 「圖片準備中」）；listening 不播音檔，先顯示 transcript 文字（音檔自製屬 P2-4C-2B-2）；**Speaking 不做**。**純 React local state，不做 localStorage / 交卷頁 / 錯題詳解**——那些屬 P3-6-B
+- `/quiz`：**測驗區 P3-6-A 最小可玩第一版**——載入 P3-1 範例考卷（`data/exam-papers.example.json` + `data/p3-example-questions.json`），題目排序貼近正式 Cambridge Starters：**Section 1 Listening（`listening-choice`）→ Section 2 Reading & Writing（`picture-choice` → `word-choice` → `multiple-choice` → `fill-blank` → `matching`）**；題目卡頂端三列：段落徽章（「Section 1 · Listening｜聽力練習」sky 配色 / 「Section 2 · Reading & Writing｜閱讀與書寫練習」amber 配色）+ **Part 標示行**（lc → Part 3 聽音選圖；pc → Part 1 / Part 2 preview 看圖判斷 / 看圖選答案；wc → Part 3 看圖認字 / 拼字練習；mc → Part 4 preview 短句選字；fb → Part 4 短文 / 句子填空；mt → Part 5 preview 圖文配對 / 故事理解預備）+ 進度行；頁首補小字「目前為練習版，題型逐步對齊正式 Cambridge Starters」。6 題型最小渲染、一題一頁、未答題「下一題」disabled、最後一題顯示「看結果」、完成畫面「答對 N/M 題」+ 鼓勵文案 + 「🔁 重新開始」。圖片缺檔 fallback（首字母 + 「圖片準備中」）；listening 不播音檔，先顯示 transcript 文字（音檔自製屬 P2-4C-2B-2）；**Speaking 不做**。**純 React local state，不做 localStorage / 交卷頁 / 錯題詳解**——那些屬 P3-6-B
 - 範例資料：54 個單字（覆蓋 17 個字母、11 個主題分類）、1 份 4 題小測驗
 - 文件骨架：roadmap、產品規格、資料 schema、AI 協作流程、任務分流
+
+## 長期方向
+
+本專案的長期目標是逐步做成接近真正 **Cambridge Pre A1 Starters 的自家模擬考系統**：
+
+- 完整 Listening + Reading & Writing + Speaking 模擬考流程
+- TTS 假考官貫穿全流程（Listening 提示 + Speaking 互動）
+- AI 仿真題 + 人工審核（先進 `source_materials/ai_generated/`、經審核後轉正式 JSON）
+- 家長檢視 / 錯題複習 / 弱點分析（皆走本機 localStorage）
+
+**目前進度仍在 P3 階段**——題庫 schema、AI 出題 prompt 規劃、`/quiz` 最小可玩流程已落地；Listening 真實音檔、完整考卷 Session、官方資源索引、正式題型模板化（Listening Part 1~4 / R&W Part 1~5）等仍規劃中。
+
+**Speaking / TTS 假考官 / 麥克風錄音 / Speech-to-text / AI 口說回饋屬後續 P4 階段**——P4 設計為 **Speaking Examiner Agent（口說考官代理）**，agent-based flow 帶小朋友走完 Speaking Part 1~4，**不是單次丟一句給 AI 批改**。所有 AI 提供的口說回饋僅作為**鼓勵性練習建議**，**不是 Cambridge 官方成績**；本專案不會聲稱能預測官方分數，也不做能力等級對應。
+
+詳細階段規劃見 [`PROJECT_ROADMAP.md`](./PROJECT_ROADMAP.md) 的 P3-7 / P3-8 / P3-9 + P4 + P5；長期目標、Speaking Examiner Agent 設計與「目前明確不做」邊界見 [`docs/PRODUCT_SPEC.md`](./docs/PRODUCT_SPEC.md) 的「**長期目標：自家仿真 Starters 模擬考系統**」與「**目前明確不做**」；官方資源整理原則見 [`source_materials/README.md`](./source_materials/README.md) 的「**官方資源與歷史題整理原則**」。
 
 ## 下一步
 
