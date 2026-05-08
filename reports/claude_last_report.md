@@ -1,93 +1,127 @@
-# Claude Code 回報 · P3-6-B-3 第一刀：完整結果頁與每題詳解
+# Claude Code 回報 · P3-6-B-4 第一刀：結果頁錯題 / 未作答篩選
 
 任務日期：2026-05-09
-任務性質：**程式碼實作**——P3-6-B-3 第一刀（結果頁每題詳解列表）。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪只做結果頁詳解；**未做** 錯題複習獨立頁 / `/quiz/wrong` 路由 / 正式歷史紀錄頁 / 計時器 / Speaking / TTS / 錄音 / STT / AI API / crawler；**未動** `lib/types.ts` / `data/*.json` / `lib/examSessionStorage.ts`；未升 `schemaVersion`；未新增依賴 / 處理 npm audit；未部署、未新增後端 / DB / 登入。
+任務性質：**程式碼實作**——P3-6-B-4 第一刀（結果頁 inline filter）。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪只做結果頁 inline filter；**未做** 獨立錯題複習頁 / `/quiz/wrong` 路由 / `wrongQuestionIds` 持久化 / 正式歷史紀錄頁 / 計時器 / Speaking / TTS / 錄音 / STT / AI API / crawler；**未動** `lib/types.ts` / `data/*.json` / `lib/examSessionStorage.ts`；未升 `QUIZ_SESSION_SCHEMA_VERSION`；未新增依賴 / 處理 npm audit；未部署、未新增後端 / DB / 登入。
 
 ## 【本輪修改摘要】
 
-`/quiz` 結果頁從「上半部統計 + 重新測驗」升級為「上半部統計 + **每題詳解列表** + 重新測驗」。`components/QuizPlay.tsx` 新增 5 個純函式 helper（`getQuestionStatus` 三態、`formatUserAnswer`、`formatCorrectAnswer`、`getQuestionPromptDisplay`、`getExplanationDisplay`）+ `STATUS_STYLES` 三色配色表（emerald 答對 / rose 答錯 / amber 未作答）+ `QuestionDetailCard` 子元件。每張卡片顯示：第幾題 + Section + Part 標示 + 狀態 chip + 題目文字版 + 你的答案 + 正確答案 + 說明。
+`/quiz` 結果頁加「全部 / 只看錯題 / 只看未作答 / 需要再練習」inline filter——4 個 chip buttons 排在「每題詳解」標題下方，每個 chip 右側內嵌 count badge（amber selected / white unselected）；篩選結果為空時顯示 emerald 系友善空狀態提示。`components/QuizPlay.tsx` 在 file scope 新增 `DetailFilter` type + `FILTER_LABELS` + `FILTER_ORDER` + `EMPTY_STATE_MESSAGES`；ResultView 內加 `useState<DetailFilter>("all")`、一次計算 statuses 陣列、4 個 count、filter 過濾邏輯。
 
-ResultView props 簡化為 `{ questions, answers, onRestart }`（內部即時計算 total / correctCount / answeredCount，避免 caller 重複計算）。matching 用閱讀型描述、未作答顯示「尚未作答」並不算對、無 `explanation` 時依狀態給鼓勵性 fallback。
+`PROJECT_ROADMAP.md` P3-6-B-4 從 ⬜ 升為 🟡 進行中（3 條 ✅：filter / 數量 / 空狀態 + 3 條 ⬜：再練習錯題入口 / 獨立錯題複習頁 / wrongQuestionIds）；P3-6-B 整體仍 🟡 進行中。`README.md` `/quiz` 條目補結果頁篩選段。
 
-`PROJECT_ROADMAP.md` P3-6-B-3 從 ⬜ 升為 ✅（7 條 ✅）；P3-6-B 整體仍 🟡（B-4 / B-5 仍 ⬜，符合任務單「不要把 P3-6-B 整體標完成」）。`README.md` `/quiz` 條目補結果頁每題詳解段。
-
-零依賴新增、未升 schemaVersion、未動 localStorage schema。`npm run lint` / `typecheck` / `build` 全綠（路由 88 不變）+ dev smoke test 全綠。
+零依賴新增、未升 schemaVersion、未動 localStorage schema、未動 `lib/types.ts` / `data/*.json`、filter 純 React local state（不存 localStorage、重整後回預設 all）。`npm run lint` / `typecheck` / `build` 全綠（路由 88 不變）+ dev smoke test 全綠。
 
 ## 【修改檔案清單】
 
 修改 4 份：
 
 - `components/QuizPlay.tsx`：
-  - 新增 5 個純函式 helper（getQuestionStatus / formatUserAnswer / formatCorrectAnswer / getQuestionPromptDisplay / getExplanationDisplay）。
-  - 新增 `STATUS_STYLES` 三色配色 record。
-  - 新增 `QuestionDetailCard` 子元件（`<li>` 結構 + emerald / rose / amber 三色背景 + 狀態 chip + 題目文字 + 雙欄答案 + 說明）。
-  - ResultView props 改為 `{ questions, answers, onRestart }`，內部計算統計；插入 `<section aria-label="每題詳解">` 區段於統計與按鈕之間。
-  - QuizPlay 主元件呼叫 ResultView 時改傳 `questions={questions} answers={session.answers}`，移除 caller 端 correctCount / answeredCount 計算（簡化）。
-- `PROJECT_ROADMAP.md`：P3-6-B-3 從 ⬜ 升為 ✅（7 條 ✅）；變更紀錄追加 2026-05-09。
-- `README.md`：「目前功能」`/quiz` 條目補結果頁每題詳解段（emerald / rose / amber 三色 + 8 個顯示欄位 + matching / 未作答 / 無 explanation 處理規則）。
+  - 新增 `DetailFilter` type 4 個值（all / incorrect / unanswered / review）。
+  - 新增 `FILTER_LABELS` / `FILTER_ORDER` / `EMPTY_STATE_MESSAGES` 三個 file-level const。
+  - ResultView 內加 `useState<DetailFilter>("all")` + 一次計算 statuses 陣列 + 4 個 count（correctCount 仍計算供統計用）+ filterCounts record + filteredStatuses 過濾邏輯。
+  - 「每題詳解」標題下方插入 4 個 filter chip buttons（flex-wrap + center + amber-300 selected / white unselected + 內嵌 count badge）。
+  - 篩選結果為空時改 render emerald 系空狀態卡片（含對應 friendly message）；非空時 render filteredStatuses 為 QuestionDetailCard list（保留原 index 顯示「第 N 題」對齊整份試卷編號）。
+- `PROJECT_ROADMAP.md`：P3-6-B-4 從 ⬜ 升為 🟡（3 條 ✅ + 3 條 ⬜，附說明 sub-text 說明本輪邊界）；變更紀錄追加 2026-05-09。
+- `README.md`：「目前功能」`/quiz` 條目補結果頁 4 個 filter chip + count badge + 空狀態提示段。
 - `reports/claude_last_report.md`：本回報。
 
-未動：`lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / 任何 `data/*.json` / 任何 `app/review/*` 路由 / `app/quiz/page.tsx` / `components/PicturePractice` / `VocabularyCard` / `ReviewHubCard` / `BackToHome` / 所有 docs / source_materials / `package.json` / 依賴。
+未動：`lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / 任何 `data/*.json` / 任何 `app/*` 路由（含 `app/quiz/page.tsx`）/ `components/PicturePractice.tsx` / `VocabularyCard.tsx` / `ReviewHubCard.tsx` / `BackToHome.tsx` / 所有 docs / source_materials / `package.json` / 依賴。
 
 ## 【核心邏輯說明】
 
-### 1. 三態 `QuestionStatus`：correct / incorrect / unanswered
+### 1. `DetailFilter` 4 個字串字面量 + 4 個 chip + 4 個 count
 
 ```ts
-type QuestionStatus = "correct" | "incorrect" | "unanswered";
+type DetailFilter = "all" | "incorrect" | "unanswered" | "review";
 
-function getQuestionStatus(question, answer) {
-  if (!isAnswered(answer)) return "unanswered";
-  return isCorrect(question, answer) ? "correct" : "incorrect";
-}
+const FILTER_LABELS: Record<DetailFilter, string> = {
+  all: "全部",
+  incorrect: "只看錯題",
+  unanswered: "只看未作答",
+  review: "需要再練習",
+};
 ```
 
-重複利用 P3-6-A 既有的 `isAnswered` / `isCorrect` helper，保持判分邏輯單一事實來源。`STATUS_STYLES` record 把三態映射到 5 個 Tailwind class（背景 / 邊框 / chip / 圖示 / 標籤）+ 中文標籤——讓 `QuestionDetailCard` 不用 if/else 拆分，直接 `STATUS_STYLES[status]` 取出。
+`review = incorrect ∪ unanswered`——刻意用集合語意而非另一個獨立狀態，因為 `getQuestionStatus` 仍是三態（correct / incorrect / unanswered）。filter 過濾邏輯在 ResultView 中：
 
-### 2. 答案格式化 4 個 helper
+```ts
+const filteredStatuses = statuses.filter((s) => {
+  if (detailFilter === "all") return true;
+  if (detailFilter === "incorrect") return s.status === "incorrect";
+  if (detailFilter === "unanswered") return s.status === "unanswered";
+  return s.status === "incorrect" || s.status === "unanswered"; // review
+});
+```
 
-| Helper | 規則 |
-| --- | --- |
-| `formatUserAnswer` | 未作答 → 「尚未作答」；matching `_done` token → 「已完成閱讀配對練習」；其他直接顯示 `answer` 字串 |
-| `formatCorrectAnswer` | matching → 「本題目前為閱讀型練習，完成即算正確」；其他直接顯示 `question.answer`（option-based 與 fill-blank 自由填空都成立） |
-| `getQuestionPromptDisplay` | listening → `transcript` / `ttsScript`；word-choice → 「這個英文單字是「X」」；picture-choice / matching 缺 prompt → fallback 文字；其他 → `question.prompt` |
-| `getExplanationDisplay` | 優先 `BaseQuestion.explanation`；fallback 三段鼓勵性文字（依狀態） |
+不在 `getQuestionStatus` 加第四個狀態 `review`——避免污染既有「答對 / 答錯 / 未作答」三態語意。
 
-刻意不重複貼大圖 / 大音檔到結果頁——詳解列表是文字版概覽，給家長辨識，不是讓孩子重做。如果家長想看圖，可按重新測驗回到題目卡。
+### 2. statuses 陣列一次計算共用
 
-### 3. ResultView props 簡化
+```ts
+const statuses = questions.map((q, i) => ({
+  question: q,
+  index: i,
+  status: getQuestionStatus(q, answers[q.id]),
+}));
+```
 
-舊版：`{ total, correctCount, answeredCount, onRestart }`，caller QuizPlay 端要先 filter 兩次計算 correctCount + answeredCount。
+之前 P3-6-B-3 ResultView 跑兩次 filter 計算 correctCount / answeredCount。本輪改為先 map 出 statuses，再對 statuses 跑 5 次 filter（correctCount / incorrectCount / unansweredCount / filterCounts.review = incorrect+unanswered + filteredStatuses）——`getQuestionStatus` 仍只跑一次（每題）。perf 對 7 題完全沒問題，且讓 filter / count 邏輯一致。
 
-新版：`{ questions, answers, onRestart }`，ResultView 內部計算。**好處**：
+`statuses` 元素含原始 `index`，filter 後 QuestionDetailCard 仍取原 index 渲染「第 N 題」。**重要**：如果使用者選「只看錯題」，可能看到「第 2 題」+「第 5 題」+「第 7 題」(skip 第 1/3/4/6)——這是預期行為，讓家長看到的編號對齊整份試卷。
 
-- caller 端少 6 行重複邏輯。
-- 「per-question 詳解」自然就近取資料（直接從 questions / answers 取）。
-- 統計與詳解計算共用同一份資料，無不一致風險。
+### 3. 空狀態三段友善提示
 
-### 4. matching 在詳解列表的兩種狀態
+```ts
+const EMPTY_STATE_MESSAGES: Record<DetailFilter, string> = {
+  all: "目前沒有題目。",
+  incorrect: "太棒了，目前沒有答錯的題目！",
+  unanswered: "很好，這次每一題都有作答！",
+  review: "全部都很棒，這次沒有需要再練習的題目！",
+};
+```
 
-| 狀態 | 觸發 | userAnswer 顯示 | correctAnswer 顯示 |
-| --- | --- | --- | --- |
-| `unanswered` | 沒按過「我看完了」 | 尚未作答 | 本題目前為閱讀型練習，完成即算正確 |
-| `correct` | 按過「我看完了」（answer = `_done`） | 已完成閱讀配對練習 | 本題目前為閱讀型練習，完成即算正確 |
+`all` 的訊息「目前沒有題目。」屬 edge case（總題數 0），實務上 `/quiz` 會在 QuizPlay 主元件層先擋下（顯示「目前沒有題目，請稍後再來。」），不會走到 ResultView 的 all 空狀態。為了 type 完整覆蓋仍列出。
 
-理論上 matching 不會出現 `incorrect` 狀態——`_done` 是唯一被視為 answered 的值；其他值（如使用者直接編輯 localStorage 改 answer）會被 `isCorrect` 判錯。`formatUserAnswer` 對非 `_done` 的 matching answer 顯示「（未完成）」作為 defensive fallback。
+訊息均符合 PRODUCT_SPEC「測驗與考前練習方向 → 講解語氣小一友善」+「鼓勵 > 懲罰」原則。
 
-### 5. 未作答清楚標示（鼓勵 > 懲罰）
+### 4. chip button 視覺與互動
 
-未作答題的 amber 配色（不是 rose），刻意與「答錯」視覺區分——鼓勵小朋友 / 家長理解「下次補答」而非「失敗」。`getExplanationDisplay` 對未作答使用「下次可以再試一次～」鼓勵語；無 explanation 的答錯題用「再想一下，下次一定可以的～」；無 explanation 的答對題用「答得很好！繼續加油！」。三段都對齊 PRODUCT_SPEC「測驗與考前練習方向 → 交卷與結果頁 → 講解語氣小一友善」段。
+```tsx
+<button
+  type="button"
+  onClick={() => setDetailFilter(key)}
+  aria-pressed={selected}
+  className={
+    "flex min-h-10 items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold shadow-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200 sm:text-sm " +
+    (selected
+      ? "bg-amber-300 text-slate-900 ring-2 ring-amber-400"
+      : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")
+  }
+>
+  <span>{FILTER_LABELS[key]}</span>
+  <span className={...badge styles...}>{filterCounts[key]}</span>
+</button>
+```
 
-### 6. 重新整理結果頁仍保持 submitted
+aria-pressed 切換給螢幕閱讀器使用；focus-visible ring 給鍵盤使用者；count badge 使用更小的字級（11px black）+ 內嵌底色（selected 時 amber-100 / unselected 時 slate-100）以視覺區分標籤與數字。
 
-不需要改任何 code——既有 P3-6-B-1 的 hydration 機制（`session.submitted = true` 由 localStorage 恢復）即可。瀏覽器重整 → useState init 給空 session → microtask 從 localStorage 讀出 submitted=true → setSession 重新渲染 → ResultView 顯示。
+### 5. filter 不存 localStorage（純 React local state）
 
-### 7. 沒做的事（嚴守任務單禁止清單）
+依任務單明示「filter 不需要保留，重整後回到預設 all 可接受」。`useState` 在 ResultView 內，重整時 ResultView 重新 mount（因為 QuizPlay 的 hydration 會先渲染題目卡再切到結果頁）→ filter reset 為 "all"。
 
-- 沒做錯題複習獨立頁（屬 P3-6-B-4）
+不存 localStorage 的好處：
+- 不用升 `QUIZ_SESSION_SCHEMA_VERSION`。
+- 不用寫 migration。
+- 不污染 session schema（filter 是 view-state、不是作答資料）。
+
+### 6. 沒做的事（嚴守任務單禁止清單）
+
 - 沒新增 `/quiz/wrong` 路由
+- 沒做錯題複習獨立頁
+- 沒新增 `wrongQuestionIds` localStorage 欄位
+- 沒升 `QUIZ_SESSION_SCHEMA_VERSION`（仍為 1）
 - 沒做正式歷史紀錄頁
-- 沒做計時器（屬 P3-6-B-5）
+- 沒做計時器
 - 沒做 Speaking / TTS / 錄音 / STT / AI API / crawler
 - 沒下載官方 PDF / 圖片 / 音檔
 - 沒複製官方題目 / 歷屆題
@@ -96,8 +130,6 @@ function getQuestionStatus(question, answer) {
 - 沒大改 `lib/types.ts`（完全沒動）
 - 沒做 P3-9-B schema / metadata 大升級
 - 沒做 P3-2-B 轉換工具
-- 沒升 `QUIZ_SESSION_SCHEMA_VERSION`（仍為 1）
-- 沒新增 `score` / `wrongQuestionIds` 到 storage（每題對錯從 `session.answers` 即時計算）
 - 沒新增依賴 / 處理 npm audit
 - 沒部署 / 後端 / DB / 登入
 
@@ -112,9 +144,8 @@ Dev smoke test：
 | 驗證項 | 結果 |
 | --- | --- |
 | 8 條路由 200（`/`、`/review`、`/review/picture`、`/review/words`、`/review/letter/a`、`/review/word/apple`、`/review/word/jump`、`/quiz`） | ✓ |
-| `/quiz` SSR 第 1 題仍是 listening + Listening 徽章 + 聽音選圖 + 直接交卷 / 重新測驗按鈕 | ✓ |
-| 首次進入 visible HTML 不含「每題詳解」（submitted=false 時應隱藏） | ✓ |
-| RSC payload 含全部 7 題的 prompt / id（`Which one is a fruit?` / `q-fb-002` / `I have a`），讓 hydration 後 ResultView 能組裝完整詳解 | ✓ |
+| `/quiz` SSR 第 1 題 listening visible HTML 含 Listening 徽章 / 直接交卷 / 重新測驗 | ✓ |
+| 首次進入不含「每題詳解」/ 4 個 filter label / 空狀態提示文字（submitted=false 時 ResultView 不渲染、字串只在 client JS chunk 內） | ✓ |
 | `/review/word/apple` 翻牌完整回歸 | ✓ |
 | dev log 無 error / hydration / warn 訊息 | ✓ |
 
@@ -126,46 +157,63 @@ Claude 自測（dev SSR + lint / typecheck / build）通過。
 
 需要使用者瀏覽器互動驗收：
 
-1. **作答幾題後直接交卷**：先答 1~2 題（故意答錯一題、答對一題），其餘留空。按題目卡下方 amber「📝 直接交卷」。
-2. **結果頁顯示每題詳解**：應看到上半部統計（答對 N / M、已作答 X / M、未作答 M-X、鼓勵語）+ 下方「每題詳解」標題 + 7 張卡片。
-3. **答對題顯示正確**：emerald 系背景 + 「✓ 答對」chip + 你的答案（emerald 字色）= 正確答案（emerald 字色）+ 鼓勵說明。
-4. **答錯題顯示錯誤**：rose 系背景 + 「✗ 答錯」chip + 你的答案（rose 字色）≠ 正確答案（emerald 字色）+ 「再想一下，下次一定可以的～」或既有 explanation。
-5. **未作答題顯示未作答**：amber 系背景 + 「? 未作答」chip + 你的答案 = 「尚未作答」（amber 字色）+ 正確答案（emerald 字色）+ 「下次可以再試一次～」或既有 explanation。
-6. **使用者答案 / 正確答案都有顯示**：每張卡片皆有「你的答案」+「正確答案」雙欄。
-7. **explanation 有顯示**：本範例 7 題每題都有 explanation 欄位（見 `data/p3-example-questions.json`），應顯示原 explanation 而非 fallback 鼓勵語。
-8. **重新測驗仍會清 session**：在結果頁按「🔁 重新測驗」→ localStorage 應清空（DevTools Application → Local Storage 確認）+ 回第一題。
-9. **重新整理結果頁仍保持 submitted**：在結果頁按 F5 → 應仍在結果頁、詳解列表完整顯示。
+1. **作答幾題後直接交卷**：先答 1~2 題（故意答錯一題、答對一題），其餘留空。按 amber「📝 直接交卷」。
+2. **「全部」filter 顯示 7 題**：預設 selected 是「全部 7」（amber 配色）。下方詳解列表顯示 7 張卡片（含答對 / 答錯 / 未作答各狀態）。
+3. **「只看錯題」只顯示 incorrect 題**：點「只看錯題 X」chip → 切到 amber selected → 詳解列表只顯示 rose 系卡片。卡片標題仍是原始「第 N 題」（不重新編號）。
+4. **「只看未作答」只顯示 unanswered 題**：點「只看未作答 Y」chip → 切到 amber selected → 詳解列表只顯示 amber 系卡片。
+5. **「需要再練習」顯示 incorrect + unanswered**：點「需要再練習 Z」chip → 詳解列表顯示 rose + amber 系卡片混合（依原始順序）。
+6. **全對時的友善空狀態**：作答全部 7 題、全部答對、按下一題完成。在「只看錯題 0」/「只看未作答 0」/「需要再練習 0」filter 下應分別看到：
+   - 只看錯題：「太棒了，目前沒有答錯的題目！」（emerald 系）
+   - 只看未作答：「很好，這次每一題都有作答！」（emerald 系）
+   - 需要再練習：「全部都很棒，這次沒有需要再練習的題目！」（emerald 系）
+7. **重新整理結果頁仍保留結果頁**：在結果頁按 F5 → 應仍在結果頁、詳解列表完整顯示。
+8. **filter 重整後回預設 all**：F5 後 filter 應回到「全部」（依任務單明示「filter 不需要保留，重整後回到預設 all 可接受」）。
+9. **重新測驗仍清 session**：在結果頁按「🔁 重新測驗」→ localStorage 應清空 + 回第一題。
 10. **既有路由回歸**：`/`、`/review`、`/review/picture`、`/review/words`、`/review/word/apple`、`/review/word/jump` 全部不變、互動正常、翻牌功能、看圖練習互動皆無破壞。
 
-預期結果頁範例（用 P3-1 範例 7 題、全部留空、按直接交卷）：
+預期結果頁範例（用 P3-1 範例 7 題、答對 2 題、答錯 1 題、未作答 4 題）：
 
 ```
 🎉 完成了！
-答對 0 / 7 題
-已作答 0 / 7    未作答 7 題
+答對 2 / 7 題
+已作答 3 / 7    未作答 4 題
 未作答的題目算錯；下次可以再試試看～
-沒關係，再試一次一定會更好！
+做得不錯，再多練幾次會更厲害！
 
 每題詳解
-[第 1 題 · Section 1 Listening · Part 3]  [? 未作答]   ← amber 卡片
-題目：What does the boy want?
-你的答案：尚未作答             正確答案：apple
-說明：音檔說小男孩想要蘋果。
+[全部 7]  [只看錯題 1]  [只看未作答 4]  [需要再練習 5]
+        ↑ amber selected
 
-[第 2 題 · Section 2 Reading & Writing · Part 1 / Part 2 preview]  [? 未作答]
-題目：What is this?
-你的答案：尚未作答             正確答案：apple
-說明：圖片是紅色的圓形水果，是 apple。
-
-…（其餘 5 題同樣 amber）
+(列表 7 張卡片：emerald / rose / amber 三色混合)
 
 [🔁 重新測驗]
 回首頁
 ```
 
+按「需要再練習 5」chip：
+
+```
+[全部 7]  [只看錯題 1]  [只看未作答 4]  [需要再練習 5]
+                                        ↑ amber selected
+
+(列表 5 張卡片：1 張 rose + 4 張 amber)
+```
+
+按「只看錯題 1」chip：
+
+```
+[全部 7]  [只看錯題 1]  [只看未作答 4]  [需要再練習 5]
+          ↑ amber selected
+
+(列表 1 張 rose 卡片)
+```
+
 ## 【仍未處理】
 
-- **P3-6-B-4 錯題複習獨立頁**（3 條 ⬜）：再練習錯題入口、獨立錯題複習頁、`wrongQuestionIds` 對齊 ExamSessionState。
+- **P3-6-B-4 後續刀數**：
+  - 「再練習錯題」入口（把錯題撈出來重做一輪）。
+  - 錯題複習頁可獨立進入（屬下一刀，需新路由 `/quiz/wrong`）。
+  - 錯題狀態於 localStorage 保存（`wrongQuestionIds` 對齊 `ExamSessionState`，需升 `QUIZ_SESSION_SCHEMA_VERSION = 2` + 寫 migration）。
 - **P3-6-B-5 計時器**（1 條 ⬜）：未來模擬考計時器（可選功能、預設關閉）。
 - **P3-7-B / P3-7-C / P3-7-D 全部 ⬜**（官方資源校正 P3-9 模板 / wordlist 對 vocabulary 校正 / sample / mock test toolkit 觀察筆記）。
 - **P3-8 全部 ⬜**（AI 仿真題生成流程文件）。
@@ -181,32 +229,32 @@ Claude 自測（dev SSR + lint / typecheck / build）通過。
 
 > 給 5/12 恢復後的 Codex 與下一輪 ChatGPT / Claude 特別注意。
 
-1. **每題詳解列表長度**：當前 7 題 → 7 張卡片，每張約 130~180px 高，總長度約 1000~1300px。手機 / 平板上需要滾動才能看完。**建議**：未來 P3-6-B-4 動工時，可考慮加「只顯示錯題」/「只顯示未作答」filter（toggle button），讓家長快速找重點。本輪不做。
-2. **大量 explanation 缺漏 fallback 的依賴**：本範例 7 題每題都有 `explanation`，所以 fallback 鼓勵語不會出現在第一手檢核。**建議**：使用者驗收時可故意修改 `data/p3-example-questions.json` 把某題 explanation 移除 → 確認 fallback「下次可以再試一次～」/「再想一下，下次一定可以的～」/「答得很好！」三個語句正常出現（記得改完還原檔案）。
-3. **picture-choice 的「（看圖選字題）」fallback**：當 picture-choice 沒有 `prompt` 時，詳解卡片顯示「題目：（看圖選字題）」。家長無法從文字辨識具體哪題（因為沒有圖）。**建議**：未來可考慮在詳解卡片加 thumbnail（屬 P3-6-B-4 範圍）；本輪只做文字版。
-4. **matching 「正確答案：本題目前為閱讀型練習，完成即算正確」訊息**：當 matching 是 `correct` 狀態時，「你的答案」與「正確答案」兩欄都圍繞 emerald 配色 + 看似重複（前者「已完成閱讀配對練習」、後者「本題目前為閱讀型練習，完成即算正確」）。**設計原意**：你的答案是「行為描述」、正確答案是「規則描述」。但視覺上可能看起來冗餘。未來 P3-6-B-4 / P3-9-C 把 matching 升級為真正的拖曳配對後，這兩欄會自然分化。
-5. **「未作答」amber 配色與「Reading & Writing」段落徽章 amber 衝突風險**：題目卡頂端的段落徽章是 amber-100；詳解卡片的「未作答」也是 amber-50 + amber-200 ring。視覺上類似但不重疊（前者在題目卡內、後者在結果卡內）。**建議**：使用者實測時注意是否會混淆；若混淆可改未作答為 yellow / slate 系。本輪沿用 amber 因為它與「警示但不嚴厲」的小一友善語氣相符。
-6. **R&W 段內 multiple-choice 的「Part 4 preview」字樣**：詳解卡片頭部顯示 `Section 2 Reading & Writing · Part 4 preview`。家長可能疑惑「為什麼有 preview」。已在 P3-9-A `STARTERS_PART_TEMPLATES.md` 與 `/quiz` 頁首練習版聲明標明，但詳解卡片本身沒有重複提示——若使用者反饋疑惑，下一輪可在結果頁頂端再加一行小字「Part 標示為練習版近似對應」。
-7. **`session.answers` 即時計算成本**：每次渲染 ResultView 都跑兩次 `questions.filter`（correctCount + answeredCount）+ 7 次 `getQuestionStatus`（每張卡片）。對 7 題完全沒問題，但若未來題量上百，可考慮 useMemo。本輪沿用最簡寫法。
-8. **重整結果頁時的 hydration race**：localStorage 中 submitted=true 的 session 在 microtask 中被讀出，然後 setSession 觸發重新渲染為結果頁。理論上有「先看到題目第 1 題、再閃成結果頁」的 race。**dev mode 自測未觀察到閃動**，但可能因網速 / CPU 負載差異。Codex 驗收時建議在低速 CPU 模擬下測一次。
+1. **filter 不存 localStorage 的取捨**：依任務單明示「重整後回到預設 all 可接受」，本輪刻意不存。**潛在不便**：使用者在「只看錯題」狀態下重整，會跳回「全部」——若使用者反饋此體驗，下一輪可考慮把 filter 存 sessionStorage（不存 localStorage 因為跨 tab 同步沒意義）或加入 URL search param `?filter=incorrect`。
+2. **filter 過濾後 index 仍是原始順序**：QuestionDetailCard 顯示「第 N 題」用原始 index（即使 filter 後也保持原始編號）。**好處**：家長看到「第 5 題」就知道是試卷第 5 題。**壞處**：filter 後序列不連續（看到「第 2 題、第 5 題、第 7 題」）。設計選擇——**對家長友善 > 對使用者連續**。
+3. **「review」filter 與「需要再練習」中文標籤的設計取捨**：本輪沿用任務單建議 `review` 字串字面量 + 「需要再練習」中文標籤。**review 是英文 schema、需要再練習是 UI 文案**——兩者有意分離。未來若新增 `mistakes` / `gaps` 等更精細分類，schema 仍可保持 4 個值。
+4. **「需要再練習」count 與「答對」count 的視覺權重**：上半部統計只顯示 「答對 / 已作答 / 未作答」三個數字；下方 chip 只顯示 「全部 / 錯題 / 未作答 / 需要再練習」。**「答對」與「需要再練習」視覺上是互補關係**——家長可能會想「答對 = total - 需要再練習」？實際是「答對 + 需要再練習 = total」（matching 完成的算 correct）。本輪不在 chip 加「答對 X」chip 避免重複；若使用者反饋疑惑，可在 README 或 PRODUCT_SPEC 補充說明。
+5. **chip 在小螢幕的擠壓風險**：4 個 chip 在 <360px 螢幕用 flex-wrap 會自然換行（最多 2 行）。Tailwind `flex-wrap items-center justify-center gap-2`已就位。**Codex 驗收時建議在 iPhone 12 mini 視覺檢查**。
+6. **getQuestionStatus 的 matching 處理**：matching 完成後（answer = `_done`）算 `correct`，不出現在 review。**任務單明示**「matching 完成後算 correct，不應出現在 review」。本輪實作正確。**但**：matching 未完成時算 unanswered（會出現在 review），這是合理的。
+7. **空狀態提示「太棒了，目前沒有答錯的題目！」與全對 cheer 文案重疊**：當使用者全對且按「只看錯題」chip → 看到 emerald「太棒了…」；上半部 cheer 也是 emerald「全部答對！太厲害了！🎉」。**雙重慶祝**——對小一友善但可能略顯冗餘。本輪沿用任務單建議文案。
+8. **chip 數字 badge 與「答對」雙欄統計的重複**：上半部「未作答 N」+ chip「只看未作答 N」+「需要再練習 N+M」。**N 出現兩次**（上半部 + chip），略重複。本輪保留兩處——上半部給整體統計、chip 給 filter 互動入口。Codex 驗收時若覺得擠，可在後續刀數合併。
 
 ## 【後續建議】
 
-1. **使用者本輪手動驗收**：依「【手動檢查結果】」10 個檢核點在 Mac + 平板區網 IP 上跑。重點：流程 2~5（emerald / rose / amber 三色配色 + chip 對齊）、流程 7（explanation 顯示）、流程 8（重新測驗清 localStorage）、流程 10（既有路由回歸）。
+1. **使用者本輪手動驗收**：依「【手動檢查結果】」10 個檢核點在 Mac + 平板區網 IP 上跑。重點：流程 3~5（三個 filter chip 切換），流程 6（全對時三個空狀態），流程 8（filter 重整後回 all），流程 10（既有路由回歸）。
 2. **5/12 Codex 恢復後跑功能總驗收**：
-   - 每張詳解卡片的雙欄答案對齊（emerald 答對綠字 / rose 答錯紅字 / amber 未作答橙字）。
-   - matching `_done` token 處理是否正確（不要顯示 `_done` 字面）。
-   - fill-blank 自由填空 + 選項版兩種顯示是否一致。
-   - hydration race 在低速 CPU 模擬下是否會閃動。
+   - 4 個 chip 在不同螢幕寬（手機 / 平板 / 桌機）的視覺對齊。
+   - chip aria-pressed 切換是否被螢幕閱讀器正確讀出。
+   - matching 完成後在「需要再練習」中是否正確被排除。
+   - filter 切換時的 React re-render 是否平順（無 flash）。
 3. **下一輪實作建議優先序**（請 ChatGPT 收斂）：
-   - 路線 A：**P3-6-B-4 第一刀**——錯題複習獨立模式：在結果頁加 toggle「只看錯題 / 看全部」；點 toggle 後詳解列表只顯示 incorrect + unanswered 題；不需要新路由 / 新 localStorage 欄位（filter 純前端）。
+   - 路線 A：**P3-6-B-4 第二刀**——加「再練習錯題」按鈕（在 review filter 下顯示，按下重新進 quiz、`questionOrder` 只含錯題與未作答題）；不需要新路由、不需要升 schemaVersion。
    - 路線 B：**P3-7-B 動工**（依 P3-7-A 11 條校正清單對 STARTERS_PART_TEMPLATES.md 校正）。
    - 路線 C：**P3-9-B 第一刀**（`starterSection` / `starterPart` / `skillFocus` 加 types + 7 題範例補 metadata）。
-   - 路線 D：**P3-6-B-4 第二刀**——獨立 `/quiz/wrong` 路由 + `wrongQuestionIds` 升 schemaVersion 到 v2 + migration。
+   - 路線 D：**P3-6-B-4 第三刀**——獨立 `/quiz/wrong` 路由 + `wrongQuestionIds` 升 schemaVersion 到 v2 + migration（最大改動）。
    - 路線 E：**P2-4C-2B-2 補真實音檔 / 補圖**。
-4. **詳解列表的 filter（建議 B-4 動工時加）**：toggle button 或 segmented control「全部 / 只看錯題 / 只看未作答」，不新增 localStorage 欄位、不新路由，純 React state 即可。
-5. **picture-choice 詳解 thumbnail（建議 B-4 動工時考慮）**：在詳解卡片加小型圖片預覽（重用 `QuizImage` size="sm"），讓家長辨識題目時更直覺。但會增加結果頁高度與 perf 成本，需評估。
-6. **R&W 段內 Part 編號跳動的家長提示**：若使用者反饋疑惑，在結果頁頂端 cheer 下方加一行「※ Part 標示為練習版近似對應，正式 Cambridge 考試結構詳見 STARTERS_PART_TEMPLATES.md」（可選）。
+4. **filter URL search param**（建議下一輪做）：把 filter 寫入 `?filter=incorrect` 等 query，讓重整或分享連結時保留 filter 狀態。實作成本低（useSearchParams + useRouter），體驗大幅提升。
+5. **filter sessionStorage**（替代方案）：若不想用 query string，可考慮 sessionStorage 保存 filter（單個分頁的 lifecycle）；不污染 localStorage 也不需 schemaVersion 升級。
+6. **加「答對」chip 補對稱性**：若使用者反饋「為什麼有錯題 chip 沒答對 chip」，可在後續刀數加 `correct` 第五個 filter 值；schema 字面量擴張為 5 個。但要注意這可能讓 chip 排版擠在小螢幕。
 
 ## 【Roadmap 同步檢查】
 
@@ -214,13 +262,13 @@ Claude 自測（dev SSR + lint / typecheck / build）通過。
 
 - ✅ **P1**：未動。
 - 🟡 **P2**：未動（P2-4C-2B-2 仍 ⬜）。
-- 🟡 **P3**：本輪只升 P3-6-B-3 從 ⬜ → ✅（7 條 ✅）；P3-6-B 整體仍 🟡（B-4 / B-5 仍未開始）。
-  - ✅ **P3-1 / P3-2-A / P3-3-A / P3-6-A / P3-6-B-1 / P3-6-B-2 / P3-7-A / P3-9-A**：上輪起維持 ✅，本輪未動。
-  - ✅ **P3-6-B-3 完整結果頁與每題詳解**（本輪完成）：7 條任務全 ✅。
-  - ⬜ **P3-2-B / P3-3-B / P3-4 / P3-5 / P3-6-B-4 / P3-7-B / P3-7-C / P3-7-D / P3-8 / P3-9-B / P3-9-C**：本輪未動。
+- 🟡 **P3**：本輪只升 P3-6-B-4 從 ⬜ → 🟡（3 條 ✅ + 3 條 ⬜）；P3-6-B 整體仍 🟡（B-5 仍 1 條 ✅ + 1 條 ⬜）。
+  - ✅ **P3-1 / P3-2-A / P3-3-A / P3-6-A / P3-6-B-1 / P3-6-B-2 / P3-6-B-3 / P3-7-A / P3-9-A**：上輪起維持 ✅，本輪未動。
+  - 🟡 **P3-6-B-4 錯題詳解與錯題複習**（升為 🟡）：3 條 ✅（filter / 數量 / 空狀態）+ 3 條 ⬜（再練習錯題入口 / 獨立錯題複習頁 / wrongQuestionIds）。
+  - ⬜ **P3-2-B / P3-3-B / P3-4 / P3-5 / P3-7-B / P3-7-C / P3-7-D / P3-8 / P3-9-B / P3-9-C**：本輪未動。
   - 🟡 **P3-6-B-5 計時器**：1 條 ✅（第一版不計時）+ 1 條 ⬜（未來計時器）；本輪未動。
 - ⬜ **P4 / P5**：未動（仍 ⬜）。
 - ➕ **目前明確不做**：未動。本輪所有禁止項目皆守住。
 - 變更紀錄追加 2026-05-09 一筆。
 
-P3 整體仍 🟡 進行中；P3-6-B 仍 🟡 進行中（B-1 + B-2 + B-3 完成、B-4 / B-5 未開始或部分完成），**符合任務單「不要把 P3-6-B 整體標完成、不要把 P3-6 整體標完成、不要把 P3 整體標完成」要求**。
+P3 整體仍 🟡 進行中；P3-6-B 仍 🟡 進行中（B-1 + B-2 + B-3 完成、B-4 部分完成、B-5 部分完成），**符合任務單「不要把 P3-6-B-4 整體標完成、不要把 P3-6-B 整體標完成、不要把 P3-6 整體標完成、不要把 P3 整體標完成」要求**。

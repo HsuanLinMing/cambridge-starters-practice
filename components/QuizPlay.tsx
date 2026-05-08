@@ -392,6 +392,29 @@ const STATUS_STYLES: Record<
   },
 };
 
+type DetailFilter = "all" | "incorrect" | "unanswered" | "review";
+
+const FILTER_LABELS: Record<DetailFilter, string> = {
+  all: "全部",
+  incorrect: "只看錯題",
+  unanswered: "只看未作答",
+  review: "需要再練習",
+};
+
+const EMPTY_STATE_MESSAGES: Record<DetailFilter, string> = {
+  all: "目前沒有題目。",
+  incorrect: "太棒了，目前沒有答錯的題目！",
+  unanswered: "很好，這次每一題都有作答！",
+  review: "全部都很棒，這次沒有需要再練習的題目！",
+};
+
+const FILTER_ORDER: DetailFilter[] = [
+  "all",
+  "incorrect",
+  "unanswered",
+  "review",
+];
+
 type QuestionDetailCardProps = {
   question: ExamQuestion;
   index: number;
@@ -488,14 +511,40 @@ type ResultViewProps = {
 };
 
 function ResultView({ questions, answers, onRestart }: ResultViewProps) {
+  const [detailFilter, setDetailFilter] = useState<DetailFilter>("all");
+
+  // 一次計算每題狀態，後續四個 count 與 filter 共用
+  const statuses = questions.map((q, i) => ({
+    question: q,
+    index: i,
+    status: getQuestionStatus(q, answers[q.id]),
+  }));
+
   const total = questions.length;
-  const correctCount = questions.filter((q) =>
-    isCorrect(q, answers[q.id]),
+  const correctCount = statuses.filter((s) => s.status === "correct").length;
+  const incorrectCount = statuses.filter(
+    (s) => s.status === "incorrect",
   ).length;
-  const answeredCount = questions.filter((q) =>
-    isAnswered(answers[q.id]),
+  const unansweredCount = statuses.filter(
+    (s) => s.status === "unanswered",
   ).length;
-  const unansweredCount = total - answeredCount;
+  const answeredCount = total - unansweredCount;
+  const reviewCount = incorrectCount + unansweredCount;
+
+  const filterCounts: Record<DetailFilter, number> = {
+    all: total,
+    incorrect: incorrectCount,
+    unanswered: unansweredCount,
+    review: reviewCount,
+  };
+
+  const filteredStatuses = statuses.filter((s) => {
+    if (detailFilter === "all") return true;
+    if (detailFilter === "incorrect") return s.status === "incorrect";
+    if (detailFilter === "unanswered") return s.status === "unanswered";
+    return s.status === "incorrect" || s.status === "unanswered"; // review
+  });
+
   const ratio = total === 0 ? 0 : correctCount / total;
   let cheer = "你好棒！繼續加油喔！";
   if (ratio === 1) cheer = "全部答對！太厲害了！🎉";
@@ -541,16 +590,59 @@ function ResultView({ questions, answers, onRestart }: ResultViewProps) {
         <h3 className="mb-3 text-center text-base font-bold text-slate-700 sm:text-lg">
           每題詳解
         </h3>
-        <ul className="space-y-3">
-          {questions.map((q, i) => (
-            <QuestionDetailCard
-              key={q.id}
-              question={q}
-              index={i}
-              userAnswer={answers[q.id]}
-            />
-          ))}
-        </ul>
+
+        <div
+          className="mb-4 flex flex-wrap items-center justify-center gap-2"
+          role="group"
+          aria-label="詳解篩選"
+        >
+          {FILTER_ORDER.map((key) => {
+            const selected = key === detailFilter;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setDetailFilter(key)}
+                aria-pressed={selected}
+                className={
+                  "flex min-h-10 items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold shadow-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200 sm:text-sm " +
+                  (selected
+                    ? "bg-amber-300 text-slate-900 ring-2 ring-amber-400"
+                    : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")
+                }
+              >
+                <span>{FILTER_LABELS[key]}</span>
+                <span
+                  className={
+                    "inline-flex min-w-6 items-center justify-center rounded-full px-2 text-[11px] font-black " +
+                    (selected
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-slate-100 text-slate-600")
+                  }
+                >
+                  {filterCounts[key]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {filteredStatuses.length === 0 ? (
+          <div className="rounded-2xl bg-emerald-50 p-6 text-center text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
+            {EMPTY_STATE_MESSAGES[detailFilter]}
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {filteredStatuses.map(({ question, index }) => (
+              <QuestionDetailCard
+                key={question.id}
+                question={question}
+                index={index}
+                userAnswer={answers[question.id]}
+              />
+            ))}
+          </ul>
+        )}
       </section>
 
       <div className="mt-8 flex flex-col items-center gap-3">
