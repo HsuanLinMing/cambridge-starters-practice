@@ -1,0 +1,49 @@
+# source_materials/ 排除原始二進位素材
+# ----------------------------------------
+# 整理後的純文字（.md / .txt / .csv / .json）可 commit；
+# 原始 PDF / 官方圖片 / 官方音檔等二進位**不該** commit，
+# 避免本專案未來誤推上公開平台時觸版權。
+# 詳見 source_materials/README.md「Git 政策」段。
+
+# PDF（官方 sample papers / 歷屆題原始檔）
+*.pdf
+
+# 點陣圖片（官方掃描 / 拍照）
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+*.tiff
+
+# 音檔（官方錄音 / 歷屆題音檔）
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.aac
+*.flac
+
+# 影片（不該存在於本資料夾，但保險起見）
+*.mp4
+*.mov
+*.avi
+
+# 壓縮檔（避免被當包裝來源散布）
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
+# 例外：保留 .gitkeep 與整理後文字
+!.gitkeep
+!*.md
+!*.txt
+!*.csv
+!*.json
+!*.jsonc
+!*.yaml
+!*.yml

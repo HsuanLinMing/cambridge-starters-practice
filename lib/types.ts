@@ -48,3 +48,209 @@ export type Quiz = {
   description?: string;
   questions: QuizQuestion[];
 };
+
+// ============================================================================
+// P3 考前練習題庫 / 考卷 / Session schema
+// ----------------------------------------------------------------------------
+// 上方 `MultipleChoiceQuestion` / `QuizQuestion` / `Quiz` 為 P1~P2 既有 type，
+// 由 `data/quizzes.json` 與 `lib/data.ts` 直接使用、不可破壞。
+// 下方 P3 type 為 P3-1 新增的完整題庫設計，與舊 type **並存**：
+//   - 舊 type 仍涵蓋 P1~P2 的簡單 multiple-choice 範例。
+//   - 新 type 預留給 P3 完整 ExamPaper / Session 流程。
+// 兩者未來若要統一，需在 ROADMAP 提案後再做遷移；本輪不動既有 callers。
+// ============================================================================
+
+/** 題目來源；每題必填，便於日後篩選練習範圍。 */
+export type QuestionSource =
+  | "official_sample" // 官方公開 sample papers / 樣題整理
+  | "past_paper" // 歷屆考題整理（自家學習用，不對外散布）
+  | "ai_generated" // AI 依題型風格生成的仿真題
+  | "custom"; // 使用者自製或老師補充
+
+/** 題型 discriminator。 */
+export type QuestionType =
+  | "multiple-choice" // 通用文字 4 選 1
+  | "picture-choice" // 看圖選字（題目圖 + 4 文字選項）
+  | "word-choice" // 看字選圖（題目文字 + 4 圖片選項）
+  | "listening-choice" // 聽力選擇（音檔 + 4 文字 / 圖片選項）
+  | "fill-blank" // 填空（含選項版 / 自由填空版）
+  | "matching"; // 連連看
+
+/** 難度標記，可省略；保留給未來分級練習使用。 */
+export type DifficultyLevel = "easy" | "medium" | "hard";
+
+/** 共用題目欄位。所有 P3 題型皆 extend 此 base。 */
+export type BaseQuestion = {
+  /** 題目唯一識別碼。 */
+  id: string;
+  /** 題型 discriminator。 */
+  type: QuestionType;
+  /** 題目來源標記。 */
+  source: QuestionSource;
+  /** 題幹文字；某些純圖題或純音題可省略。 */
+  prompt?: string;
+  /** 解析；給結算頁與錯題複習頁顯示。語氣須小一友善。 */
+  explanation?: string;
+  /** 題目圖片路徑（相對 `public/`）；缺檔由 fallback 處理。 */
+  image?: string;
+  /** 題目音檔路徑（相對 `public/`）；listening 題型必填。 */
+  audio?: string;
+  /** 難度。 */
+  difficulty?: DifficultyLevel;
+  /** 主題分類。可對應 vocabulary 的 category 或自訂題目主題。 */
+  topic?: string;
+  /** AI 生成題的 prompt 版本號，便於回溯出題品質。 */
+  promptVersion?: string;
+};
+
+/** 圖片選項（給 word-choice / listening-choice 圖片版用）。 */
+export type ImageOption = {
+  /** 對應的英文單字或值，用於比對 `answer`。 */
+  value: string;
+  /** 圖片路徑；缺檔由 fallback 處理。 */
+  image: string;
+};
+
+/**
+ * 通用文字 4 選 1：與既有 P1~P2 `MultipleChoiceQuestion` 相容，
+ * 但多一個 `source` 欄位等 P3 必填項。
+ */
+export type ExamMultipleChoiceQuestion = BaseQuestion & {
+  type: "multiple-choice";
+  prompt: string;
+  options: string[];
+  answer: string;
+};
+
+/** 看圖選字：題目顯示圖片，4 個英文文字選項。 */
+export type PictureChoiceQuestion = BaseQuestion & {
+  type: "picture-choice";
+  /** 題目圖片必填。 */
+  image: string;
+  options: string[];
+  /** 必須是 `options` 之一。 */
+  answer: string;
+};
+
+/** 看字選圖：題目顯示英文，4 個圖片選項。 */
+export type WordChoiceQuestion = BaseQuestion & {
+  type: "word-choice";
+  /** 題目英文單字必填。 */
+  prompt: string;
+  options: ImageOption[];
+  /** 必須是某個 `options[i].value`。 */
+  answer: string;
+};
+
+/** 聽力題：音檔必填，選項可為文字或圖片。 */
+export type ListeningChoiceQuestion = BaseQuestion & {
+  type: "listening-choice";
+  /** 音檔必填。 */
+  audio: string;
+  /** 字幕（家長/老師看，不顯示給小朋友）。 */
+  transcript?: string;
+  /** 給 TTS 生成音檔的腳本（與 `transcript` 不一定相同，例如可加 SSML）。 */
+  ttsScript?: string;
+  /** 預設 `"text"`。 */
+  optionType?: "text" | "image";
+  options: string[] | ImageOption[];
+  answer: string;
+};
+
+/** 填空題：有 `options` → 選項版；無 `options` → 自由填空（比對忽略大小寫與前後空白）。 */
+export type FillBlankQuestion = BaseQuestion & {
+  type: "fill-blank";
+  /** 含 `___` 的句子。 */
+  prompt: string;
+  options?: string[];
+  answer: string;
+};
+
+/** 連連看的單組配對。 */
+export type MatchingPair = {
+  left: string;
+  right: string;
+};
+
+/** 連連看：左右兩列各 N 項，原始順序即為正確配對；UI 端打散讓使用者配對。 */
+export type MatchingQuestion = BaseQuestion & {
+  type: "matching";
+  pairs: MatchingPair[];
+};
+
+/** P3 全題型 discriminated union。 */
+export type ExamQuestion =
+  | ExamMultipleChoiceQuestion
+  | PictureChoiceQuestion
+  | WordChoiceQuestion
+  | ListeningChoiceQuestion
+  | FillBlankQuestion
+  | MatchingQuestion;
+
+/** 一份考卷的子段落（例如 Listening / Reading & Writing）。 */
+export type ExamSection = {
+  id: string;
+  title: string;
+  description?: string;
+  /** 該段落包含的題目 id 順序。 */
+  questionIds: string[];
+};
+
+/** 一份考卷的來源組成統計（彙總各 `QuestionSource` 在這份卷的題數）。 */
+export type SourceMix = Partial<Record<QuestionSource, number>>;
+
+/**
+ * 完整考卷模板。一份 ExamPaper 可被反覆開新 Session 練習。
+ * 題目順序由 `sections[].questionIds` 決定；UI 開新 Session 時可選擇打散。
+ */
+export type ExamPaper = {
+  examPaperId: string;
+  title: string;
+  description?: string;
+  sections: ExamSection[];
+  /** 該卷各來源題目數量統計，給篩選頁用。 */
+  sourceMix?: SourceMix;
+  /** ISO 8601；建立時間。 */
+  createdAt?: string;
+  /** ISO 8601；最後更新時間。 */
+  updatedAt?: string;
+};
+
+/**
+ * Session 內每題的作答內容。
+ * - 文字 / 圖片選擇題：`string`（選中的 option 值）。
+ * - 連連看：`string[]`（依左欄順序的右欄配對結果）。
+ * - 填空：`string`（使用者輸入或選的字）。
+ */
+export type ExamAnswerMap = Record<string, string | string[]>;
+
+/**
+ * localStorage 中保存的單一 Session 狀態。
+ * 一份 `examPaperId` 可重新測驗產生**新的 Session**，舊 Session 保留直到使用者刪除或被覆蓋。
+ *
+ * 對應 `docs/PRODUCT_SPEC.md`「測驗與考前練習方向 → 完整考卷 Session → 作答進度保存」。
+ */
+export type ExamSessionState = {
+  /** 該次考試的唯一識別碼。 */
+  examSessionId: string;
+  /** 對應的考卷模板 id。 */
+  examPaperId: string;
+  /** 題目實際 render 順序（生成時可打散，恢復時必須一致）。 */
+  questionOrder: string[];
+  /** 每題作答內容。 */
+  answers: ExamAnswerMap;
+  /** 目前進度（做到第幾題，從 0 開始）。 */
+  currentIndex: number;
+  /** 是否已交卷。 */
+  submitted: boolean;
+  /** 交卷後分數（答對題數）；未交卷為 `null`。 */
+  score: number | null;
+  /** 答錯題目 id 清單（交卷後填入）。 */
+  wrongQuestionIds: string[];
+  /** ISO 8601；Session 建立時間。 */
+  createdAt: string;
+  /** ISO 8601；最後互動時間。 */
+  updatedAt: string;
+  /** localStorage migration 用，第一版 = 1。 */
+  schemaVersion: number;
+};

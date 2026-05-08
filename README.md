@@ -96,7 +96,11 @@ npm run build       # 產出正式 build
 - `/review/words`：A~Z 字母入口（依資料動態顯示每字母單字數）
 - `/review/letter/[letter]`：字母總覽頁，列出該字母開頭的單字
 - `/review/word/[id]`：單字詳情頁——大圖、英文、發音按鈕；中文意思、英文例句、中文例句**初始隱藏**，由「🔍 看答案」/「🙈 再想一次」按鈕翻牌顯示。圖片 / 音檔皆有缺檔 fallback；上一個 / 下一個依整體 A~Z 順序前進、自動跨字母、切換時自動收起答案
-- `/review/picture`：**看圖練習第一版**——4 選 1 看圖選英文。圖片區（缺圖時顯示首字母 + 「圖片準備中」fallback）+ 4 個英文選項按鈕（amber 色，點擊後變色：答對 emerald、答錯 rose、其他選項淡化）+ 答對 / 答錯即時鼓勵回饋（答錯顯示正確答案）+「下一題」循環。Deterministic 選項生成（避免 hydration mismatch），不做分數保存、不做交卷、不做 localStorage（屬 `/quiz` 測驗區範圍）
+- `/review/picture`：**看圖練習**——頁面頂部 tab 切換兩種題型，預設「看圖選字」：
+  - **看圖選字**：圖片區（缺圖時顯示首字母 + 「圖片準備中」fallback）+ 4 個英文選項按鈕。
+  - **看字選圖**：英文單字題目區（淡藍背景與看圖選字的淡黃區別）+ 4 個圖片選項（每個選項缺圖時各自顯示首字母 fallback）。
+  - 共通：deterministic 選項生成（避免 hydration mismatch）、即時答對 / 答錯鼓勵回饋（答錯顯示正確答案）、答對 emerald / 答錯 rose / 其他選項淡化、「下一題」循環全題庫；切換題型自動回到第 1 題且狀態完全重置。**不做分數保存、不做交卷、不做 localStorage**——那些屬 `/quiz` 測驗區範圍。
+  - 圖片素材：第一批 10 個自製 SVG 已接入（apple / cat / dog / book / red / blue / one / two / mother / father），其餘 44 個單字仍是 placeholder path、由 fallback 處理；不使用 Cambridge 官方圖片、歷屆考題圖片或網路抓圖
 - `/quiz`：測驗區骨架（尚未串資料）
 - 範例資料：54 個單字（覆蓋 17 個字母、11 個主題分類）、1 份 4 題小測驗
 - 文件骨架：roadmap、產品規格、資料 schema、AI 協作流程、任務分流
@@ -105,8 +109,13 @@ npm run build       # 產出正式 build
 
 依 `PROJECT_ROADMAP.md` 推進：
 
-1. **P2-4C-2 複習中心後續擴充**：看圖練習第一版（4 選 1 看圖選英文，`/review/picture`）已於 P2-4C-1 完成，後續可補：看英文選圖第二題型、真實圖片素材、聽力練習、句型練習、位置 / 顏色 / 數量練習、TTS 音檔，以及補齊更多單字（I / K / L / N / Q / U / V / X / Z）。翻牌互動已於 P2-4A 完成、複習中心首頁已於 P2-4B 完成、看圖練習第一版已於 P2-4C-1 完成，皆不再列入待辦。
-2. **P3 考前練習與題庫（規劃中）**：考題資料 schema 擴充、本機資料匯入流程、AI 仿真題生成、Listening 與 Reading & Writing 題型、完整考卷 Session 與錯題複習。未來測驗區會支援**一次生成一整份完整考卷**（多題型混合），可保存未完成進度（以瀏覽器 localStorage 為主，下次進來繼續作答），並提供「繼續作答 / 離開這份考卷 / 重新測驗 / 直接交卷」四個操作；交卷後評分、錯題以紅色標示、顯示正確答案與小一友善講解。題目來源標記 `official_sample` / `past_paper` / `ai_generated` / `custom`，第一階段不做自動爬蟲，**第一版不計時、不登入、不接後端 / 雲端**。詳見 `docs/PRODUCT_SPEC.md` 的「測驗與考前練習方向」。
+1. **P2-4C-2B-2 複習中心後續擴充**：`/review/picture` 看圖練習已包含兩種題型（看圖選字、看字選圖）且第一批 10 個自製 SVG 圖像素材已接入，後續可補：補更多自製圖片素材（往剩下 44 個未補圖單字推進）、聽力練習、句型練習、位置 / 顏色 / 數量練習、TTS 音檔，以及補齊更多單字（I / K / L / N / Q / U / V / X / Z）。翻牌互動已於 P2-4A 完成、複習中心首頁已於 P2-4B 完成、看圖練習第一版已於 P2-4C-1 完成、看字選圖第二題型已於 P2-4C-2A 完成、第一批圖片素材已於 P2-4C-2B-1 完成，皆不再列入待辦。
+2. **P3 考前練習與題庫（進行中）**：
+   - **P3-1 考題資料 schema 擴充（已完成）**：`QuestionSource` / 6 種 `QuestionType` / `BaseQuestion` / 6 個題型專屬型別 / `ExamPaper` / `ExamSection` / `ExamSessionState` 寫入 `lib/types.ts`，配套文件寫入 `docs/DATA_SCHEMA.md`，範例資料 `data/p3-example-questions.json` / `data/exam-papers.example.json`。**僅資料設計、未做 UI / localStorage 實際讀寫**。
+   - **P3-2-A 本機素材匯入流程：規劃 / 文件（已完成）**：建立 `source_materials/` 資料夾骨架（`samples/` / `past_papers/` / `ai_generated/` / `custom/` 四個子目錄各對應一個 `QuestionSource`）+ `.gitignore` 排除原始 PDF / 圖片 / 音檔 + 主 README + 範例草稿格式。**純人工流程，未寫任何自動化程式**。
+   - **P3-3-A AI 仿真題 Prompt 標準格式（已完成）**：新增 `docs/AI_QUESTION_GENERATION.md` 規格文件（10 sections：定位 / 難度原則 / 來源規則硬邊界 / 6 題型 / 草稿輸出格式 / 轉換流程 / 品質檢查 6 項 / 對齊 P3-1 + P3-2-A / 不在 P3-3 範圍 / 版本化）+ `source_materials/ai_generated/prompt-template.md`（v1，可直接複製給 AI 使用）+ `source_materials/ai_generated/example-ai-questions.md`（6 題自製草稿覆蓋 6 題型）。**僅文件 / prompt 範本 / 草稿範例，未串 AI API、未做自動工具**。
+   - **P3-2-B（自動化轉換工具）/ P3-3-B（實際 AI 工具串接）/ P3-4（Listening 題型）/ P3-5（Reading & Writing 題型）/ P3-6（完整考卷 Session、交卷與錯題複習）仍未開始**。
+   - 未來測驗區會支援**一次生成一整份完整考卷**（多題型混合），可保存未完成進度（以瀏覽器 localStorage 為主，下次進來繼續作答），並提供「繼續作答 / 離開這份考卷 / 重新測驗 / 直接交卷」四個操作；交卷後評分、錯題以紅色標示、顯示正確答案與小一友善講解。題目來源標記 `official_sample` / `past_paper` / `ai_generated` / `custom`，第一階段**不做自動爬蟲、不下載官方圖片**，**第一版不計時、不登入、不接後端 / 雲端**。詳見 `docs/PRODUCT_SPEC.md` 的「測驗與考前練習方向」、`docs/DATA_SCHEMA.md` 的 P3 schema 與「本機素材匯入流程」、以及 `source_materials/README.md`。
 
 ## 資料夾結構
 

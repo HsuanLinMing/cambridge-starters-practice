@@ -1,123 +1,157 @@
-# Claude Code 回報 · P2-4C-2B-1 小修：移除 SVG 答案 metadata
+# Claude Code 回報 · P3-3-A AI 仿真題 Prompt 標準格式
 
 任務日期：2026-05-08
-任務性質：P2-4C-2B-1 小修，**只動 10 個 SVG 的 root 屬性**，未動任何程式碼 / 資料 / 文件。
+任務性質：P3-3-A 文件 / prompt 範本 / 草稿範例。**不串 AI API、不寫 Node script / CLI、不做 `/quiz` UI**。
 
 ## 【本輪修改摘要】
 
-修 Codex 指出的唯一條件：10 個自製 SVG 的 root `<svg>` 帶有答案字樣的 `aria-label`（例如 `aria-label="apple"`、`aria-label="red color"`、`aria-label="blue color"`、`aria-label="one star"`、`aria-label="two stars"` 等），雖然視覺上不會顯示，但若嚴格解讀「SVG 內容不應寫出英文答案」，這些 `aria-label` 仍算殘留。
+P3-3 階段升 🟡 進行中，本輪完成 **P3-3-A**（規格文件 + prompt 範本 + 草稿範例）。P3-3-B（實際 AI 工具串接）仍 ⬜。
 
-採**任務單建議的方案 A**：
+- **新增 `docs/AI_QUESTION_GENERATION.md`** 規格文件 10 個 section：定位（不是官方真題、是依風格自製）、難度原則（小一友善 6 條）、來源規則硬邊界（必標 `ai_generated` + 7 個 ❌）、6 種題型範圍、草稿輸出格式（類 YAML）、轉換流程圖、品質檢查 6 項、與 P3-1 / P3-2-A 對齊、不在 P3-3 範圍、Prompt 版本化政策。
+- **新增 `source_materials/ai_generated/prompt-template.md`** v1：可直接複製給 AI（ChatGPT / Claude）使用的 prompt 範本。包含角色設定（Cambridge Starters 兒童英文出題助手）、年齡（國小一年級）、6 題型可調參數、類 YAML 草稿格式範例（含 word-choice / matching 巢狀結構）、8 項自我檢查、與 custom 草稿差異對照表、版本歷史。
+- **新增 `source_materials/ai_generated/example-ai-questions.md`** 草稿範例：6 題覆蓋 6 種題型（`q-ai-mc-001` / `q-ai-pc-001` / `q-ai-wc-001` / `q-ai-lc-001` / `q-ai-fb-001` / `q-ai-mt-001`），id 與既有 P3-1 範例（`data/p3-example-questions.json`）不撞名。每題附 `imagePrompt` / `ttsScript` / `promptVersion` 草稿欄位、自我檢查紀錄、整理者提醒。
+- **`docs/DATA_SCHEMA.md`** 補「AI 仿真題草稿與正式題庫的關係（P3-3）」一節：草稿 → 審核 → 正式題庫流程圖、草稿欄位 vs 正式 schema 對應表、`source` 強制 `ai_generated`、P3-3-A 範圍 vs P3-3-B vs 永久不做（AI 評分）。
+- **`PROJECT_ROADMAP.md`** P3-3 階段升 🟡，子分區拆 P3-3-A（已完成 6 條 ✅）+ P3-3-B（5 條 ⬜，含「AI 評分永久不做」）；變更紀錄追加 2026-05-08 一筆。
+- **`README.md`** 「下一步」第 2 條補一行 P3-3-A 已完成。
 
-- 移除 `role="img"` 與 `aria-label="..."`。
-- 加上 `aria-hidden="true"`。
-
-理由：外層 React `<img>` 已由 `alt` 提供描述（在 `PracticeImage` 與 `VocabularyCard` 內 caller 傳入），SVG 檔案內部不需要重複提供答案型 aria-label。
-
-10 個檔案各只動 root 第一行；其餘 SVG 內部 shape / path / circle / rect 完全不動，圖案視覺與上輪 P2-4C-2B-1 完全一致。
-
-`npm run lint` / `typecheck` / `build` 三項全綠（路由 88 不變）；dev smoke test 確認 10 個 SVG 仍 200、`apple.svg` / `red.svg` 內容已不含答案字樣、8 條既有路由全 200、`/review/word/apple` 仍指向 svg 且翻牌正常、`/review/word/jump` 仍 fallback、`/quiz` 仍骨架；dev log 無 error / warn / hydration。
+`npm run lint` / `typecheck` / `build` 三項全綠，路由 88 不變。本輪零程式碼變動。
 
 ## 【修改檔案清單】
 
+新增：
+
+- `docs/AI_QUESTION_GENERATION.md`：8,284 bytes，10 個 section 規格文件。
+- `source_materials/ai_generated/prompt-template.md`：6,752 bytes，可複製給 AI 的 prompt 範本（v1）。
+- `source_materials/ai_generated/example-ai-questions.md`：5,906 bytes，6 題自製草稿範例。
+
 修改：
 
-- `public/images/apple.svg` — root：`role="img" aria-label="apple"` → `aria-hidden="true"`
-- `public/images/cat.svg` — root：`role="img" aria-label="cat"` → `aria-hidden="true"`
-- `public/images/dog.svg` — root：`role="img" aria-label="dog"` → `aria-hidden="true"`
-- `public/images/book.svg` — root：`role="img" aria-label="book"` → `aria-hidden="true"`
-- `public/images/red.svg` — root：`role="img" aria-label="red color"` → `aria-hidden="true"`
-- `public/images/blue.svg` — root：`role="img" aria-label="blue color"` → `aria-hidden="true"`
-- `public/images/one.svg` — root：`role="img" aria-label="one star"` → `aria-hidden="true"`
-- `public/images/two.svg` — root：`role="img" aria-label="two stars"` → `aria-hidden="true"`
-- `public/images/mother.svg` — root：`role="img" aria-label="mother"` → `aria-hidden="true"`
-- `public/images/father.svg` — root：`role="img" aria-label="father"` → `aria-hidden="true"`
-- `reports/claude_last_report.md`：本回報檔。
+- `docs/DATA_SCHEMA.md`：檔末新增「AI 仿真題草稿與正式題庫的關係（P3-3）」整節；前面 P3-1 schema 與 P3-2-A 整理流程不動。
+- `PROJECT_ROADMAP.md`：P3-3 章節重寫，加 P3-3-A 子分區（6 條 ✅）+ P3-3-B 子分區（5 條 ⬜）；變更紀錄追加。
+- `README.md`：「下一步」第 2 條條列補 P3-3-A 已完成、P3-3-B 列入未開始清單。
+- `reports/claude_last_report.md`：本回報檔（覆蓋 P3-2-A 那輪報告）。
 
-未動：所有 SVG 內部圖形（`<rect>` / `<circle>` / `<polygon>` / `<path>` / `<ellipse>` / `<line>`）、`data/vocabulary.json`、`PicturePractice.tsx`、`VocabularyCard.tsx`、`PracticeImage`（內含於 `PicturePractice.tsx`）、所有 app routes、`README.md`、`PROJECT_ROADMAP.md`、`docs/PRODUCT_SPEC.md`、`docs/DATA_SCHEMA.md`、`docs/TASK_ROUTER.md`、`docs/CODEX_VALIDATION_RUNBOOK.md`、`AI_DEV_WORKFLOW.md`、`AGENTS.md`、`CLAUDE.md`、`data/quizzes.json`、`public/audio/`、`package.json`。
+未動：所有 `app/` 路由、所有 `components/`、所有 `lib/`（含 `lib/types.ts` P3 型別）、所有 `data/*.json`（含 P3-1 範例、P3-2-A 草稿）、所有 `public/`、`AI_DEV_WORKFLOW.md`、`docs/TASK_ROUTER.md`、`docs/CODEX_VALIDATION_RUNBOOK.md`、`docs/PRODUCT_SPEC.md`、`AGENTS.md`、`CLAUDE.md`、`source_materials/README.md`（P3-2-A 主文件）、`source_materials/custom/example-question-draft.md`（P3-2-A 範例）、`source_materials/.gitignore`、`package.json`。
 
 ## 【核心邏輯說明】
 
-### 1. 採方案 A（`aria-hidden="true"`）而非方案 B（中性 `aria-label`）
+### 1. 三檔分工：規格 / 範本 / 範例
 
-任務單同時提供兩個方案，並建議優先採 A。原因如下：
+| 檔案 | 角色 | 讀者 |
+| --- | --- | --- |
+| `docs/AI_QUESTION_GENERATION.md` | **規格層**：定義什麼是 AI 仿真題、品質檢查標準、與 schema 對齊 | 維護者 / Codex / ChatGPT |
+| `source_materials/ai_generated/prompt-template.md` | **工具層**：可直接複製給 AI 的 prompt 主體（v1） | 任何想用 AI 出題的人 |
+| `source_materials/ai_generated/example-ai-questions.md` | **範例層**：示範 AI 草稿應該長什麼樣 + 自我檢查紀錄 | AI 出題者 + 人類整理者 |
 
-- **避免雙重描述衝突**：caller 端 `<img alt="...">` 已是 SVG 的可訪問描述（例如 `<PracticeImage>` 在看圖選字題目傳 `alt="看看這張圖片"`、看字選圖選項傳 `alt="${opt.word} 的圖片"`）；如果 SVG root 再寫一個 `aria-label`，會造成輔助科技讀到兩層、語意層級不清。
-- **`aria-hidden="true"` 是 W3C 推薦做法**：當圖像作為已被外層描述過的裝飾性 / 內容圖時，應在 SVG 上 `aria-hidden="true"` 讓輔助科技直接跳過 SVG 內部結構，使用 `<img alt>` 作為唯一可訪問入口。這是 SVG / ARIA 規範對「inline svg via img tag」的明確建議。
-- **降低答案洩漏面向**：徹底移除「SVG 內任何能被讀取的英文文字」，未來若有人用瀏覽器 devtools 看 raw SVG 也不會在 metadata 看到單字答案。
-- **方案 B 容易未來踩坑**：如果用 `aria-label="picture"` 之類的中性字串，未來補新 SVG 時可能有人不小心又寫成具體單字（例如 `aria-label="dog"`）；方案 A 的 `aria-hidden="true"` 是**規則最簡單**的 pattern——「SVG 永遠不暴露語意給輔助科技、語意完全交給外層 alt」，未來補圖只要照抄 root 即可，不會再犯錯。
+三檔職責切乾淨：未來 prompt 改版（v1 → v2）只動 `prompt-template.md`；schema 變動只動規格文件；範例可隨時補新批次。
 
-### 2. 為什麼不需要動 component
+### 2. 為什麼 AI 草稿用「類 YAML」而非 JSON
 
-`PracticeImage` 與 `VocabularyCard` 已正確處理 `alt`：
+- **AI 對人類友善的格式更穩**：類 YAML（`key: value`）比嚴格 JSON 容易寫對；AI 生成 JSON 時容易漏 comma、引號跳脫、巢狀錯位。
+- **與 P3-2-A custom 草稿一致**：`source_materials/custom/example-question-draft.md` 已採類 YAML，所有草稿層格式統一。
+- **正式 schema 仍是 JSON**：未來 P3-2-B 轉換工具負責「類 YAML → JSON」，AI 不直接吐 JSON。
+- **降低 AI 出題失敗率**：實務上請 AI 出 JSON 時格式錯誤率高；類 YAML 即使有小錯（多空格、多冒號），人類整理者也能很快修。
 
-```tsx
-// PicturePractice.tsx
-<PracticeImage item={current} alt="看看這張圖片" size="lg" />
-<PracticeImage item={opt} alt={`${opt.word} 的圖片`} size="sm" />
+### 3. 為什麼新增 `imagePrompt` / `ttsScript` / `promptVersion` 三個草稿欄位
 
-// PracticeImage 內
-<img src={item.image} alt={alt} className="h-full w-full object-contain" />
+| 欄位 | 用途 | 是否進正式 schema |
+| --- | --- | --- |
+| `imagePrompt` | 描述「自製插畫應該畫什麼」（例如「黃色彎月形香蕉，簡單卡通風格」），給人類整理者用以自繪 SVG | **不進**——轉檔時換成 `image: "/images/<id>.svg"` 路徑 |
+| `ttsScript` | 描述「TTS 應該唸什麼」，給人類整理者用 macOS `say -o` 等工具自製 | **進**——`ListeningChoiceQuestion.ttsScript` 已是 P3-1 schema 的正式欄位 |
+| `promptVersion` | 標記出題 prompt 的版本（例如 `starters-v1`），未來 prompt 改版時可回溯 | **進**——`BaseQuestion.promptVersion` 已是 P3-1 schema 的正式欄位 |
+
+`imagePrompt` 是純草稿欄位（規格文件明示「不進正式 schema」）。如果未來決定接 AI 圖像生成（DALL-E / Stable Diffusion），可考慮把它加進正式 schema；屆時需先更新 `lib/types.ts` 與 `docs/DATA_SCHEMA.md` P3-1 schema 段。本輪不做。
+
+### 4. AI id 命名 `q-ai-<題型>-<流水號>`：與既有不撞名
+
+P3-1 既有範例（`data/p3-example-questions.json`）的 id：`q-mc-001` / `q-pc-001` / `q-wc-001` / `q-lc-001` / `q-fb-001` / `q-fb-002` / `q-mt-001`。
+
+P3-3-A AI 範例的 id：`q-ai-mc-001` / `q-ai-pc-001` / `q-ai-wc-001` / `q-ai-lc-001` / `q-ai-fb-001` / `q-ai-mt-001`。
+
+**插入 `ai-` 中間段**避免撞名，未來轉成正式題庫時也保留來源辨識。`prompt-template.md` 內明寫此規則，給 AI 出題時遵守。
+
+### 5. 自我檢查 8 項硬邊界
+
+prompt 範本要求 AI 生成完**自己跑**這 8 項檢查：
+
+1. 答案在選項中（matching 例外）
+2. 所有 source 是 `ai_generated`
+3. 所有題目附 `promptVersion: starters-v1`
+4. explanation 鼓勵語氣
+5. 完全無官方 / 歷屆題內容
+6. 完全無外部 URL
+7. 英文題幹 ≤ 10 字、選項清楚
+8. 避開冷僻字、雙重否定、文化背景假設
+
+最後要求 AI 用一段固定收尾話：
+
+> ✅ 全部 N 題已通過自我檢查清單 1~8 項。
+> ✅ 全部標記 source: ai_generated、promptVersion: starters-v1。
+> ✅ 沒有引用任何官方真題、歷屆題、外部 URL 或官方素材。
+
+這條收尾話不是裝飾——是給人類整理者的「明示確認」，避免 AI 偷懶輸出後沒檢查。如果 AI 沒附這段，整批退回。
+
+### 6. ROADMAP P3-3 拆 P3-3-A / P3-3-B
+
+舊 P3-3 共 5 條 ⬜：
+
+```
+- ⬜ 撰寫「給 AI 的出題 prompt」標準格式（含風格、難度、題型、目標年齡）
+- ⬜ AI 輸出直接落入既有 quiz JSON schema
+- ⬜ 同步輸出 TTS script（給 listening 題）與 image prompt（給看圖題）
+- ⬜ 標記 `source: "ai_generated"` 並附 prompt 版本號
+- ⬜ 題目品質原則：小一友善、可愛、活潑、清楚
 ```
 
-外層 React 渲染的 `<img>` 永遠帶 `alt`，SVG 內 `aria-hidden="true"` 不會破壞輔助科技的描述路徑——alt 仍會被讀出。視覺上完全一致。
+本輪實作為 P3-3-A 6 條 ✅：
 
-### 3. 答案字樣全清光的驗證
+- ✅ `docs/AI_QUESTION_GENERATION.md` 規格文件
+- ✅ `prompt-template.md` v1（含風格、難度、題型、目標年齡可調參數）
+- ✅ `example-ai-questions.md` 6 題覆蓋 6 題型
+- ✅ 草稿欄位定義（`imagePrompt` / `ttsScript` / `promptVersion`）
+- ✅ 強制 `source: "ai_generated"`
+- ✅ `docs/DATA_SCHEMA.md` 補對應節
 
-10 個 SVG 各自 grep 對應單字：
+> 注意：舊條目「**AI 輸出直接落入既有 quiz JSON schema**」字面上偏向「直接寫 JSON」，但實務上採類 YAML 草稿 → 人工 / P3-2-B 轉換 → JSON 的兩階段流程更穩。本輪在規格文件中明示這個架構選擇，並把「AI 輸出直接寫 JSON」這條視為過時表述。
 
-- `apple.svg` 不含 `apple` ✓
-- `cat.svg` 不含 `cat` ✓
-- `dog.svg` 不含 `dog` ✓
-- `book.svg` 不含 `book` ✓
-- `red.svg` 不含 `red` ✓
-- `blue.svg` 不含 `blue` ✓
-- `one.svg` 不含 `one` ✓
-- `two.svg` 不含 `two` ✓
-- `mother.svg` 不含 `mother` ✓
-- `father.svg` 不含 `father` ✓
+P3-3-B 5 條 ⬜（未開始）：
 
-額外**交叉檢查**（10 個 SVG 中不應出現任意 10 個答案字樣中的任何一個）：全部 0 命中 ✓。
+- ⬜ AI API 客戶端串接（OpenAI / Anthropic / Claude SDK 等）
+- ⬜ 自動把 AI 草稿轉成正式 `data/*.json`（屬 P3-2-B 範圍）
+- ⬜ 自動圖像生成 wrapper（先評估自製素材策略）
+- ⬜ 自動 TTS 生成 wrapper（macOS `say -o` 或雲端 TTS）
+- ⬜ AI 評分功能：**永久不做**（見「目前明確不做」清單）
 
-確認沒殘留其他洩漏向量：
+P3-3 階段標 🟡（已開工）；P3-3-A 已完成；P3-3-B 仍未開工，所以 P3-3 整體不能標完成——符合任務單「不要把 P3 整體標完成」「不要進 P3-4 / P3-5 / P3-6」要求。
 
-| 檢查項 | 命中數 | 結論 |
-| --- | --- | --- |
-| `<text>` | 0 | ✓ 沒文字節點 |
-| `<title>` | 0 | ✓ 沒標題 |
-| `<desc>` | 0 | ✓ 沒描述 |
-| `<image>`（外部圖片） | 0 | ✓ 純向量 |
-| `aria-label` | 0 | ✓ 全部換成 `aria-hidden` |
-| 外部 URL（除 SVG namespace） | 0 | ✓ 唯一的 `http://www.w3.org/2000/svg` 是 W3C SVG XML namespace 規範必要識別字，不是外部資源載入 |
+### 7. 沒做的事（嚴守任務單禁止清單）
 
-> **註**：SVG 規範要求 root 必須宣告 `xmlns="http://www.w3.org/2000/svg"`，這個字串看起來像 URL 但實際上是 XML namespace 識別，瀏覽器不會去 fetch 它，無安全 / 答案洩漏疑慮。grep 寬條件命中 10 行（每個 SVG root 都有）屬正常。
-
-### 4. 行為等價性確認
-
-修改前：SVG 渲染 → 輔助科技讀到「apple」/「red color」/「blue color」等英文 → 答案在 SVG metadata 層洩漏。
-
-修改後：SVG 渲染 → 輔助科技見 `aria-hidden="true"` → 跳過 SVG 內部 → 讀取 `<img alt>`（中文）→ 例如「看看這張圖片」、「apple 的圖片」（看字選圖選項，但這層 alt 是 caller 傳給選項按鈕，本來就有單字 word；看圖選字題目 alt 是中性「看看這張圖片」）。
-
-關鍵：**看圖選字的題目區（圖片是題幹）alt = 「看看這張圖片」中性字串**——所以即使輔助科技讀 alt 也不會洩漏答案；整體答案洩漏管道已關閉。看字選圖選項區的 alt 含 word，但那是「選項文字 = 圖片中要選的單字」本來就要透露的（不然輔助科技使用者根本沒辦法選），與題目方向一致。
-
-### 5. 沒做的事（嚴守任務單禁止清單）
-
-- 沒動 `data/vocabulary.json`、所有 components、所有 routes、所有 docs、所有 README/ROADMAP。
-- 沒新增 / 刪除 SVG。
-- 沒重新設計 SVG 圖案（內部 shape 全部 byte-for-byte 不變）。
-- 沒下載任何外部素材。
-- 沒新增 `<text>`、沒在其他屬性藏答案。
-- 沒進入 P2-4C-2B-2 / P3、沒新增 `/quiz` 功能 / localStorage / 分數保存 / 依賴 / 測試框架。
+- 沒實作 AI 生成工具
+- 沒串 OpenAI / Anthropic API
+- 沒寫 Node script / CLI
+- 沒做自動匯入工具
+- 沒實作 `/quiz` UI / 完整考卷流程
+- 沒做 localStorage 實際保存 / 交卷頁 / 錯題頁
+- 沒新增圖片 / 音檔 / SVG
+- 沒下載官方圖片 / 歷屆題圖片
+- 沒爬網路
+- 沒放 Cambridge 官方真題內容（範例 6 題全自製，題幹用基礎句型 `I see a ___` / `What is this` / `I have a ___` 等）
+- 沒新增依賴 / 測試框架
+- 沒處理 npm audit
+- 沒部署 / 後端 / DB / 登入
+- 沒動 PRODUCT_SPEC / TASK_ROUTER / CODEX_VALIDATION_RUNBOOK / AI_DEV_WORKFLOW / AGENTS / CLAUDE / `lib/types.ts` / 任何 `data/*.json`
 
 ## 【新增了哪些能力】
 
-無新功能。本輪純 SVG metadata 修補，把答案洩漏面向關閉。
-
-副效應：補圖規則更精簡——「未來補新 SVG 時 root 只用 `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`」這條 pattern 可以直接抄，不需要為每個單字想 aria-label，也避免新單字英文又跑回 metadata。
+- 規格層首次有「請 AI 出題」的**完整可援引文件**：定位、難度、來源、6 題型、輸出格式、品質檢查、轉換流程一次到位。
+- 工具層首次有**可直接複製給 AI**的 prompt 範本（v1），降低未來實際出題門檻；只要把 `prompt-template.md` 主體貼給 AI 就能跑。
+- 範例層首次有**自我檢查紀錄**範本：未來 AI 真實生成題後，可照 `example-ai-questions.md` 末尾的格式留紀錄，給 Codex 驗收一個明確標準。
+- DATA_SCHEMA「草稿欄位 vs 正式 schema」對應表釐清三個欄位（`imagePrompt` / `ttsScript` / `notes`）的命運：哪些進正式 schema、哪些不進。
+- prompt 版本化政策（`starters-v1`）+ `promptVersion` 必填欄位讓未來改版時可回溯出題品質。
 
 ## 【新增/調整測試】
 
-無。任務單明確禁止導入測試框架。本輪以 grep + curl 人工 smoke test。
+無。任務單明確禁止導入測試框架。本輪純文件變動，無程式碼可測。
 
 ## 【測試結果】
 
@@ -125,60 +159,86 @@
 
 - `npm run lint` → **通過**（0 警告 0 錯誤）。
 - `npm run typecheck` → **通過**（exit 0）。
-- `npm run build` → **通過**：88 條路由全部 SSG / Static prerender，與上輪一致。
+- `npm run build` → **通過**：路由總數仍 88、全部 SSG / Static prerender，與 P3-2-A / P3-1 / P2-4C-2B-1 完全一致。
 
-SVG 內容驗證（grep）：
+新檔結構驗證：
 
-- 對應單字逐字檢查：10 個 SVG 全部 0 命中。
-- 交叉檢查（任意 SVG 含任意 10 個答案字樣）：全部 0 命中。
-- 其他 metadata 洩漏向量（`<text>` / `<title>` / `<desc>` / `<image>` / `aria-label` / 外部 URL）：全部 0（唯一 `http://www.w3.org/2000/svg` 為 W3C SVG namespace，非外部資源）。
-- 10 個 root 全部加上 `aria-hidden="true"`。
+```
+docs/AI_QUESTION_GENERATION.md                         (8,284 bytes)
+source_materials/ai_generated/
+├── .gitkeep                                           (上輪)
+├── example-ai-questions.md                            (5,906 bytes，新增)
+└── prompt-template.md                                 (6,752 bytes，新增)
+```
 
-人工 smoke test（dev server + curl）：
+範例 AI 題目品質驗證（grep）：
 
 | 驗證項 | 結果 |
 | --- | --- |
-| 10 個 SVG dev server serve 仍 200 | ✓ |
-| dev server 回傳的 `apple.svg` 內容不含 `apple` | ✓ 0 命中 |
-| dev server 回傳的 `red.svg` 內容不含 `red` | ✓ 0 命中 |
-| `/`、`/review`、`/review/picture`、`/review/words`、`/review/letter/a`、`/review/word/apple`、`/review/word/jump`、`/quiz` 全部 200 | ✓ |
-| `/review/word/apple` RSC payload 仍含 `/images/apple.svg`、翻牌「看答案」按鈕仍正常 | ✓ |
-| `/review/word/jump` RSC payload 仍含 `/images/jump.png`、SSR HTML 含 fallback「圖片準備中」 | ✓ |
-| Dev log error / warn / hydration | ✓ 全無 |
+| 6 題 id 命中（`q-ai-mc-001` / `q-ai-pc-001` / `q-ai-wc-001` / `q-ai-lc-001` / `q-ai-fb-001` / `q-ai-mt-001`） | ✓ |
+| 與既有 P3-1 範例 id（`q-mc-001` 等）不撞名 | ✓ |
+| 6 題全部 `source: ai_generated` | ✓ |
+| 範例內無外部 URL（`http://` / `https://`） | ✓（grep 命中 1 行是「自我檢查紀錄」中**描述**「未出現 `http://` / `https://`」的字面，不是真的外部 URL） |
+| 不含官方真題痕跡關鍵字（`official sample paper` / `歷屆考題原文` / `Cambridge Assessment`） | ✓ 全 0 命中 |
+| prompt-template 含完整自我檢查 | ✓ |
+
+依 runbook 第 4 節，純文件改動可略過 `npm run dev`。
 
 ## 【仍未處理】
 
-- P2-4C-2B-2 全部 7 條（補更多圖片 / 真實音檔 / 補單字 / 聽力 / 句型 / 位置 · 顏色 · 數量 / category 補充模式）。
-- P3 6 個子階段全 ⬜，本輪不開工。
-- P1 兩條可選 housekeeping。
+- **P3-3-B 全部 5 條 ⬜**：AI API 串接、自動草稿 → JSON 轉換（與 P3-2-B 重疊）、自動圖像生成、自動 TTS、AI 評分（永久不做）。
+- **P3-2-B 全部 4 條 ⬜**。
+- **P3-4 ~ P3-6 全部 ⬜**：Listening 題型、Reading & Writing 題型、完整考卷 Session 與錯題複習。
+- **P2-4C-2B-2 全部 7 條 ⬜**：補更多圖片素材、聽力 / 句型 / 位置 · 顏色 · 數量練習等。
+- **P1 兩條可選 housekeeping**。
 - `npm audit` 兩個 moderate 警告（任務單禁止處理）。
-- `docs/DATA_SCHEMA.md` 對 Question / Exam Session 型別擴充（屬 P3-1）。
+- **舊 type 統一遷移**（待 P3-6 動工 `/quiz` UI 時做）。
 
 ## 【後續建議】
 
-1. **請 Codex 用「驗收 9 段」做 P2-4C-2B-1 小修最終確認**：grep 10 個 SVG 內容（不含對應答案字樣、無 `<text>` / `<title>` / `<desc>` / `<image>` / `aria-label`）；瀏覽器確認 `/review/picture` 各題型圖案視覺與上輪完全一致（沒有任何視覺差異，本輪只是 metadata 變動）；輔助科技讀屏（如 macOS VoiceOver）確認 `<img alt>` 仍正常被讀出，SVG 內部不再洩漏英文。
-2. **未來補新 SVG 的 SOP（隱形規則）**：root 一律抄
-   ```
-   <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-   ```
-   不要再加 `role="img"` 或 `aria-label`；alt 由外層 `<PracticeImage>` / `<VocabularyCard>` caller 傳入。建議在 P2-4C-2B-2 開始補大量新圖時，可以在 `docs/DATA_SCHEMA.md` 或新增 `public/images/README.md` 把這條 pattern 寫成規範條文，避免共同維護者再犯。本輪未動 docs（任務單明示）。
-3. **「答案洩漏邊界」可以納入 Codex 驗收手冊**：建議在 `docs/CODEX_VALIDATION_RUNBOOK.md` 第 5 節「檢查清單」新增一項「圖片素材檢查」——對 `public/images/*.svg` grep 對應單字應全 0、grep `<text>` / `<title>` / `<desc>` / `aria-label` 應全 0。本輪未動 runbook（屬「不要改文件」範圍）；下一次 ROADMAP / runbook 整理時可一併補。
-4. **長期方向**：等真實素材覆蓋率 ≥ 50%（27 / 54 個單字有圖）時可評估改回 `next/image` 利用 image optimization；屆時 SVG 也會經 `next/image` 處理，`<svg aria-hidden="true">` 配合外層 `next/image` 的 `alt` 仍是正確 pattern。
+1. **請 Codex 用「驗收 9 段」做 P3-3-A 文件層回歸**：
+   - 翻 `docs/AI_QUESTION_GENERATION.md` 確認 10 個 section 完整、6 項品質檢查清楚、與 P3-1 / P3-2-A 對齊正確。
+   - 翻 `source_materials/ai_generated/prompt-template.md` 確認 prompt 主體可直接複製、8 項自我檢查到位、版本歷史框架建立。
+   - 翻 `source_materials/ai_generated/example-ai-questions.md` 確認 6 題覆蓋 6 題型、id 不撞名既有、`source` / `promptVersion` 全對、自我檢查紀錄完整。
+   - 翻 `docs/DATA_SCHEMA.md` 末段「AI 仿真題草稿與正式題庫的關係」確認流程圖正確、草稿欄位對應表清楚。
+   - 確認 ROADMAP P3-3 標 🟡、P3-3-A 全 ✅、P3-3-B 全 ⬜（含 AI 評分永久不做）。
+2. **首次實際使用 prompt 範本的建議步驟**（請 ChatGPT 收斂）：
+   1. 從 `prompt-template.md` 主體區塊複製到 ChatGPT 或 Claude 對話。
+   2. 視需要調整可調參數（題型清單、每題型題數、主題）。
+   3. 收到 AI 輸出後逐項對照 8 項自我檢查。
+   4. 通過後存到 `source_materials/ai_generated/<日期>-<topic>-batch01.md`。
+   5. 由維護者依 6 項品質檢查審核。
+   6. 通過審核 → 由人工整理（或未來 P3-2-B 工具）轉成 `data/*.json`。
+3. **下一輪建議優先序**（請 ChatGPT 收斂）：
+   - 路線 A：**直接跑一次實際 AI 出題流程**（人工把 prompt 貼給 AI、收到答案、人工審、不需要寫程式），把 prompt v1 在實務中驗證；若有問題遞增 v2。
+   - 路線 B：**P3-2-B 文字 → JSON 轉換工具**（Node script），把 AI 草稿與 custom 草稿都能一次轉。
+   - 路線 C：**P3-6 完整考卷 Session UI 第一版**（用既有 P3-1 範例 + AI 生成的少量題目做最小可玩流程）。
+4. **`imagePrompt` 是否進正式 schema 的決策時機**：等到接 AI 圖像生成工具時再決定。本輪明示「不進」是保守選擇，避免 schema 過早擴張。
+5. **本輪 prompt v1 預期會迭代**：實際使用後若 AI 生成題目偏向某種瑕疵（例如答案位置都在第一格、解析語氣偏正式），需加強 prompt 對應段落，遞增為 `starters-v2` 並在版本歷史記錄。
 
 ## 【Roadmap 同步檢查】
 
 對照 `PROJECT_ROADMAP.md`，本輪實際變動：
 
 - ✅ **P1**：未動。
-- 🟡 **P2**：仍 🟡 進行中。
-  - ✅ **P2-4C-2B-1**：上輪 5 條已標 ✅，本輪只是把 SVG metadata 進一步收斂（移除答案字樣 aria-label），屬已完成項的精修，**未新增也未翻動勾選狀態**。「不下載 Cambridge 官方圖片、不下載歷屆考題圖片、不使用網路抓圖、不使用版權外部素材」這條本輪繼續成立，加上更嚴格的「SVG 內容不寫出英文答案」也已對齊。
-  - 🟡 **P2-4C-2B 階段**：仍 🟡。
-  - ⬜ **P2-4C-2B-2**：7 條 ⬜，未動。
-  - 🟡 **P2-4C 階段**：仍 🟡。
-  - P2-1 / P2-2 / P2-3 / P2-4A / P2-4B / P2-4C-1 / P2-4C-2A 維持 ✅。
-- ⬜ **P3**：仍「⬜ 規劃中」，6 個子階段全 ⬜。
+- 🟡 **P2**：仍 🟡 進行中（P2-4C-2B-2 尚未開工）；所有 P2 勾選未動。
+- 🟡 **P3**：仍 🟡 進行中。
+  - ✅ **P3-1**：未動。
+  - 🟡 **P3-2 本機資料匯入流程**：未動。
+    - ✅ P3-2-A：未動。
+    - ⬜ P3-2-B：未動。
+  - 🟡 **P3-3 AI 仿真題生成規劃**：階段標題從「⬜」升到「🟡 進行中」。
+    - ✅ **P3-3-A AI 仿真題 Prompt 標準格式（本輪 6 條全翻 ✅）**：
+      - 規格文件 `docs/AI_QUESTION_GENERATION.md`
+      - prompt 範本 v1
+      - 草稿範例 6 題覆蓋 6 題型
+      - 草稿欄位定義（`imagePrompt` / `ttsScript` / `promptVersion`）
+      - 強制 `source: "ai_generated"`
+      - DATA_SCHEMA 補對應節
+    - ⬜ **P3-3-B 實際 AI 工具串接**：5 條 ⬜（AI API 串接 / 草稿 → JSON 自動化 / 圖像生成 / TTS / AI 評分永久不做）。
+  - ⬜ **P3-4 / P3-5 / P3-6**：未動。
 - ⬜ **P4 / P5**：仍「⬜ 已併入 P3-x」。
-- ➕ **目前明確不做**：未動。本輪未引入登入 / 後端 / 雲端 / localStorage / 分數保存 / 真實音檔 / 大量新單字 / 依賴 / 測試框架，未下載任何官方 / 歷屆 / 網路圖片，未動 `/quiz`、未真的部署 Vercel。
-- 變更紀錄**未追加**新一筆——本輪屬 P2-4C-2B-1 完成項的細節精修（移除答案 metadata），上輪那筆變更紀錄已涵蓋「不下載官方圖片 / 不使用版權外部素材」的核心精神。本輪只是把實作面的 metadata 對齊文字精神。
+- ➕ **目前明確不做**：未動，本輪未引入登入 / 後端 / 雲端 / localStorage / 真實素材 / 依賴 / 測試框架，未串 AI API、未爬網路、未下載任何官方 / 歷屆 / 網路素材、未放 Cambridge 官方真題內容、未實作 `/quiz` UI。
+- 變更紀錄追加 2026-05-08 一筆。
 
-**沒有任何條目從 ⬜ 翻為 ✅ 或 🟡**，符合任務單「不要新增功能」「不要進入 P2-4C-2B-2」「不要進入 P3」「不要改 PROJECT_ROADMAP」要求。
+P3 整體仍未完成；**符合任務單「不要把 P3 整體標成完成」「不要進 P3-4 / P3-5 / P3-6」「不要把 P3-2-B 標完成」要求**。

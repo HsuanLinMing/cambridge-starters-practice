@@ -18,7 +18,7 @@
     "translation": "蘋果",
     "exampleEn": "I like a red apple.",
     "exampleZh": "我喜歡一顆紅蘋果。",
-    "image": "/images/apple.png",
+    "image": "/images/apple.svg",
     "audio": "/audio/apple.mp3"
   },
   {
@@ -84,7 +84,7 @@
     "translation": "藍色的",
     "exampleEn": "The sky is blue.",
     "exampleZh": "天空是藍色的。",
-    "image": "/images/blue.png",
+    "image": "/images/blue.svg",
     "audio": "/audio/blue.mp3"
   },
   {
@@ -95,7 +95,7 @@
     "translation": "書",
     "exampleEn": "I read a book.",
     "exampleZh": "我讀一本書。",
-    "image": "/images/book.png",
+    "image": "/images/book.svg",
     "audio": "/audio/book.mp3"
   },
   {
@@ -139,7 +139,7 @@
     "translation": "貓",
     "exampleEn": "The cat is on the mat.",
     "exampleZh": "貓在地墊上。",
-    "image": "/images/cat.png",
+    "image": "/images/cat.svg",
     "audio": "/audio/cat.mp3"
   },
   {
@@ -183,7 +183,7 @@
     "translation": "狗",
     "exampleEn": "My dog is happy.",
     "exampleZh": "我的狗很開心。",
-    "image": "/images/dog.png",
+    "image": "/images/dog.svg",
     "audio": "/audio/dog.mp3"
   },
   {
@@ -238,7 +238,7 @@
     "translation": "爸爸",
     "exampleEn": "This is my father.",
     "exampleZh": "這是我的爸爸。",
-    "image": "/images/father.png",
+    "image": "/images/father.svg",
     "audio": "/audio/father.mp3"
   },
   {
@@ -392,7 +392,7 @@
     "translation": "媽媽",
     "exampleEn": "This is my mother.",
     "exampleZh": "這是我的媽媽。",
-    "image": "/images/mother.png",
+    "image": "/images/mother.svg",
     "audio": "/audio/mother.mp3"
   },
   {
@@ -414,7 +414,7 @@
     "translation": "一",
     "exampleEn": "I have one pen.",
     "exampleZh": "我有一支筆。",
-    "image": "/images/one.png",
+    "image": "/images/one.svg",
     "audio": "/audio/one.mp3"
   },
   {
@@ -458,7 +458,7 @@
     "translation": "紅色的",
     "exampleEn": "The ball is red.",
     "exampleZh": "球是紅色的。",
-    "image": "/images/red.png",
+    "image": "/images/red.svg",
     "audio": "/audio/red.mp3"
   },
   {
@@ -557,7 +557,7 @@
     "translation": "二",
     "exampleEn": "Two cats are sleeping.",
     "exampleZh": "兩隻貓正在睡覺。",
-    "image": "/images/two.png",
+    "image": "/images/two.svg",
     "audio": "/audio/two.mp3"
   },
   {

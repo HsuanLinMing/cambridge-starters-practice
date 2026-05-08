@@ -121,7 +121,20 @@
       "Bash(/usr/bin/grep -c 'P2-4C-2' /Users/linxuanming/Documents/cambridge-starters-practice/README.md)",
       "Bash(/usr/bin/grep -c 'TTS 音檔' /Users/linxuanming/Documents/cambridge-starters-practice/README.md)",
       "Bash(/usr/bin/grep -c '準備中')",
-      "Bash(/usr/bin/grep -c \"把「準備中」的看圖\" /Users/linxuanming/Documents/cambridge-starters-practice/README.md)"
+      "Bash(/usr/bin/grep -c \"把「準備中」的看圖\" /Users/linxuanming/Documents/cambridge-starters-practice/README.md)",
+      "Bash(/usr/bin/grep -oE 'role=\"tablist\"[^>]*aria-label=\"題型切換\"' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE 'role=\"tab\"[^>]*aria-selected=\"true\"[^>]*' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE '看圖選字|看字選圖' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '看看英文，選出正確的圖片' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE 'aria-label=\"選項圖片：[a-z]+\"' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '第 1 題' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -oE '<div class=\"text-center text-sm font-semibold[^\"]*\"[^>]*>[^<]*' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '下一題' /tmp/csp-pic.html)",
+      "Bash(/usr/bin/grep -c '/review/picture' /tmp/csp-rev.html)",
+      "Bash(/usr/bin/sort)",
+      "Bash([ -d \"/Users/linxuanming/Documents/cambridge-starters-practice/source_materials/$d\" ])",
+      "Bash(/usr/bin/grep -n 'schema 支援 4 種\\\\|4 種 source 都有' /Users/linxuanming/Documents/cambridge-starters-practice/reports/claude_last_report.md)",
+      "Bash(/usr/bin/grep *)"
     ]
   }
 }

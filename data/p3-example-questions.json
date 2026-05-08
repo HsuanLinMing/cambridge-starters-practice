@@ -1,0 +1,94 @@
+[
+  {
+    "id": "q-mc-001",
+    "type": "multiple-choice",
+    "source": "custom",
+    "prompt": "Which one is a fruit?",
+    "options": ["cat", "apple", "red", "two"],
+    "answer": "apple",
+    "explanation": "蘋果是水果，cat 是動物。",
+    "difficulty": "easy",
+    "topic": "food"
+  },
+  {
+    "id": "q-pc-001",
+    "type": "picture-choice",
+    "source": "ai_generated",
+    "image": "/images/apple.svg",
+    "prompt": "What is this?",
+    "options": ["apple", "banana", "cat", "dog"],
+    "answer": "apple",
+    "explanation": "圖片是紅色的圓形水果，是 apple。",
+    "difficulty": "easy",
+    "topic": "food",
+    "promptVersion": "starters-rw-pc-v1"
+  },
+  {
+    "id": "q-wc-001",
+    "type": "word-choice",
+    "source": "ai_generated",
+    "prompt": "apple",
+    "options": [
+      { "value": "apple", "image": "/images/apple.svg" },
+      { "value": "banana", "image": "/images/banana.svg" },
+      { "value": "cat", "image": "/images/cat.svg" },
+      { "value": "dog", "image": "/images/dog.svg" }
+    ],
+    "answer": "apple",
+    "explanation": "apple 是蘋果，圖片是紅色圓形水果那張。",
+    "difficulty": "easy",
+    "topic": "food",
+    "promptVersion": "starters-rw-wc-v1"
+  },
+  {
+    "id": "q-lc-001",
+    "type": "listening-choice",
+    "source": "ai_generated",
+    "audio": "/audio/q-lc-001.mp3",
+    "transcript": "What does the boy want?",
+    "ttsScript": "What does the boy want?",
+    "optionType": "text",
+    "options": ["apple", "banana", "cat", "dog"],
+    "answer": "apple",
+    "explanation": "音檔說小男孩想要蘋果。",
+    "difficulty": "easy",
+    "topic": "food",
+    "promptVersion": "starters-listening-v1"
+  },
+  {
+    "id": "q-fb-001",
+    "type": "fill-blank",
+    "source": "custom",
+    "prompt": "The sky is ___.",
+    "options": ["red", "blue", "green"],
+    "answer": "blue",
+    "explanation": "天空是藍色的，所以填 blue。",
+    "difficulty": "easy",
+    "topic": "colors"
+  },
+  {
+    "id": "q-fb-002",
+    "type": "fill-blank",
+    "source": "custom",
+    "prompt": "I have a ___.",
+    "answer": "cat",
+    "explanation": "自由填空，可填任何單字（這份範例的解答是 cat）；比對時忽略大小寫與前後空白。",
+    "difficulty": "medium",
+    "topic": "animals"
+  },
+  {
+    "id": "q-mt-001",
+    "type": "matching",
+    "source": "custom",
+    "prompt": "把英文單字配對到正確的圖片。",
+    "pairs": [
+      { "left": "cat", "right": "/images/cat.svg" },
+      { "left": "dog", "right": "/images/dog.svg" },
+      { "left": "apple", "right": "/images/apple.svg" },
+      { "left": "book", "right": "/images/book.svg" }
+    ],
+    "explanation": "依左欄順序連到右欄正確圖片。",
+    "difficulty": "easy",
+    "topic": "mixed"
+  }
+]
