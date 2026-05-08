@@ -219,59 +219,102 @@
 - ✅ 題目排序貼近正式 Cambridge Starters：Section 1 Listening（`listening-choice`）→ Section 2 Reading & Writing（`picture-choice` → `word-choice` → `multiple-choice` → `fill-blank` → `matching`）；題目卡頂端顯示對應段落徽章（sky 系 / amber 系），不修改 JSON 來源
 - ✅ 題目卡加 Part 標示對齊正式 Cambridge Pre A1 Starters parts 架構：`getStarterPartInfo()` helper 把 6 題型映射到對應 Part（lc → Part 3 聽音選圖；pc → Part 1 / Part 2 preview 看圖判斷 / 看圖選答案；wc → Part 3 看圖認字 / 拼字練習；mc → Part 4 preview 短句選字；fb → Part 4 短文 / 句子填空；mt → Part 5 preview 圖文配對 / 故事理解預備）；徽章合併段落英文｜中文「Listening｜聽力練習」/「Reading & Writing｜閱讀與書寫練習」，徽章下方獨立行顯示「Part X：題型中文」；頁首補小字「目前為練習版，題型逐步對齊正式 Cambridge Starters」避免使用者誤解為完整正式考卷
 
-#### P3-6-B 持久化 / 操作 / 結果頁完整版（尚未開始）
-
-> 對應原 5 分區的條目；本輪刻意不做。等 P3-6-A 實際使用後再依需求展開。
+#### P3-6-B 持久化 / 操作 / 結果頁完整版（🟡 進行中）
 
 > 詳細產品方向見 `docs/PRODUCT_SPEC.md` 的「測驗與考前練習方向 → 完整考卷 Session」。
+>
+> 子分區：P3-6-B-1（localStorage 持久化，已完成）+ P3-6-B-2（繼續作答 / 重新測驗 / 直接交卷，已完成）+ P3-6-B-3（完整結果頁與每題詳解）+ P3-6-B-4（錯題詳解與錯題複習）+ P3-6-B-5（計時器）。
 
-#### 完整考卷生成
+##### P3-6-B-1 localStorage Session 持久化（已完成）
 
-- ⬜ 一次生成一整份完整考卷（不是隨機單題模式）
-- ⬜ 一份考卷可包含多題型混合（Listening、Matching、Fill in the blanks、看圖選字、看字選圖、選圖題、選字題）
-- ⬜ 同一份考卷內可混合多種來源（`official_sample` / `past_paper` / `ai_generated` / `custom`）
-- ⬜ 整套 Cambridge Starters 樣式題組（Listening + Reading & Writing）
+- ✅ 新增 `lib/examSessionStorage.ts` helper：集中處理 localStorage key (`cambridge-starters-practice:quiz-session:v1`)、`loadSession` / `saveSession` / `clearSession` / `createEmptySession` / `isCompatibleSession`、`schemaVersion = 1` 檢查、try/catch 防壞資料 / SSR 環境（`typeof window === "undefined"`）造成頁面崩潰
+- ✅ Session 欄位精簡版：`schemaVersion` / `paperId` / `questionOrder` / `currentIndex` / `answers`（key = 題目 id、value = 字串）/ `submitted` / `startedAt` / `updatedAt` / `submittedAt`（可選）
+- ✅ 與 `lib/types.ts` 的 `ExamSessionState` 概念對齊但**精簡**：第一刀不存 `examSessionId` / `score` / `wrongQuestionIds` 等欄位（屬 P3-6-B-3+ 範圍）
+- ✅ `components/QuizPlay.tsx` 三個獨立 state（currentIndex / answers / submitted）改為單一 `session` state；hydration 後嘗試從 localStorage 恢復；session 變更後自動寫回 localStorage
+- ✅ 不相容情境（schemaVersion / paperId / questionOrder 任一不符 / JSON parse 失敗 / SecurityError 等）一律丟棄舊 session 並建立新 session，**頁面不 crash**
+- ✅ 嚴守邊界：只存使用者作答狀態；不存官方資料、不存圖片本體、不存音檔本體
 
-#### 作答進度保存（localStorage）
+##### P3-6-B-2 繼續作答 / 重新測驗 / 直接交卷（已完成）
 
-- ⬜ 使用瀏覽器 localStorage 保存未完成考卷 Session
-- ⬜ 至少保存：`examSessionId` / `examPaperId` / `questionOrder` / `answers` / `currentIndex` / `submitted` / `score` / `wrongQuestionIds`
-- ⬜ 下次進入時可偵測未完成 Session 並提示「繼續作答」
-- ⬜ 不上後端 / 不上雲端 / 不做登入（見 ROADMAP 末尾「目前明確不做」）
+- ✅ **繼續作答**：重新整理 / 重開分頁時，若 localStorage 中有同 paperId + questionOrder 的 session 則自動恢復 currentIndex / answers / submitted；畫面頂端顯示 emerald 系小提示「🔁 已恢復上次作答進度」（按下方「重新測驗」可清除重來）；首次點選任何答案後提示自動消失
+- ✅ **重新測驗**：題目卡下方加灰底 chip 按鈕「🔁 重新測驗」；按下後 `clearSession()` + 建立新 session（currentIndex = 0、answers = {}、submitted = false）；無 confirm dialog（依任務單）
+- ✅ **直接交卷**：題目卡下方加 amber 系 chip 按鈕「📝 直接交卷」；按下後 submitted = true + submittedAt 寫入；立即進結果頁
+- ✅ **結果頁**：顯示「答對 N / 共 M 題」+「已作答 X / 共 M」+「未作答 M-X 題」雙欄統計（emerald / rose 配色）+ 鼓勵文案（依答對率四級）+「重新測驗」按鈕（清 session、回第一題）；未作答題目算錯，UI 明示「未作答的題目算錯」鼓勵語
+- ✅ 完成畫面的「重新測驗」與題目卡下方「重新測驗」共用同一個 `handleRestart`（清 localStorage + 建立新 session + 隱藏 restored 提示）
+- ✅ 對應 `app/quiz/page.tsx` 補 `paperId` prop 傳給 `<QuizPlay>`（從 `paper.examPaperId` 讀，目前是 `starters-mock-001`）
+- ✅ React 19 `react-hooks/set-state-in-effect` 規則：localStorage 讀取的 setState 透過 `queueMicrotask` 包成非同步 callback，與既有 `QuizImage` 的 `probe.onload` 模式一致
 
-#### 考卷操作
+##### P3-6-B-3 完整結果頁與每題詳解（⬜ 未開始）
 
-- ⬜ 繼續作答（從 `currentIndex` 接著做）
-- ⬜ 離開這份考卷（保留進度回首頁，下次可繼續）
-- ⬜ 重新測驗（放棄目前 Session、開新 Session，需確認提示避免誤觸）
-- ⬜ 直接交卷（未答題視為未作答，立刻進入評分）
-
-#### 交卷與結果頁
-
-- ⬜ 計算分數（答對 N / 總 M、附鼓勵性視覺如星星 / 百分比）
-- ⬜ 錯題以紅色標示
-- ⬜ 顯示正確答案
+- ⬜ 結果頁顯示每題作答 vs 正確答案（紅色標錯題）
 - ⬜ 顯示簡單講解（小一友善語氣，鼓勵 > 懲罰）
-- ⬜ 「再練習錯題」入口（後續功能延伸）
-- ⬜ 結果留存於 localStorage，不上後端 / 雲端
+- ⬜ 顯示正確答案
+- ⬜ 結果留存於 localStorage（沿用既有 session.submitted / submittedAt）
 
-#### 計時相關
+##### P3-6-B-4 錯題詳解與錯題複習（⬜ 未開始）
+
+- ⬜ 「再練習錯題」入口：把錯題撈出來重做一輪
+- ⬜ 錯題複習頁可獨立進入（不透過完整考卷）
+- ⬜ 錯題狀態於 localStorage 保存（`wrongQuestionIds` 對齊 `ExamSessionState`）
+
+##### P3-6-B-5 計時器（⬜ 未開始）
 
 - ✅ **第一版不計時**（已於 P3-6-A 落實——`/quiz` UI 無計時器）
 - ⬜ 未來若加入模擬考計時器：設為可選功能、預設關閉
 
-### P3-7 官方資源索引與人工整理流程（⬜ 未開始）
+### P3-7 官方資源索引與人工整理流程（🟡 進行中）
 
-> 建立 Cambridge Pre A1 Starters **官方公開資源的連結索引與人工筆記**，作為自製題的「題型結構參考」。本子階段純文件，**不下載任何官方檔案、不爬蟲、不把官方 sample 題目轉入正式題庫**。
+> 建立 Cambridge Pre A1 Starters **官方公開資源的連結索引與人工筆記**，作為自製題的「題型結構參考」。本階段純文件，**不下載任何官方檔案、不爬蟲、不把官方 sample 題目轉入正式題庫**。
+>
+> 子分區：P3-7-A（索引文件第一版，已完成）+ P3-7-B（format 對 P3-9 模板逐項校正）+ P3-7-C（wordlist 對自家 vocabulary 分類校正）+ P3-7-D（sample / mock toolkit 題型觀察筆記）。
 
-- ⬜ 新增 `docs/OFFICIAL_RESOURCES.md`（或類似命名）作為官方資源索引主檔
-- ⬜ 記錄官方公開資源連結：official format 頁、sample papers 頁、Cambridge English Starters wordlist、mock test toolkit、Lyrics & instructions 等
-- ⬜ 記錄**人工整理的題型結構筆記**：每個 Part 的題目數、選項類型、考點、敘述風格（不抄原文）
-- ⬜ 記錄 Cambridge English Starters wordlist 對應到本專案 `data/vocabulary.json` 的差距分析（要補哪些字、可不補哪些字）
-- ⬜ **只保存連結與人工筆記**——不下載官方 PDF / 圖片 / 音檔 commit 進 repo（與 `source_materials/.gitignore` 一致）
-- ⬜ **不做自動爬蟲**（與「目前明確不做」清單一致）
-- ⬜ **不把官方 sample 題目直接轉入正式題庫**——只整理「題型結構與自製題規則」；自製題仍依 P3-3 / P3-8 走草稿 → 審核 → 正式 JSON 流程
-- ⬜ 文件需明示「官方資源僅作題型參考、不複製內容、不重製官方素材」硬邊界
+#### P3-7-A 官方資源索引文件第一版（已完成）
+
+- ✅ 新增 `docs/OFFICIAL_RESOURCES.md`（v1，2026-05-08），用繁體中文撰寫；明示「只保存連結與人工筆記、不下載官方 PDF / 圖片 / 音檔、不複製官方題目 / 歷屆題、不做自動爬蟲、不把官方 sample 題目轉入正式題庫、不使用網路圖片當正式素材」。
+- ✅ **用途與硬邊界**：對齊 PRODUCT_SPEC「目前明確不做」、source_materials/README「官方資源與歷史題整理原則」、AI_QUESTION_GENERATION「來源規則硬邊界」三處硬邊界，列出 7 條 ✅ 可以做（保存連結 / 人工筆記 / wordlist 整理方向 / sample paper 觀察筆記 / mock test toolkit 流程觀察 / 官方題型結構轉自製題規則 / 自製圖片與音檔）+ 9 條 ❌ 不可做（爬蟲 / 自動下載 PDF / 圖片 / 音檔 / commit 官方檔案 / 複製 sample 題目 / 複製歷屆題 / 網路圖片當正式素材 / data JSON 放官方 URL / 聲稱 AI 題是官方題）。
+- ✅ **索引格式**：每筆條目 8 欄位（資源名稱 / 官方用途 / 本專案用途 / 可參考內容 / 不可直接使用內容 / 對應 Roadmap / 對應文件 / 連結）；連結欄位由人工從主入口導航後驗證填入，**v1 不預先填入 sub-page URL** 避免 AI 生成過時資訊。
+- ✅ **A 段 官方考試格式與 parts**：4 個條目（A-1 Cambridge English 主站 / A-2 Pre A1 Starters 考試資訊頁 / A-3 Test format 頁 / A-4 Handbook for teachers）。
+- ✅ **B 段 官方 preparation / sample resources**：4 個條目（B-1 Preparation 頁 / B-2 Sample papers 入口 / B-3 Wordlist 入口 → 連到 C 段 / B-4 Mock test toolkit 入口 → 連到 D 段）。
+- ✅ **C 段 Wordlist / vocabulary 方向**：C-1 wordlist 條目 + C-2 5 條使用原則（可作 vocabulary 範圍參考 / 不複製整份 PDF / 自家 `data/vocabulary.json` 為主 / 分類概念對齊既有 11 個 VocabularyCategory / 未來人工整理需確認來源）+ C-3 與 P3-7-C 對接。
+- ✅ **D 段 Sample papers / mock test toolkit 方向**：D-1 sample papers 5+5 對照表（可參考題型順序 / 互動方式 / 題目數量 / 音檔節奏 / 場景設計；不複製題目 / 圖片 / 音檔 / 答題單 / 場景圖原檔）+ D-2 mock test toolkit 4+4 對照表 + D-3 與 P3-7-D 對接。
+- ✅ **用官方資源校正 P3-9 模板**：11 條檢查清單（L1 互動描述 / L2 answer type / L3 聽音選圖 / L4 顏色塗色指令 / RW1 圖句判斷 / RW2 大圖 yes/no / RW3 看圖拼字 / RW4 短文填空 / RW5 故事圖 one-word / `getStarterPartInfo()` preview 對應調整 / `STARTERS_PART_TEMPLATES.md` 是否升 v2）+ 校正動作的非目的（不抄官方原文 / 不要求 100% 還原 / 不轉 sample 為 data JSON）。
+- ✅ **AI 仿真題素材來源策略**：6 條 ✅ 應使用（官方題型結構 / 本專案 vocabulary / 自製 imagePrompt / 自製 ttsScript / 自製 explanation / 人工審核）+ 6 條 ❌ 不應使用（官方題目全文 / 官方圖片 / 官方音檔 / 歷屆題原文 / 網路圖片 / 外部 URL）+ 違反時的處理 SOP。
+- ✅ **與其他文件的關係**：對齊 PRODUCT_SPEC / source_materials/README / STARTERS_PART_TEMPLATES / AI_QUESTION_GENERATION / DATA_SCHEMA / PROJECT_ROADMAP 六處關係表。
+- ✅ **版本標記** v1 + v2 後續規劃（等 P3-7-B / P3-7-C / P3-7-D 動工後回填 sub-page URL 與人工筆記檔指向）。
+
+#### P3-7-B 官方 format 對 P3-9 模板逐項校正（⬜ 未開始）
+
+> 依 `docs/OFFICIAL_RESOURCES.md` 的「用官方資源校正 P3-9 模板」11 條清單，人工瀏覽官方 format / Handbook / sample 後逐項校正 `docs/STARTERS_PART_TEMPLATES.md`。
+
+- ⬜ Listening Part 1 互動描述校正（大圖 + 人物 / 物件位置連線）
+- ⬜ Listening Part 2 answer type 校正（聽對話寫 name / number）
+- ⬜ Listening Part 3 聽音選圖校正
+- ⬜ Listening Part 4 顏色 / 塗色 / 指令校正
+- ⬜ Reading & Writing Part 1 圖句判斷校正
+- ⬜ Reading & Writing Part 2 大圖 yes/no 校正
+- ⬜ Reading & Writing Part 3 看圖拼字校正
+- ⬜ Reading & Writing Part 4 短文填空校正
+- ⬜ Reading & Writing Part 5 故事圖 one-word answer 校正
+- ⬜ `getStarterPartInfo()` preview 對應調整（若需）
+- ⬜ `docs/STARTERS_PART_TEMPLATES.md` 升 v2（若需）
+
+#### P3-7-C 官方 wordlist 對自家 vocabulary 分類校正（⬜ 未開始）
+
+> 依 `docs/OFFICIAL_RESOURCES.md` C 段，人工瀏覽官方 wordlist 後輸出**覆蓋差距分析**（不抄整份字表）。
+
+- ⬜ 撰寫 `source_materials/notes/wordlist-coverage.md`（規劃中）：自家 vocabulary 對齊官方 wordlist 的主題覆蓋度與字數差距分析
+- ⬜ 確認 `lib/types.ts` 的 `VocabularyCategory` 11 個分類是否需要新增 / 改名
+- ⬜ 依差距分析給 P2-4C-2B-2 補字優先序建議
+- ⬜ 不整份複製官方表格
+
+#### P3-7-D Sample / mock test toolkit 題型觀察筆記（⬜ 未開始）
+
+> 依 `docs/OFFICIAL_RESOURCES.md` D 段，人工瀏覽官方 sample papers + mock test toolkit 後輸出**結構觀察筆記**（不複製題目 / 圖片 / 音檔）。
+
+- ⬜ 撰寫 `source_materials/notes/sample-paper-observations.md`（規劃中）：每 Part 一段題型互動 / 題數 / 音檔節奏觀察筆記
+- ⬜ 撰寫 `source_materials/notes/mock-test-flow.md`（規劃中）：模擬考流程節奏的人工筆記，給 P5 完整仿真考試體驗 / P4 Speaking Agent 考官台詞模板參考
+- ⬜ 兩份筆記檔皆只放人工觀察、不放官方檔案；連結指向官方公開頁面而非下載連結
+- ⬜ 觀察結果回饋 P3-9-A 模板（若有形式偏差）
 
 ### P3-8 AI 仿真題生成流程（⬜ 未開始）
 
@@ -285,24 +328,65 @@
 - ⬜ 流程：**先進 `source_materials/ai_generated/`，經審核後**轉正式 `data/*.json`
 - ⬜ 與 P3-2-B（自動轉換工具）配合：審核後的草稿可由轉換工具批次轉 JSON
 
-### P3-9 正式題型模板化（⬜ 未開始）
+### P3-9 正式題型模板化（🟡 進行中）
 
 > 把目前 generic 6 題型對齊到 Cambridge Pre A1 Starters **正式 Parts 結構**，建立可重用的「題型模板」，作為 P3-8 AI 出題流程的**輸入參考**。**Speaking 先不在 P3 實作**，留給 P4 Speaking Examiner Agent 統一處理。
+>
+> 子分區：P3-9-A（文件第一版，已完成）+ P3-9-B（schema / metadata 實作，未開始）+ P3-9-C（part-specific quiz UI 實作，未開始）。
 
-- ⬜ Listening Part 1~4 模板：
-  - Part 1：聽完整對話 → 把名字 / 物件配對到圖中位置
-  - Part 2：聽 yes / no
-  - Part 3：聽單字搭配圖片（單詞與圖片連線）
-  - Part 4：聽指令塗色 / 識別顏色 + 物件
-- ⬜ Reading & Writing Part 1~5 模板：
-  - Part 1：圖片配單字（連連看）
-  - Part 2：看圖判斷 yes / no
-  - Part 3：看圖認字 / 拼字
-  - Part 4：短文 / 句子填空
-  - Part 5：圖文配對 / 故事理解預備
-- ⬜ 把 P3-6-A 的 `getStarterPartInfo()` 與題型 → Part 對應表升級為**結構化模板**：每個 Part 模板含「題目數、選項類型、敘述模板、`imagePrompt` 模板、`ttsScript` 模板（如 listening）」
-- ⬜ 模板輸出進 `docs/STARTERS_PART_TEMPLATES.md`（規劃中），作為 P3-8 AI 出題流程的輸入參考
-- ⬜ Speaking Part 1~4 模板**不在 P3 實作**——留給 P4
+#### P3-9-A 正式題型模板文件第一版（已完成）
+
+- ✅ 新增 `docs/STARTERS_PART_TEMPLATES.md` 第一版（v1，2026-05-08），用繁體中文撰寫；明示是「自製練習模板」，不是官方題庫、不複製官方題目；硬邊界與 PRODUCT_SPEC「目前明確不做」對齊。
+- ✅ 大架構：明示三段（Listening Part 1~4 / Reading & Writing Part 1~5 / **Speaking 不在 P3，留 P4**）。
+- ✅ 整理 **Listening Part 1~4** 模板，每個 Part 含 12 欄位：
+  - 官方方向簡述 / 本專案練習版目標 / 題目互動方式 / 需要的資料欄位 / `imagePrompt` 建議 / `ttsScript` 建議 / `answer` 型態 / 目前 P3 schema 是否已支援 / 未來需要補哪些功能 / 是否需要圖片 / 是否需要音檔 / 是否適合 AI 仿真題生成
+  - L1：大圖 + 人物 / 物件位置連線；本專案第一版簡化為「看圖 + 聽句子 + 選人物 / 選位置」
+  - L2：聽對話寫 name / number；本專案第一版做「聽句子 + 文字輸入」
+  - L3：聽音選 A/B/C 圖；目前 `listening-choice` 最接近，schema 已支援
+  - L4：聽指令塗顏色；本專案第一版做「聽句子 + 選顏色 / 選物件」，真正塗色 UI 屬 P3-9-C
+- ✅ 整理 **Reading & Writing Part 1~5** 模板，每個 Part 含 10 欄位（無 `ttsScript` / 無音檔欄位）：
+  - RW1：看圖 + 句子 yes/no；對應 `true-false` / `picture-choice` 未來版本
+  - RW2：看大圖回答 yes/no；需要 scene image + 多題共用結構（schema 待補）
+  - RW3：看圖拼字；對應「只顯示圖片不顯示英文，孩子自己拼字」未來單字拼字測驗模式（P2-4C-2B-2 / P3-9-C）
+  - RW4：短文 / 句子填空；目前 `fill-blank` 單空格已支援，多空格短文待補
+  - RW5：看故事圖一字答案；需要 3 張圖 / scene image + one-word answer（schema 待補）
+- ✅ **目前 P3 schema 對應表**：6 題型 → 正式 part 對應狀態，明示「練習版近似對應、不是完整正式題型、未來逐步新增更精準 part-specific types 或 metadata」。對齊 `components/QuizPlay.tsx` 的 `getStarterPartInfo()`。
+- ✅ **未來題型資料欄位建議**：列 `starterSection` / `starterPart` / `skillFocus` / `ttsScript` / `imagePrompt` / `expectedAnswerType` / `difficulty` 升級 + 其他建議欄位（imageHotspots / sharedSceneImage / images[] / colorPalette / instructions[] / wordBank / multiBlankAnswers）；明示**本輪只寫建議，不修改 `lib/types.ts` / `data/*.json` / 任何 components**。
+- ✅ **AI 仿真題 prompt 如何使用模板**：寫出 8 步流程（選 section + part → 套用 part template → 限制 vocabulary → 生成 imagePrompt / ttsScript → 生成 answer / explanation → 人工審核 → 進 source_materials → 轉正式 data JSON），對齊 P3-3 / P3-8 既有規劃；建議未來 prompt-template v2 加 `starterSection` / `starterPart` 必填參數。
+- ✅ **與 P4 Speaking Examiner Agent 的關係**：明示 P3 不實作 Speaking、SP1~SP4 模板未來歸屬 `docs/SPEAKING_EXAMINER_AGENT_DESIGN.md`（規劃中），AI 回饋不是 Cambridge 官方成績、處處標示「AI 練習回饋，非官方考試分數」。
+- ✅ 與其他文件關係表：列出與 `docs/DATA_SCHEMA.md` / `docs/AI_QUESTION_GENERATION.md` / `source_materials/README.md` / `PROJECT_ROADMAP.md` / `docs/PRODUCT_SPEC.md` 的分工。
+- ✅ 文件版本標記：v1（2026-05-08）。
+
+#### P3-9-B part-specific schema / metadata 實作（⬜ 未開始）
+
+> 把 P3-9-A 模板中的「未來題型資料欄位建議」實際寫進 `lib/types.ts` 與 `data/*.json`。需配合 DATA_SCHEMA 同步更新。
+
+- ⬜ `starterSection` / `starterPart` 字串字面量加入 `BaseQuestion`（或新 wrapper 類型）
+- ⬜ `skillFocus` / `expectedAnswerType` 字串字面量
+- ⬜ `imagePrompt` 是否升為正式 schema 欄位（vs 只在草稿層）的決策
+- ⬜ 多題共用 scene image 結構（`sceneGroup` / `sharedSceneImage`，給 RW2 用）
+- ⬜ 多空格 fill-blank 結構（`multiBlankAnswers: string[]`，給 RW4 多空格用）
+- ⬜ `images: string[]` 多圖序列（給 RW5 用）
+- ⬜ 拼字輸入結構（`spelling-input` 子題型 / `inputMode` metadata，給 RW3 用）
+- ⬜ yes-no 答題型態（`true-false` 子題型 / `answerStyle: "yes-no"` metadata，給 RW1 / RW2 用）
+- ⬜ Listening hotspot / colorPalette / instructions（給 L1 / L4 進階版用）
+- ⬜ 同步更新 `docs/DATA_SCHEMA.md` P3 schema 段
+- ⬜ 同步更新 `data/p3-example-questions.json` 範例覆蓋新欄位
+
+#### P3-9-C part-specific quiz UI 實作（⬜ 未開始）
+
+> 把 P3-9-A 模板中各 Part 的 UI 細節寫進 `components/QuizPlay.tsx` 或拆分新 components；依 P3-9-B 的 schema 渲染。
+
+- ⬜ L1 場景圖 + 4 選項（含可選 hotspot 互動）
+- ⬜ L2 文字輸入 name / number（鍵盤切換）
+- ⬜ L3 A / B / C 圖選項視覺
+- ⬜ L4 簡化版選顏色 / 選物件 UI；真正塗色互動屬後續延伸
+- ⬜ RW1 大型 ✓ / ✗ 按鈕
+- ⬜ RW2 場景圖固定 + 下方多題滾動
+- ⬜ RW3 拼字輸入 + 看答案 / 再試一次 / 下一題
+- ⬜ RW4 多空格短文 + 字詞 bank 拖拉
+- ⬜ RW5 多圖序列 + one-word 輸入
+- ⬜ `getStarterPartInfo()` 升級為從 `question.starterPart` 讀（取代依 `question.type` 推導）
 
 ## P4 Speaking Examiner Agent 模擬考官系統（⬜ 未開始）
 
@@ -464,5 +548,8 @@
 - 2026-05-08：P3-3-A 收尾——新增 prompt v1 第一批人工試跑草稿 `source_materials/ai_generated/2026-05-08-starters-v1-batch01.md`，8 題覆蓋 6 題型（mc × 2 / pc × 1 / wc × 1 / lc × 2 / fb × 1 / mt × 1），id 用 `q-ai-v1-*-001/002` 格式與既有 `data/p3-example-questions.json` / `example-ai-questions.md` 皆不撞名。題目全部標 `source: ai_generated` + `promptVersion: starters-v1`；題幹用 vocabulary 既有字（apple / cat / dog / book / red / blue / mother / father / chair / run / jump / sit）；color 類圖片以 `imagePrompt` 強調「無文字、無單字」對齊 PRODUCT_SPEC「素材策略」。檔末附**人工品質檢查紀錄表**（10 項全 ✓：source / promptVersion / answer 在 options / 無官方歷屆題內容 / 無外部 URL / 鼓勵語氣 / 題幹 ≤ 10 字 / 避冷僻字 / id 不撞名 / 題型分配對齊任務單），並逐題分析「需要日後調整」（綠 / 黃色塊 SVG 與 lc 音檔依賴 P2-4C-2B-2，補齊前不能進正式 JSON）。`README.md`「下一步」第 2 條補一行說明 prompt v1 試跑草稿已新增。本輪**未串 AI API、未寫任何程式 / CLI、未做自動轉換工具、未實作 `/quiz` UI**、未動 `lib/types.ts` / 任何 `data/*.json` / 所有 components / pages / `lib/`、未新增圖片 / 音檔 / SVG / 依賴 / 測試框架，未爬網路、未下載任何官方 / 歷屆 / 網路素材、未放 Cambridge 官方真題內容。P2 仍 🟡 進行中，P3 仍 🟡 進行中（P3-1 ✅、P3-2-A ✅、P3-3-A ✅；P3-2-B / P3-3-B / P3-4 / P3-5 / P3-6 全 ⬜）。
 - 2026-05-08：完成 P3-6-A `/quiz` 最小可玩流程第一版——P3-6 階段升 🟡 進行中，子分區拆 P3-6-A（已完成）+ P3-6-B（持久化 / 操作 / 結果頁完整版，未開始）。`/quiz` 從骨架升級為可實際操作的測驗頁：server page (`app/quiz/page.tsx`) 載入 `data/exam-papers.example.json` 第一份考卷與 `data/p3-example-questions.json` 7 題，依 sections 順序平鋪 questionOrder → 傳給新增的 client 元件 `<QuizPlay>` (`components/QuizPlay.tsx`) 管 state（純 React local，無 localStorage）。6 題型最小渲染：multiple-choice / picture-choice / word-choice 用 amber 系按鈕；listening-choice 顯示 transcript / ttsScript 文字（不播音檔，自製屬 P2-4C-2B-2）；fill-blank 選項版用按鈕 + 自由填空版用 text input（比對忽略大小寫與前後空白）；matching 用閱讀型「我看完了」按鈕作答（計分視為「答完即正確」）。一題一頁：未答題「下一題」disabled、最後一題顯示「看結果」、完成畫面顯示「答對 N/M 題」+ 四級鼓勵文案（全對 / ≥70% / ≥40% / 其他）+ 🔁「重新開始」按鈕 + 回首頁 link。圖片缺檔 fallback：file-private `<QuizImage>`（與 `<PracticeImage>` 同模式但獨立，避免動 P2-4C 既有元件），`new window.Image()` 預載成功才切真圖。`lib/data.ts` 最小擴充：新增 `p3ExampleQuestions` / `p3ExamplePapers` export，舊 `vocabulary` / `quizzes` 一行不動。原 P3-6 5 分區的計時段「第一版不計時」翻 ✅（對齊本輪實作）；其餘 4 分區（完整考卷生成 / 作答進度保存 / 考卷操作 / 交卷與結果頁）保留為 P3-6-B 目標。`README.md` 目前功能補 `/quiz` 條目 + 「下一步」P3-6-A 已完成、P3-6-B 仍規劃中。本輪**零依賴新增**、未做 localStorage / 交卷頁 / 錯題詳解 / AI 評分、未串 API、未動 `lib/types.ts` / `data/*.json` / 任何 `/review` 路由 / 任何 components 既有檔（含 `PicturePractice`、`VocabularyCard`）、未爬網路、未下載任何官方 / 歷屆 / 網路素材、未放 Cambridge 官方真題內容、未新增圖片 / 音檔 / SVG。Codex 暫停期（5/12 恢復）期間由 Claude 自測通過：lint / typecheck / build 三項全綠 + dev smoke test 8 條路由 200 + `/quiz` SSR 結構驗證（標題 / 進度 / 第一題 listening 內容 / 4 選項 / disabled 按鈕 / 完成畫面字串初始 0）。P2 仍 🟡 進行中，P3 仍 🟡 進行中（P3-1 ✅、P3-2-A ✅、P3-3-A ✅、P3-6-A ✅；P3-2-B / P3-3-B / P3-4 / P3-5 / P3-6-B 全 ⬜）。
 - 2026-05-08：P3-6-A 小修——調整 `/quiz` 題型順序更接近正式 Cambridge Starters 考卷結構。`app/quiz/page.tsx` 新增 file-private `sortQuestionsForStarters()` helper，把 P3-1 範例 7 題依「Section 1 Listening（`listening-choice`）→ Section 2 Reading & Writing（`picture-choice` → `word-choice` → `multiple-choice` → `fill-blank` → `matching`）」重新排序；不修改 `data/p3-example-questions.json` 與 `data/exam-papers.example.json`。`components/QuizPlay.tsx` 新增 `SECTION_LABELS` 對照與 `getSectionTag()` helper；題目卡頂端加區段徽章（sky-100 / amber-100 兩色配色區別 listening 與 R&W 段）+「聽力練習」/「閱讀與書寫練習」中文小字 + 既有「第 X 題 / 共 N 題」進度行。`app/quiz/page.tsx` 頁首文案補「順序：Listening → Reading & Writing」。**Speaking 不做**（本專案明確排除）。其餘流程（選答案、下一題、完成畫面、答對 N/M、重新開始、fill-blank normalize、matching 閱讀型「我看完了」、listening 顯示 transcript 不播音檔）完全保留。本輪零依賴新增，未動 `lib/types.ts` / `lib/data.ts` / 任何 `data/*.json` / 任何 `/review/` 路由 / 其他 components。Codex 暫停期由 Claude 自測通過：lint / typecheck / build 三項全綠 + dev smoke test 8 條路由 200 + visible HTML 第 1 題為 listening（含「Listening」徽章 + 「聽力練習」中文 + transcript）+ RSC payload 內 7 題位置遞增順序符合 listening → picture → multiple → fill-blank 排序。P3-6-A 增加一條 ✅；P3-6-B 仍 ⬜，P3 整體仍 🟡 進行中。
+- 2026-05-08：完成 P3-6-B-1 + P3-6-B-2——`/quiz` 從「一次性 React state」升級為「可保存進度的 Exam Session 第一版」，這是 P3-6-B 的第一刀。新增 `lib/examSessionStorage.ts` helper（150 行）：localStorage key `cambridge-starters-practice:quiz-session:v1`、`schemaVersion = 1`、`createEmptySession` / `loadSession` / `saveSession` / `clearSession` / `isCompatibleSession` 純函式 + 完整 try/catch（防 JSON parse 失敗 / SecurityError / SSR 環境 / `typeof window === "undefined"`） + `isQuizSessionShape` runtime shape 驗證；session 欄位精簡（schemaVersion / paperId / questionOrder / currentIndex / answers / submitted / startedAt / updatedAt / submittedAt 可選），與 `lib/types.ts` 的 `ExamSessionState` 概念對齊但**不存** `examSessionId` / `score` / `wrongQuestionIds`（屬 P3-6-B-3+）。`components/QuizPlay.tsx` 三個獨立 state（currentIndex / answers / submitted）改為單一 `session` state；hydration 後嘗試從 localStorage 恢復；session 變更後自動寫回 localStorage；setState in effect 透過 `queueMicrotask` 包成非同步 callback 避開 React 19 `react-hooks/set-state-in-effect` 規則（與既有 `QuizImage` 的 `probe.onload` 模式一致）；新增 `hydrated` flag 避免 race（初始 empty session 蓋掉舊 session）；不相容情境（schemaVersion / paperId / questionOrder 任一不符 / JSON parse 失敗）一律丟棄舊 session 並建立新 session、頁面不 crash。**繼續作答**：自動恢復進度 + emerald 系小提示「🔁 已恢復上次作答進度」（首次點選任何答案後消失）。**重新測驗**：題目卡下方灰底 chip 按鈕，無 confirm dialog（依任務單），清 session + 回第一題 + answers 清空 + submitted = false。**直接交卷**：題目卡下方 amber chip 按鈕，submitted + submittedAt 寫入後立即進結果頁。**結果頁**改寫：答對 N / M + 已作答 X / M + 未作答 M-X 三段（emerald / rose 配色）+ 鼓勵文案 + 「未作答的題目算錯」明示 + 重新測驗。`app/quiz/page.tsx` 補 `paperId` prop 傳給 `<QuizPlay>`（從 `paper.examPaperId` 讀 `starters-mock-001`）。`PROJECT_ROADMAP.md` P3-6-B 從單一 ⬜ 拆為五段：**P3-6-B-1**（6 條 ✅）+ **P3-6-B-2**（7 條 ✅）+ **P3-6-B-3** 完整結果頁與每題詳解（4 條 ⬜）+ **P3-6-B-4** 錯題詳解與錯題複習（3 條 ⬜）+ **P3-6-B-5** 計時器（1 條 ✅ 第一版不計時 + 1 條 ⬜ 未來計時器）；P3-6-B 整體狀態 ⬜ → 🟡。**未做**完整每題詳解 / 錯題複習頁 / 正式歷史紀錄 / 計時器 / Speaking / TTS / 錄音 / STT / AI API / crawler。**未動** `lib/types.ts` / `data/*.json` / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `source_materials/*` / 任何 `app/review/*` 路由 / `components/PicturePractice` / `components/VocabularyCard` / 既有圖片 / 音檔 / SVG / `package.json` / 任何依賴。Codex 暫停期由 Claude 自測通過：`npm run lint` / `typecheck` / `build` 三項全綠（路由 88 不變）+ dev smoke test 8 條路由 200 + `/quiz` SSR 第 1 題 listening visible HTML 含 Listening 徽章 / 聽力練習 / Part 3：聽音選圖 / 直接交卷按鈕 / 重新測驗按鈕 / paperId `starters-mock-001` 在 RSC payload + 首次進入 visible HTML 不含「已恢復上次作答進度」（因為初始空 session）+ 既有 `/review/word/apple` 翻牌與跨字母 ant/baby 完整回歸 + dev log 無 error / hydration / warn；helper 邏輯透過 Node 8 項單測通過（createEmptySession / 5 種不相容情境 / JSON 圓規 / bad JSON 處理）。`README.md` `/quiz` 條目補 localStorage 與基本操作說明。P2 仍 🟡 進行中，P3 仍 🟡 進行中（P3-1 / P3-2-A / P3-3-A / P3-6-A / P3-6-B-1 / P3-6-B-2 / P3-7-A / P3-9-A ✅；P3-2-B / P3-3-B / P3-4 / P3-5 / P3-6-B-3 / P3-6-B-4 / P3-6-B-5 / P3-7-B / P3-7-C / P3-7-D / P3-8 / P3-9-B / P3-9-C 全 ⬜），P4 / P5 仍 ⬜。
+- 2026-05-08：完成 P3-7-A 官方資源索引文件第一版——本輪純文件，**零程式碼變動**。新增 `docs/OFFICIAL_RESOURCES.md`（v1）：用繁體中文撰寫，明示「只保存連結與人工筆記、不下載官方 PDF / 圖片 / 音檔、不複製官方題目 / 歷屆題、不做自動爬蟲、不把官方 sample 題目轉入正式題庫、不使用網路圖片當正式素材」7 條硬邊界。**用途與硬邊界**：對齊 PRODUCT_SPEC「目前明確不做」/ source_materials/README「官方資源與歷史題整理原則」/ AI_QUESTION_GENERATION「來源規則硬邊界」三處，列出 7 條 ✅ 可以做 + 9 條 ❌ 不可做。**索引格式**：每筆條目 8 欄位（資源名稱 / 官方用途 / 本專案用途 / 可參考內容 / 不可直接使用內容 / 對應 Roadmap / 對應文件 / 連結）；連結欄位由人工從主入口導航後驗證填入，**v1 不預先填入特定 sub-page URL** 避免 AI 生成過時資訊。**A 段官方考試格式與 parts**（4 條目：Cambridge English 主站 / Pre A1 Starters 考試資訊頁 / Test format 頁 / Handbook for teachers）。**B 段 preparation / sample resources**（4 條目：Preparation 頁 / Sample papers 入口 / Wordlist 入口 → C 段 / Mock test toolkit 入口 → D 段）。**C 段 Wordlist / vocabulary 方向**：C-1 wordlist 條目 + C-2 5 條使用原則（範圍參考、不複製整份 PDF、自家 data/vocabulary.json 為主、分類概念對齊既有 11 個 VocabularyCategory、未來整理需確認來源）+ C-3 與 P3-7-C 對接。**D 段 Sample / mock test toolkit 方向**：D-1 sample papers 5+5 對照表（可參考題型順序 / 互動方式 / 題目數量 / 音檔節奏 / 場景設計；不複製題目 / 圖片 / 音檔 / 答題單 / 場景圖原檔）+ D-2 mock test toolkit 4+4 對照表 + D-3 與 P3-7-D 對接。**用官方資源校正 P3-9 模板**：11 條檢查清單（L1~L4 + RW1~RW5 + getStarterPartInfo preview + STARTERS_PART_TEMPLATES 升 v2）+ 校正動作非目的（不抄原文 / 不要求 100% 還原 / 不轉 sample 為 data JSON）。**AI 仿真題素材來源策略**：6 條 ✅ 應使用（官方題型結構 / 本專案 vocabulary / 自製 imagePrompt / 自製 ttsScript / 自製 explanation / 人工審核）+ 6 條 ❌ 不應使用（官方題目全文 / 官方圖片 / 官方音檔 / 歷屆題原文 / 網路圖片 / 外部 URL）+ 違反時處理 SOP。**與其他文件關係表**：對齊 PRODUCT_SPEC / source_materials/README / STARTERS_PART_TEMPLATES / AI_QUESTION_GENERATION / DATA_SCHEMA / PROJECT_ROADMAP 六處。`PROJECT_ROADMAP.md` 把 P3-7 從單一 ⬜ 拆為四段：**P3-7-A**（11 條 ✅，本輪完成）+ **P3-7-B** format 對 P3-9 模板逐項校正（11 條 ⬜，未開始）+ **P3-7-C** wordlist 對自家 vocabulary 分類校正（4 條 ⬜，未開始）+ **P3-7-D** sample / mock test toolkit 題型觀察筆記（4 條 ⬜，未開始）；P3-7 整體狀態 ⬜ → 🟡 進行中。`README.md`「長期方向」段補一段官方資源索引文件指向 + 文件索引追加 `docs/OFFICIAL_RESOURCES.md`。`source_materials/README.md`「官方資源與歷史題整理原則」段補一句「**詳細官方資源連結索引請看 `docs/OFFICIAL_RESOURCES.md`**」交叉指向。本輪**未動** `lib/types.ts` / `lib/data.ts` / 任何 `data/*.json` / `/quiz` UI / 任何 components / 所有 app routes / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/STARTERS_PART_TEMPLATES.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md`；**未寫**爬蟲、未下載官方 PDF / 圖片 / 音檔、未複製官方題目 / 歷屆題、未新增官方資源檔案到 source_materials、**未新增**任何題目資料、**未做** AI API / TTS / 錄音 / STT / Speaking UI / localStorage / 結果頁 / 錯題頁、**未新增**依賴、**未處理** npm audit、**未部署**、**未新增**後端 / DB / 登入。Codex 暫停期由 Claude 自測通過：`npm run lint` / `typecheck` / `build` 三項全綠（路由 88 不變）。P2 仍 🟡 進行中，P3 仍 🟡 進行中（P3-1 / P3-2-A / P3-3-A / P3-6-A / P3-7-A / P3-9-A ✅；P3-2-B / P3-3-B / P3-4 / P3-5 / P3-6-B / P3-7-B / P3-7-C / P3-7-D / P3-8 / P3-9-B / P3-9-C 全 ⬜），P4 / P5 仍 ⬜。
+- 2026-05-08：完成 P3-9-A 正式題型模板文件第一版——本輪純文件，**零程式碼變動**。新增 `docs/STARTERS_PART_TEMPLATES.md`（v1）：用繁體中文撰寫，明示「自製練習模板，不是官方題庫、不複製官方題目」+ 硬邊界（不抄歷屆題 / 不下載官方素材 / 不爬蟲 / 不外部 URL / 沒有「官方題」這個 source 值）。完整三大段架構（Listening Part 1~4 / Reading & Writing Part 1~5 / **Speaking 不在 P3，留 P4**）。**Listening Part 1~4** 模板每 Part 12 欄位（官方方向 / 練習版目標 / 互動方式 / 資料欄位 / imagePrompt / ttsScript / answer 型態 / 目前 schema 是否支援 / 未來補哪些功能 / 是否需要圖片 / 是否需要音檔 / 是否適合 AI 仿真）；L1 大圖位置連線（簡化為選人 / 選位置）/ L2 對話寫 name / number（簡化為文字輸入）/ L3 聽音選 A/B/C 圖（最接近現有 listening-choice）/ L4 聽指令塗顏色（簡化為選顏色 / 選物件）。**Reading & Writing Part 1~5** 模板每 Part 10 欄位（同上去掉 ttsScript 與音檔）；RW1 看圖 + 句子 yes/no（對應 true-false / picture-choice 未來版）/ RW2 大場景圖回答 yes/no（需要 scene image + 多題共用，schema 待補）/ RW3 看圖拼字（對應「只顯示圖片不顯示英文，孩子自己拼字」未來單字拼字測驗模式）/ RW4 短文 / 句子填空（對應現有 fill-blank，多空格待補）/ RW5 看故事圖一字答案（需要 3 張圖 / scene + one-word answer，schema 待補）。**目前 P3 schema 對應表**：listening-choice → L3 preview / picture-choice → RW1 / RW2 preview / word-choice → RW3 preview（看圖認字反向） / multiple-choice → RW4 preview / fill-blank → RW4 / matching → RW5 preview，明示「練習版近似對應、不是完整正式題型」。**未來題型資料欄位建議**：starterSection / starterPart（含 SP1~SP4 對齊 P4）/ skillFocus / ttsScript / imagePrompt / expectedAnswerType（choice / text / number / name / color / one-word / spelling / spoken）/ difficulty（starter-easy / starter-medium）/ 其他（imageHotspots / sharedSceneImage / images[] / colorPalette / instructions[] / wordBank / multiBlankAnswers）；**明示本輪只寫建議，不修改 lib/types.ts / 任何 data JSON**。**AI 仿真題 prompt 如何使用模板**：8 步流程（選 section + part → 套用 part template → 限制 vocabulary → 生成 imagePrompt / ttsScript → 生成 answer / explanation → 人工審核 → 進 source_materials → 轉正式 data JSON），對齊 P3-3 / P3-8。**與 P4 Speaking Examiner Agent 關係**：P3 不實作 Speaking、SP1~SP4 模板未來歸屬 `docs/SPEAKING_EXAMINER_AGENT_DESIGN.md`（規劃中）、AI 回饋不是官方成績、處處標示。`PROJECT_ROADMAP.md` P3-9 從單一 ⬜ 子分區拆為三段：**P3-9-A**（10 條 ✅，本輪完成）+ **P3-9-B** part-specific schema / metadata 實作（11 條 ⬜，未開始）+ **P3-9-C** part-specific quiz UI 實作（10 條 ⬜，未開始）；P3-9 整體狀態 ⬜ → 🟡 進行中。`README.md`「長期方向」段補一段說明已新增正式 Starters parts 模板文件、目前仍是練習版近似對應、未來會依模板逐步對齊 L1~L4 + RW1~RW5、Speaking 留 P4。本輪**未動** `lib/types.ts` / `lib/data.ts` / 任何 `data/*.json` / `/quiz` UI / 任何 components / 所有 app routes / 任何素材；**未做** localStorage / 完整結果頁 / 錯題頁 / Speaking UI / TTS / 錄音 / STT / AI API / crawler / 部署 / 後端 / DB / 登入；**未下載**官方 PDF / 圖片 / 音檔；**未複製**官方題目 / 歷屆題；**未新增**依賴；**未處理** npm audit。Codex 暫停期由 Claude 自測通過：`npm run lint` / `typecheck` / `build` 三項全綠（路由 88 不變）。P2 仍 🟡 進行中，P3 仍 🟡 進行中（P3-1 / P3-2-A / P3-3-A / P3-6-A / P3-9-A ✅；P3-2-B / P3-3-B / P3-4 / P3-5 / P3-6-B / P3-7 / P3-8 / P3-9-B / P3-9-C 全 ⬜），P4 / P5 仍 ⬜。
 - 2026-05-08：P3 / P4 / P5 Roadmap 擴充——本輪只做文件 / Roadmap 規劃，**零程式碼變動**。`PROJECT_ROADMAP.md` 新增 P3-7（官方資源索引與人工整理流程）/ P3-8（AI 仿真題生成流程）/ P3-9（正式題型模板化，含 Listening Part 1~4 + R&W Part 1~5 模板，Speaking 不在 P3 實作）三個子分區皆 ⬜；P4 章節從歷史佔位「題型擴充 ⬜ 已併入 P3-4 / P3-5」**重新聚焦為「Speaking Examiner Agent 模擬考官系統」**，9 個子項全 ⬜（P4-1 流程設計 / P4-2 狀態機設計 / P4-3 TTS 考官語音 / P4-4 錄音與播放 / P4-5 STT / P4-6 追問 / 下一題控制 / P4-7 AI 口說評分器 / P4-8 session 紀錄與家長檢視 / P4-9 弱點分析）；P5 章節從歷史佔位「模擬考 ⬜ 已併入 P3-6」**重新聚焦為「完整仿真考試體驗」**——Listening + Reading & Writing + Speaking 串成完整模擬考、TTS 考官貫穿、成績紀錄 / 家長檢視 / 弱點分析 / 錯題與口說弱點複習；P4 / P5 重要免責語「AI 口說分數只是練習回饋，不是 Cambridge 官方成績」「不聲稱能預測官方分數」「不把 AI 評分當成正式證明」「UI 必須標示『AI 練習回饋，非官方考試分數』」處處標示。「目前明確不做」清單把「AI 評分」改寫為**「客觀題的 AI 評分」**並加例外說明：P4 Speaking Examiner Agent 的口說練習回饋不是 AI 評分、是鼓勵性練習建議；客觀題 AI 評分仍維持不做。`docs/PRODUCT_SPEC.md` 新增「**長期目標：自家仿真 Starters 模擬考系統**」一節，含設計原則、Speaking Examiner Agent agent-based flow 設計（狀態機概念、考官台詞、回合控制、評分定位）、完整仿真考試體驗（P5）；「目前明確不做 → AI / 自動化」段同步重寫為「客觀題不做 AI 評分」+ Speaking 練習回饋例外。`source_materials/README.md` 新增「**官方資源與歷史題整理原則**」一節，列「可以做」（保存連結、人工筆記、自製題、AI 仿真題、自製圖片 / 音檔）與「不可做」（爬蟲、commit 官方 PDF / 圖片 / 音檔、複製歷屆題、用網路圖片當正式素材、聲稱 AI 題是官方題、外部 URL 進題庫資料）兩組明確邊界。`README.md` 新增「**長期方向**」一節，明示專案長期會往完整 Starters 仿真考試系統發展、目前仍在 P3 階段、Speaking / TTS / 錄音 / STT / AI 口說回饋屬 P4 後續、AI 回饋僅作練習建議不是官方成績。本輪**未動** `lib/types.ts` / `lib/data.ts` / 任何 `data/*.json` / 任何 components / 任何 app routes / `docs/DATA_SCHEMA.md` / `docs/AI_QUESTION_GENERATION.md` / `AI_DEV_WORKFLOW.md` / `docs/TASK_ROUTER.md` / `docs/CODEX_VALIDATION_RUNBOOK.md` / `AGENTS.md` / `CLAUDE.md`；**未寫**爬蟲、未下載官方 PDF / 圖片 / 音檔 / 歷屆題、**未新增**任何題目資料、**未做** AI API / TTS / 錄音 / STT / AI 評分 / Speaking UI / localStorage / `/quiz` 功能修改、**未新增**依賴、**未處理** npm audit、**未部署**、**未新增**後端 / DB / 登入。Codex 暫停期由 Claude 自測通過：`npm run lint` / `typecheck` / `build` 三項全綠（path 88 routes 不變）。P2 仍 🟡 進行中，P3 仍 🟡 進行中（P3-1 / P3-2-A / P3-3-A / P3-6-A ✅；P3-2-B / P3-3-B / P3-4 / P3-5 / P3-6-B / P3-7 / P3-8 / P3-9 全 ⬜），P4 / P5 重新進入 Roadmap 雷達但全部 ⬜。
 - 2026-05-08：P3-6-A 小修——`/quiz` 對齊正式 Cambridge Pre A1 Starters parts 架構。`components/QuizPlay.tsx` 新增 `StarterPartInfo` type 與 `getStarterPartInfo()` 純函式 helper，把 6 題型映射到對應 Part 的近似標示：listening-choice → Part 3「聽音選圖」；picture-choice → Part 1 / Part 2 preview「看圖判斷 / 看圖選答案」；word-choice → Part 3「看圖認字 / 拼字練習」；multiple-choice → Part 4 preview「短句選字」；fill-blank → Part 4「短文 / 句子填空」；matching → Part 5 preview「圖文配對 / 故事理解預備」。題目卡 header 三列改寫：徽章合併段落英文｜中文「Section 1 · Listening｜聽力練習」/「Section 2 · Reading & Writing｜閱讀與書寫練習」（sky-100 / amber-100 配色）+ 第二行獨立顯示「Part X：題型中文」+ 第三行既有「第 X 題 / 共 N 題」進度。`app/quiz/page.tsx` 頁首補一行小字「目前為練習版，題型逐步對齊正式 Cambridge Starters」，避免使用者誤解為完整官方考卷；明示這是練習版近似對應、Speaking 不做、listening 真實音檔尚未實作。`PROJECT_ROADMAP.md` P3-6-A 子分區補一條 ✅；P2-4C-2B-2 補兩條未來規劃（單字閱讀練習模式、單字拼字測驗模式對應正式 Reading & Writing Part 3，皆屬 review 區獨立練習，**本輪不實作**）。`README.md` 同步「目前功能」`/quiz` 條目補 Part 標示說明。本輪零依賴新增、未動 `lib/types.ts` / `lib/data.ts` / 任何 `data/*.json` / 任何 `/review/` 路由 / 任何其他 components；未實作單字閱讀模式 / 拼字測驗模式 / Speaking / localStorage / 完整結果頁 / 錯題頁 / AI API。Codex 暫停期由 Claude 自測通過：lint / typecheck / build 三項全綠 + dev smoke test 8 條路由 200 + `/quiz` SSR 第 1 題 visible HTML 含「Part 3：聽音選圖」字串 + 徽章合併段落英文中文「Listening｜聽力練習」+ 頁首練習版聲明。P3-6-A ✅ 增加一條，P3 整體仍 🟡 進行中。

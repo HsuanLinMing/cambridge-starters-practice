@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  type QuizSession,
+  clearSession,
+  createEmptySession,
+  isCompatibleSession,
+  loadSession,
+  saveSession,
+} from "@/lib/examSessionStorage";
 import type {
   ExamMultipleChoiceQuestion,
   ExamQuestion,
@@ -14,14 +22,15 @@ import type {
 } from "@/lib/types";
 
 /**
- * P3-6-A 最小可玩 `/quiz` 流程：
- * - 純 React local state，**無 localStorage**、無交卷頁、無錯題詳解。
- * - 6 題型最小渲染（matching 用閱讀型「我看完了」按鈕當作答）。
- * - listening 不播音檔，先顯示 transcript / ttsScript 文字。
- * - 完成後顯示簡易計分 + 重新開始。
+ * P3-6-B-1 / P3-6-B-2：Exam Session localStorage 持久化第一刀。
+ *
+ * - 作答進度（currentIndex / answers / submitted）保存於 localStorage（`lib/examSessionStorage.ts`）。
+ * - 重新整理 / 重開分頁可恢復進度（paperId 與 questionOrder 皆相容才恢復）。
+ * - 新增「重新測驗」（清除 session、回第一題）與「直接交卷」（提前進結果頁）按鈕。
+ * - 結果頁顯示 答對 N / M、已作答 X / M、未作答 M-X、鼓勵語、重新測驗。
+ *
+ * 仍不做：完整每題詳解、錯題複習頁、計時器、AI / TTS / Speaking。
  */
-
-type AnswerMap = Record<string, string>;
 
 const MATCHING_DONE_TOKEN = "_done";
 
@@ -83,7 +92,7 @@ function normalize(s: string): string {
 }
 
 function isCorrect(question: ExamQuestion, answer: string | undefined): boolean {
-  if (answer === undefined) return false;
+  if (answer === undefined || answer.length === 0) return false;
   if (question.type === "matching") {
     // 閱讀型：使用者按過「我看完了」即視為已完成（最小可玩，不做正式判分）
     return answer === MATCHING_DONE_TOKEN;
@@ -96,38 +105,96 @@ function isCorrect(question: ExamQuestion, answer: string | undefined): boolean 
   return answer === question.answer;
 }
 
+function isAnswered(answer: string | undefined): boolean {
+  return answer !== undefined && answer.length > 0;
+}
+
 type QuizPlayProps = {
+  paperId: string;
   questions: ExamQuestion[];
 };
 
-export default function QuizPlay({ questions }: QuizPlayProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<AnswerMap>({});
-  const [submitted, setSubmitted] = useState(false);
+export default function QuizPlay({ paperId, questions }: QuizPlayProps) {
+  // 初始 session：SSR + 第一次 client render 都用乾淨 empty session（純 props 推導，避免 hydration mismatch）
+  const [session, setSession] = useState<QuizSession>(() =>
+    createEmptySession(paperId, questions),
+  );
+  const [hydrated, setHydrated] = useState(false);
+  const [restoredHint, setRestoredHint] = useState(false);
+
+  // Hydration：嘗試從 localStorage 恢復進度。
+  // setState 放進 queueMicrotask（非同步 callback）以避開 react-hooks/set-state-in-effect。
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const stored = loadSession();
+      if (stored && isCompatibleSession(stored, paperId, questions)) {
+        setSession(stored);
+        if (
+          stored.currentIndex > 0 ||
+          Object.keys(stored.answers).length > 0 ||
+          stored.submitted
+        ) {
+          setRestoredHint(true);
+        }
+      }
+      setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [paperId, questions]);
+
+  // 寫回 localStorage：必須等 hydration 完成才寫，避免 race（初始 empty session 蓋掉舊 session）。
+  useEffect(() => {
+    if (!hydrated) return;
+    saveSession(session);
+  }, [session, hydrated]);
 
   const total = questions.length;
+  const currentIndex = session.currentIndex;
   const current = questions[currentIndex];
   const isLast = currentIndex === total - 1;
-  const currentAnswer = current ? answers[current.id] : undefined;
-  const answered = currentAnswer !== undefined && currentAnswer.length > 0;
+  const currentAnswer = current ? session.answers[current.id] : undefined;
+  const answered = isAnswered(currentAnswer);
+
+  const updateSession = (partial: Partial<QuizSession>) => {
+    setSession((prev) => ({
+      ...prev,
+      ...partial,
+      updatedAt: new Date().toISOString(),
+    }));
+  };
 
   const handleSelectAnswer = (value: string) => {
     if (!current) return;
-    setAnswers((prev) => ({ ...prev, [current.id]: value }));
+    setRestoredHint(false);
+    setSession((prev) => ({
+      ...prev,
+      answers: { ...prev.answers, [current.id]: value },
+      updatedAt: new Date().toISOString(),
+    }));
   };
 
   const handleNext = () => {
     if (isLast) {
-      setSubmitted(true);
+      const now = new Date().toISOString();
+      updateSession({ submitted: true, submittedAt: now });
     } else {
-      setCurrentIndex((i) => i + 1);
+      updateSession({ currentIndex: currentIndex + 1 });
     }
   };
 
+  const handleSubmitNow = () => {
+    const now = new Date().toISOString();
+    updateSession({ submitted: true, submittedAt: now });
+  };
+
   const handleRestart = () => {
-    setCurrentIndex(0);
-    setAnswers({});
-    setSubmitted(false);
+    clearSession();
+    setSession(createEmptySession(paperId, questions));
+    setRestoredHint(false);
   };
 
   if (total === 0) {
@@ -138,14 +205,18 @@ export default function QuizPlay({ questions }: QuizPlayProps) {
     );
   }
 
-  if (submitted) {
+  if (session.submitted) {
     const correctCount = questions.filter((q) =>
-      isCorrect(q, answers[q.id]),
+      isCorrect(q, session.answers[q.id]),
+    ).length;
+    const answeredCount = questions.filter((q) =>
+      isAnswered(session.answers[q.id]),
     ).length;
     return (
       <ResultView
         total={total}
         correctCount={correctCount}
+        answeredCount={answeredCount}
         onRestart={handleRestart}
       />
     );
@@ -168,46 +239,71 @@ export default function QuizPlay({ questions }: QuizPlayProps) {
       : "bg-amber-100 text-amber-800";
 
   return (
-    <article className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-amber-100 sm:p-8">
-      <div className="text-center">
-        <div
-          className={
-            "inline-flex items-center gap-2 rounded-full px-4 py-1 text-xs font-bold " +
-            sectionAccent
-          }
-        >
-          <span>Section {section.number}</span>
-          <span aria-hidden>·</span>
-          <span>{section.en}</span>
-          <span aria-hidden>｜</span>
-          <span>{section.zh}</span>
+    <div className="space-y-4">
+      {restoredHint && (
+        <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
+          🔁 已恢復上次作答進度（按下方「重新測驗」可清除重來）
         </div>
-        <p className="mt-2 text-sm font-bold text-slate-700">
-          {partInfo.partLabel}：{partInfo.zhTitle}
-        </p>
-        <div className="mt-2 text-sm font-semibold text-slate-500">
-          第 {currentIndex + 1} 題 / 共 {total} 題
+      )}
+
+      <article className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-amber-100 sm:p-8">
+        <div className="text-center">
+          <div
+            className={
+              "inline-flex items-center gap-2 rounded-full px-4 py-1 text-xs font-bold " +
+              sectionAccent
+            }
+          >
+            <span>Section {section.number}</span>
+            <span aria-hidden>·</span>
+            <span>{section.en}</span>
+            <span aria-hidden>｜</span>
+            <span>{section.zh}</span>
+          </div>
+          <p className="mt-2 text-sm font-bold text-slate-700">
+            {partInfo.partLabel}：{partInfo.zhTitle}
+          </p>
+          <div className="mt-2 text-sm font-semibold text-slate-500">
+            第 {currentIndex + 1} 題 / 共 {total} 題
+          </div>
         </div>
-      </div>
 
-      <QuestionView
-        key={current.id}
-        question={current}
-        currentAnswer={currentAnswer}
-        onSelectAnswer={handleSelectAnswer}
-      />
+        <QuestionView
+          key={current.id}
+          question={current}
+          currentAnswer={currentAnswer}
+          onSelectAnswer={handleSelectAnswer}
+        />
 
-      <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            disabled={!answered}
+            onClick={handleNext}
+            className="flex min-h-14 items-center gap-2 rounded-full bg-amber-400 px-8 py-3 text-lg font-bold text-white shadow-md transition hover:bg-amber-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+          >
+            {isLast ? "看結果" : "下一題"} <span aria-hidden>→</span>
+          </button>
+        </div>
+      </article>
+
+      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
         <button
           type="button"
-          disabled={!answered}
-          onClick={handleNext}
-          className="flex min-h-14 items-center gap-2 rounded-full bg-amber-400 px-8 py-3 text-lg font-bold text-white shadow-md transition hover:bg-amber-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+          onClick={handleSubmitNow}
+          className="flex min-h-12 items-center gap-2 rounded-full bg-white px-6 py-2 text-sm font-bold text-amber-700 shadow-sm ring-1 ring-amber-200 transition hover:bg-amber-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200"
         >
-          {isLast ? "看結果" : "下一題"} <span aria-hidden>→</span>
+          <span aria-hidden>📝</span> 直接交卷
+        </button>
+        <button
+          type="button"
+          onClick={handleRestart}
+          className="flex min-h-12 items-center gap-2 rounded-full bg-white px-6 py-2 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-200"
+        >
+          <span aria-hidden>🔁</span> 重新測驗
         </button>
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -218,10 +314,17 @@ export default function QuizPlay({ questions }: QuizPlayProps) {
 type ResultViewProps = {
   total: number;
   correctCount: number;
+  answeredCount: number;
   onRestart: () => void;
 };
 
-function ResultView({ total, correctCount, onRestart }: ResultViewProps) {
+function ResultView({
+  total,
+  correctCount,
+  answeredCount,
+  onRestart,
+}: ResultViewProps) {
+  const unansweredCount = total - answeredCount;
   const ratio = total === 0 ? 0 : correctCount / total;
   let cheer = "你好棒！繼續加油喔！";
   if (ratio === 1) cheer = "全部答對！太厲害了！🎉";
@@ -238,10 +341,29 @@ function ResultView({ total, correctCount, onRestart }: ResultViewProps) {
         <h2 className="mt-4 text-3xl font-black text-emerald-600 sm:text-4xl">
           完成了！
         </h2>
-        <p className="mt-3 text-xl font-bold text-slate-900 sm:text-2xl">
+        <p className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
           答對 {correctCount} / {total} 題
         </p>
-        <p className="mt-3 text-base text-slate-600 sm:text-lg">{cheer}</p>
+        <dl className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-center ring-1 ring-emerald-100">
+            <dt className="text-xs font-semibold text-emerald-700">已作答</dt>
+            <dd className="mt-1 text-xl font-black text-emerald-700">
+              {answeredCount} / {total}
+            </dd>
+          </div>
+          <div className="rounded-2xl bg-rose-50 px-4 py-3 text-center ring-1 ring-rose-100">
+            <dt className="text-xs font-semibold text-rose-600">未作答</dt>
+            <dd className="mt-1 text-xl font-black text-rose-600">
+              {unansweredCount} 題
+            </dd>
+          </div>
+        </dl>
+        {unansweredCount > 0 && (
+          <p className="mt-3 text-xs text-slate-400">
+            未作答的題目算錯；下次可以再試試看～
+          </p>
+        )}
+        <p className="mt-4 text-base text-slate-600 sm:text-lg">{cheer}</p>
       </div>
 
       <div className="mt-8 flex flex-col items-center gap-3">
@@ -250,7 +372,7 @@ function ResultView({ total, correctCount, onRestart }: ResultViewProps) {
           onClick={onRestart}
           className="flex min-h-14 items-center gap-2 rounded-full bg-amber-400 px-8 py-3 text-lg font-bold text-white shadow-md transition hover:bg-amber-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200"
         >
-          <span aria-hidden>🔁</span> 重新開始
+          <span aria-hidden>🔁</span> 重新測驗
         </button>
         <Link
           href="/"

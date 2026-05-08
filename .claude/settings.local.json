@@ -137,7 +137,17 @@
       "Bash(/usr/bin/grep *)",
       "Bash(/usr/bin/wc *)",
       "Bash(/usr/bin/tail -20)",
-      "Bash(/usr/bin/tail -25)"
+      "Bash(/usr/bin/tail -25)",
+      "Bash(/usr/bin/head -30)",
+      "Bash(/usr/bin/tail -5)",
+      "Bash(/usr/bin/tail -10)",
+      "Bash(/usr/bin/head -10)",
+      "Bash(/usr/bin/tail -8)",
+      "Bash(/usr/bin/head -20)",
+      "Bash(/usr/bin/head -5)",
+      "Bash(/usr/bin/sed *)",
+      "Bash(/usr/bin/tail -15)",
+      "Bash(/usr/bin/curl -sS -o /dev/null -w '%{http_code}\\\\n' http://localhost:3000/)"
     ]
   }
 }

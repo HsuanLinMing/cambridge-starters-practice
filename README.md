@@ -101,7 +101,7 @@ npm run build       # 產出正式 build
   - **看字選圖**：英文單字題目區（淡藍背景與看圖選字的淡黃區別）+ 4 個圖片選項（每個選項缺圖時各自顯示首字母 fallback）。
   - 共通：deterministic 選項生成（避免 hydration mismatch）、即時答對 / 答錯鼓勵回饋（答錯顯示正確答案）、答對 emerald / 答錯 rose / 其他選項淡化、「下一題」循環全題庫；切換題型自動回到第 1 題且狀態完全重置。**不做分數保存、不做交卷、不做 localStorage**——那些屬 `/quiz` 測驗區範圍。
   - 圖片素材：第一批 10 個自製 SVG 已接入（apple / cat / dog / book / red / blue / one / two / mother / father），其餘 44 個單字仍是 placeholder path、由 fallback 處理；不使用 Cambridge 官方圖片、歷屆考題圖片或網路抓圖
-- `/quiz`：**測驗區 P3-6-A 最小可玩第一版**——載入 P3-1 範例考卷（`data/exam-papers.example.json` + `data/p3-example-questions.json`），題目排序貼近正式 Cambridge Starters：**Section 1 Listening（`listening-choice`）→ Section 2 Reading & Writing（`picture-choice` → `word-choice` → `multiple-choice` → `fill-blank` → `matching`）**；題目卡頂端三列：段落徽章（「Section 1 · Listening｜聽力練習」sky 配色 / 「Section 2 · Reading & Writing｜閱讀與書寫練習」amber 配色）+ **Part 標示行**（lc → Part 3 聽音選圖；pc → Part 1 / Part 2 preview 看圖判斷 / 看圖選答案；wc → Part 3 看圖認字 / 拼字練習；mc → Part 4 preview 短句選字；fb → Part 4 短文 / 句子填空；mt → Part 5 preview 圖文配對 / 故事理解預備）+ 進度行；頁首補小字「目前為練習版，題型逐步對齊正式 Cambridge Starters」。6 題型最小渲染、一題一頁、未答題「下一題」disabled、最後一題顯示「看結果」、完成畫面「答對 N/M 題」+ 鼓勵文案 + 「🔁 重新開始」。圖片缺檔 fallback（首字母 + 「圖片準備中」）；listening 不播音檔，先顯示 transcript 文字（音檔自製屬 P2-4C-2B-2）；**Speaking 不做**。**純 React local state，不做 localStorage / 交卷頁 / 錯題詳解**——那些屬 P3-6-B
+- `/quiz`：**測驗區 P3-6-A + P3-6-B-1 / P3-6-B-2**——載入 P3-1 範例考卷（`data/exam-papers.example.json` + `data/p3-example-questions.json`），題目排序貼近正式 Cambridge Starters：**Section 1 Listening（`listening-choice`）→ Section 2 Reading & Writing（`picture-choice` → `word-choice` → `multiple-choice` → `fill-blank` → `matching`）**；題目卡頂端三列：段落徽章（「Section 1 · Listening｜聽力練習」sky 配色 / 「Section 2 · Reading & Writing｜閱讀與書寫練習」amber 配色）+ **Part 標示行**（lc → Part 3 聽音選圖；pc → Part 1 / Part 2 preview 看圖判斷 / 看圖選答案；wc → Part 3 看圖認字 / 拼字練習；mc → Part 4 preview 短句選字；fb → Part 4 短文 / 句子填空；mt → Part 5 preview 圖文配對 / 故事理解預備）+ 進度行；頁首補小字「目前為練習版，題型逐步對齊正式 Cambridge Starters」。6 題型最小渲染、一題一頁、未答題「下一題」disabled、最後一題顯示「看結果」。**作答進度自動保存於本機 localStorage**（key `cambridge-starters-practice:quiz-session:v1`，由 `lib/examSessionStorage.ts` 集中處理）——重新整理 / 重開分頁可恢復進度（同 paperId + questionOrder 才恢復、不相容自動丟棄）；恢復時畫面頂端顯示 emerald 系小提示「🔁 已恢復上次作答進度」首次點選後消失。題目卡下方加兩個 chip 按鈕：**「📝 直接交卷」**（提前進結果頁，未作答題算錯）+ **「🔁 重新測驗」**（清 localStorage、回第一題、無 confirm dialog）。**結果頁**顯示「答對 N / 共 M 題」+「已作答 X / 共 M」+「未作答 M-X 題」雙欄統計（emerald / rose 配色）+ 鼓勵文案 + 重新測驗。圖片缺檔 fallback（首字母 + 「圖片準備中」）；listening 不播音檔，先顯示 transcript 文字（音檔自製屬 P2-4C-2B-2）；**Speaking 不做**。**完整每題詳解 / 錯題複習頁 / 正式歷史紀錄頁 / 計時器** 屬 P3-6-B-3 / P3-6-B-4 / P3-6-B-5，本輪未做
 - 範例資料：54 個單字（覆蓋 17 個字母、11 個主題分類）、1 份 4 題小測驗
 - 文件骨架：roadmap、產品規格、資料 schema、AI 協作流程、任務分流
 
@@ -114,7 +114,7 @@ npm run build       # 產出正式 build
 - AI 仿真題 + 人工審核（先進 `source_materials/ai_generated/`、經審核後轉正式 JSON）
 - 家長檢視 / 錯題複習 / 弱點分析（皆走本機 localStorage）
 
-**目前進度仍在 P3 階段**——題庫 schema、AI 出題 prompt 規劃、`/quiz` 最小可玩流程已落地；Listening 真實音檔、完整考卷 Session、官方資源索引、正式題型模板化（Listening Part 1~4 / R&W Part 1~5）等仍規劃中。
+**目前進度仍在 P3 階段**——題庫 schema、AI 出題 prompt 規劃、`/quiz` 最小可玩流程已落地；**正式 Starters parts 模板文件第一版**已寫進 [`docs/STARTERS_PART_TEMPLATES.md`](./docs/STARTERS_PART_TEMPLATES.md)（覆蓋 Listening Part 1~4 + Reading & Writing Part 1~5 模板與目前 schema 對應表，**目前仍是練習版近似對應**，未來會依模板逐步對齊 L1~L4 + RW1~RW5）。**官方資源索引文件第一版**已寫進 [`docs/OFFICIAL_RESOURCES.md`](./docs/OFFICIAL_RESOURCES.md)——整理 Cambridge Pre A1 Starters 公開資源入口、人工筆記方向、AI 仿真題素材來源策略、P3-9 模板校正清單；**官方資源只作為人工參考與題型理解，不下載、不複製、不 commit 官方素材**；AI 仿真題會依官方題型結構 + 自家 vocabulary + 自製 imagePrompt / ttsScript + 人工審核產生（不使用官方題目全文 / 官方圖片 / 官方音檔 / 歷屆題原文 / 網路圖片 / 外部 URL）。Listening 真實音檔、完整考卷 Session、part-specific schema / metadata 與 quiz UI 實作（P3-9-B / P3-9-C）、官方 format / wordlist / sample 對 P3-9 模板的逐項校正（P3-7-B / P3-7-C / P3-7-D）等仍規劃中。**Speaking 留到 P4 Speaking Examiner Agent**——P3-9-A 模板**只整理 Listening + Reading & Writing**，Speaking Part 1~4（SP1~SP4）的模板未來歸屬於 P4 動工前置文件 `docs/SPEAKING_EXAMINER_AGENT_DESIGN.md`（規劃中）。
 
 **Speaking / TTS 假考官 / 麥克風錄音 / Speech-to-text / AI 口說回饋屬後續 P4 階段**——P4 設計為 **Speaking Examiner Agent（口說考官代理）**，agent-based flow 帶小朋友走完 Speaking Part 1~4，**不是單次丟一句給 AI 批改**。所有 AI 提供的口說回饋僅作為**鼓勵性練習建議**，**不是 Cambridge 官方成績**；本專案不會聲稱能預測官方分數，也不做能力等級對應。
 
@@ -153,6 +153,9 @@ reports/              # Claude / Codex 回報檔案輸出位置
 - `PROJECT_ROADMAP.md` — 開發路線圖
 - `docs/PRODUCT_SPEC.md` — 產品規格
 - `docs/DATA_SCHEMA.md` — 資料結構
+- `docs/STARTERS_PART_TEMPLATES.md` — Cambridge Pre A1 Starters 正式題型模板（P3-9-A）
+- `docs/OFFICIAL_RESOURCES.md` — Cambridge Pre A1 Starters 官方資源索引與人工整理流程（P3-7-A）
+- `docs/AI_QUESTION_GENERATION.md` — AI 仿真題 prompt 規格（P3-3）
 - `docs/TASK_ROUTER.md` — 任務分流規則
 - `docs/CODEX_VALIDATION_RUNBOOK.md` — Codex 驗收與排查手冊
 - `reports/` — Claude / Codex 回報檔案輸出位置（例如 `reports/claude_last_report.md`）

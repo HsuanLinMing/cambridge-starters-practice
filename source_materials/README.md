@@ -57,7 +57,7 @@ P3 schema 詳細欄位見 [`../docs/DATA_SCHEMA.md`](../docs/DATA_SCHEMA.md) 的
 
 ## 官方資源與歷史題整理原則
 
-> 本節對應 `PROJECT_ROADMAP.md` 的 **P3-7 官方資源索引與人工整理流程**。未來會在 `source_materials/`（與規劃中的 `docs/OFFICIAL_RESOURCES.md`）整理 Cambridge Pre A1 Starters 官方公開資源；整理時請嚴守以下「可以做 / 不可做」邊界。
+> 本節對應 `PROJECT_ROADMAP.md` 的 **P3-7 官方資源索引與人工整理流程**。**詳細官方資源連結索引請看 [`../docs/OFFICIAL_RESOURCES.md`](../docs/OFFICIAL_RESOURCES.md)**（P3-7-A 第一版）——本節是執行時 SOP（給整理者），OFFICIAL_RESOURCES 是資源入口索引 + 校正清單 + AI 素材策略。整理時請嚴守以下「可以做 / 不可做」邊界。
 
 ### ✅ 可以做
 
@@ -75,7 +75,7 @@ P3 schema 詳細欄位見 [`../docs/DATA_SCHEMA.md`](../docs/DATA_SCHEMA.md) 的
 - ❌ **不要直接複製歷屆題內容進正式題庫**——不抄、不改寫、不變形。歷屆題只能在人工筆記中**用自己的話**描述「這個 Part 大致長什麼樣」。
 - ❌ **不要使用網路圖片當正式題目素材**——一律自製或請 AI 出 `imagePrompt` 由人手繪。
 - ❌ **不要聲稱 AI 題目是官方題**（必標 `source: "ai_generated"`；不假裝為 `official_sample` / `past_paper`）。
-- ❌ **不要把官方資源連結 hard-link 進題目 JSON 的 `image` / `audio` 欄位**——連結只放在 `docs/OFFICIAL_RESOURCES.md`（規劃中）等人工筆記檔，不進題庫資料。
+- ❌ **不要把官方資源連結 hard-link 進題目 JSON 的 `image` / `audio` 欄位**——連結只放在 [`../docs/OFFICIAL_RESOURCES.md`](../docs/OFFICIAL_RESOURCES.md) 等人工筆記檔，不進題庫資料。
 
 > 簡言之：官方資源**只用來理解題型結構**；正式題庫的內容**永遠是自製或經人工審核的 AI 仿真題**。
 

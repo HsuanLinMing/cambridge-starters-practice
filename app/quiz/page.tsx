@@ -79,8 +79,8 @@ export default function QuizPage() {
       </header>
 
       <section className="mt-8">
-        {questions.length > 0 ? (
-          <QuizPlay questions={questions} />
+        {paper && questions.length > 0 ? (
+          <QuizPlay paperId={paper.examPaperId} questions={questions} />
         ) : (
           <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">
             目前沒有題目，請稍後再來。
