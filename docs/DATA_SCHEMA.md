@@ -227,6 +227,109 @@
 
 ---
 
+## Starters part metadata（P3-9-B）
+
+> 本節對應 `lib/types.ts` 的 `StarterSection` / `StarterPart` / `SkillFocus` / `ExpectedAnswerType` 與 `BaseQuestion` 4 個 optional 欄位；對齊 `docs/STARTERS_PART_TEMPLATES.md` v1 的「未來題型資料欄位建議」段。
+
+### 用途
+
+讓題目逐步具備正式 Cambridge Pre A1 Starters parts 結構標記：
+
+- `/quiz` UI 顯示 Part 標示時**優先讀 metadata**（`getStarterPartInfo()` / `getSectionTag()`），缺值時 fallback 到依 `question.type` 推導。
+- 未來 AI 仿真題（P3-3 / P3-8）與題庫轉換工具（P3-2-B）應**產生這些欄位**作為輸出 schema。
+- 家長 / 老師可清楚辨識每題對應的 Starters Part。
+
+### 邊界
+
+- 4 個欄位皆 **optional**——既有資料不需立刻補；UI 會 fallback。
+- 這些欄位**不代表官方題目**，只代表「自製練習題的對齊目標」。
+- Speaking metadata（`"speaking"` section / `SP1`~`SP4` part / `"spoken"` answer type）目前僅預留型別字面量，**不在 P3 實作**——留給 P4 Speaking Examiner Agent。
+
+### 欄位說明
+
+| 欄位 | type | 允許值 | 用途 |
+| --- | --- | --- | --- |
+| `starterSection` | `StarterSection` | `"listening"` / `"reading-writing"` / `"speaking"` | 題目所屬 Starters 段落 |
+| `starterPart` | `StarterPart` | `L1` / `L2` / `L3` / `L4` / `RW1` / `RW2` / `RW3` / `RW4` / `RW5` / `SP1` / `SP2` / `SP3` / `SP4` | 題目對應的 Part |
+| `skillFocus` | `SkillFocus[]` | `"listening"` / `"vocabulary"` / `"spelling"` / `"reading"` / `"writing"` / `"speaking"` | 主要訓練能力清單（可多選） |
+| `expectedAnswerType` | `ExpectedAnswerType` | `"choice"` / `"text"` / `"number"` / `"name"` / `"color"` / `"one-word"` / `"spoken"` | 答題型態（與 `answer` 處理規則對齊） |
+
+### 範例
+
+`picture-choice` 對應 RW1：
+
+```jsonc
+{
+  "id": "q-pc-001",
+  "type": "picture-choice",
+  "source": "ai_generated",
+  "image": "/images/apple.svg",
+  "prompt": "What is this?",
+  "options": ["apple", "banana", "cat", "dog"],
+  "answer": "apple",
+  "explanation": "圖片是紅色的圓形水果，是 apple。",
+  "difficulty": "easy",
+  "topic": "food",
+  // P3-9-B metadata
+  "starterSection": "reading-writing",
+  "starterPart": "RW1",
+  "skillFocus": ["vocabulary", "reading"],
+  "expectedAnswerType": "choice"
+}
+```
+
+### 目前 7 題範例的 metadata 對應
+
+| id | type | starterSection | starterPart | skillFocus | expectedAnswerType |
+| --- | --- | --- | --- | --- | --- |
+| `q-mc-001` | multiple-choice | reading-writing | RW4 | reading / vocabulary | choice |
+| `q-pc-001` | picture-choice | reading-writing | RW1 | vocabulary / reading | choice |
+| `q-wc-001` | word-choice | reading-writing | RW3 | vocabulary / spelling | choice |
+| `q-lc-001` | listening-choice | listening | L3 | listening / vocabulary | choice |
+| `q-fb-001` | fill-blank（選項版） | reading-writing | RW4 | reading / writing / vocabulary | text |
+| `q-fb-002` | fill-blank（自由填空） | reading-writing | RW4 | reading / writing / vocabulary | text |
+| `q-mt-001` | matching | reading-writing | RW5 | reading / vocabulary | choice |
+
+> 此對應為**目前練習版近似對應**，不是完整正式題型；`multiple-choice → RW4`、`picture-choice → RW1` 等選擇與 `docs/STARTERS_PART_TEMPLATES.md` 的「目前 P3 schema 對應表」一致，未來若依 P3-7-B 校正後調整，需同步更新本表。
+
+### UI 文案細分（依 `question.type` 微調）
+
+`starterPart` 表示「對齊正式 Cambridge Pre A1 Starters Part 的目標」——但同一個 part 在不同 `question.type` 下，實際練習形式可能差很多。`/quiz` 的 Part 顯示文案因此**同時參考 `starterPart` 與 `question.type`**：
+
+| `starterPart` | `question.type` | 顯示文案 |
+| --- | --- | --- |
+| `RW4` | `fill-blank` | `Part 4：短文 / 句子填空` |
+| `RW4` | `multiple-choice` | `Part 4 preview：短句選字 / 詞彙選擇` |
+| `RW1` | `picture-choice` | `Part 1：看圖判斷 / 看圖選答案` |
+| `RW3` | `word-choice` | `Part 3：看圖認字 / 拼字練習` |
+| `RW5` | `matching` | `Part 5：圖文配對 / 故事理解預備` |
+| `L3` | `listening-choice` | `Part 3：聽音選圖` |
+| 其他 | 任何 | 依 `STARTER_PART_DISPLAY` map 的 default 文案 |
+
+**設計原則**：
+
+- `STARTER_PART_DISPLAY` map 提供每個 Part 的 default 文案（涵蓋 13 個 part 含 SP1~SP4 預留）。
+- `getStarterPartInfo(question)` 在 `components/QuizPlay.tsx` 中先檢查特殊組合（如 `RW4 + multiple-choice`）覆寫 default，否則回 default map，metadata 缺值時 fallback 依 `question.type` 推導。
+- 增加新組合覆寫時只需在 `getStarterPartInfo` 加一個 `if`，不動 schema、不動 metadata mapping。
+
+**目的**：
+
+- 解決 P3-9-B 第一刀的文案落差——例如 `q-mc-001` 「Which one is a fruit?」之前被籠統顯示為「Part 4：短文 / 句子填空」，現改為「Part 4 preview：短句選字 / 詞彙選擇」更貼近實際題目。
+- 維持 metadata-first 但允許「練習版細分」對家長 / 老師更友善。
+- 仍是練習版近似對應，**不代表官方題目**。
+
+### 不在 P3-9-B 第一刀範圍
+
+下列項目本子分區**不做**，留給 P3-9-B 後續刀數或其他 P3 子分區：
+
+- `ttsScript` / `imagePrompt` 是否升為正式 schema 欄位的決策（屬 P3-9-B 後續評估）。
+- `difficulty` 升級為 `"starter-easy"` / `"starter-medium"` 字面量（屬 P3-9-B 後續評估）。
+- part-specific question types（例如 `true-false` / `spelling-input`；屬 P3-9-B / P3-9-C 後續）。
+- metadata validator helper（runtime 檢查 metadata 與 type 是否一致；屬 P3-9-B 後續）。
+- UI 加 part-specific 互動（例如 RW3 拼字輸入、RW2 共用 scene image；屬 P3-9-C）。
+
+---
+
 ## 完整考卷（`ExamPaper`）
 
 一份完整考卷由多個 section 組成（例如 Listening / Reading & Writing），對齊 Cambridge Starters 真實考試結構。

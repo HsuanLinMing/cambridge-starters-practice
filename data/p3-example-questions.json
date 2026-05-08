@@ -8,7 +8,11 @@
     "answer": "apple",
     "explanation": "蘋果是水果，cat 是動物。",
     "difficulty": "easy",
-    "topic": "food"
+    "topic": "food",
+    "starterSection": "reading-writing",
+    "starterPart": "RW4",
+    "skillFocus": ["reading", "vocabulary"],
+    "expectedAnswerType": "choice"
   },
   {
     "id": "q-pc-001",
@@ -21,7 +25,11 @@
     "explanation": "圖片是紅色的圓形水果，是 apple。",
     "difficulty": "easy",
     "topic": "food",
-    "promptVersion": "starters-rw-pc-v1"
+    "promptVersion": "starters-rw-pc-v1",
+    "starterSection": "reading-writing",
+    "starterPart": "RW1",
+    "skillFocus": ["vocabulary", "reading"],
+    "expectedAnswerType": "choice"
   },
   {
     "id": "q-wc-001",
@@ -38,7 +46,11 @@
     "explanation": "apple 是蘋果，圖片是紅色圓形水果那張。",
     "difficulty": "easy",
     "topic": "food",
-    "promptVersion": "starters-rw-wc-v1"
+    "promptVersion": "starters-rw-wc-v1",
+    "starterSection": "reading-writing",
+    "starterPart": "RW3",
+    "skillFocus": ["vocabulary", "spelling"],
+    "expectedAnswerType": "choice"
   },
   {
     "id": "q-lc-001",
@@ -53,7 +65,11 @@
     "explanation": "音檔說小男孩想要蘋果。",
     "difficulty": "easy",
     "topic": "food",
-    "promptVersion": "starters-listening-v1"
+    "promptVersion": "starters-listening-v1",
+    "starterSection": "listening",
+    "starterPart": "L3",
+    "skillFocus": ["listening", "vocabulary"],
+    "expectedAnswerType": "choice"
   },
   {
     "id": "q-fb-001",
@@ -64,7 +80,11 @@
     "answer": "blue",
     "explanation": "天空是藍色的，所以填 blue。",
     "difficulty": "easy",
-    "topic": "colors"
+    "topic": "colors",
+    "starterSection": "reading-writing",
+    "starterPart": "RW4",
+    "skillFocus": ["reading", "writing", "vocabulary"],
+    "expectedAnswerType": "text"
   },
   {
     "id": "q-fb-002",
@@ -74,7 +94,11 @@
     "answer": "cat",
     "explanation": "自由填空，可填任何單字（這份範例的解答是 cat）；比對時忽略大小寫與前後空白。",
     "difficulty": "medium",
-    "topic": "animals"
+    "topic": "animals",
+    "starterSection": "reading-writing",
+    "starterPart": "RW4",
+    "skillFocus": ["reading", "writing", "vocabulary"],
+    "expectedAnswerType": "text"
   },
   {
     "id": "q-mt-001",
@@ -89,6 +113,10 @@
     ],
     "explanation": "依左欄順序連到右欄正確圖片。",
     "difficulty": "easy",
-    "topic": "mixed"
+    "topic": "mixed",
+    "starterSection": "reading-writing",
+    "starterPart": "RW5",
+    "skillFocus": ["reading", "vocabulary"],
+    "expectedAnswerType": "choice"
   }
 ]

@@ -18,6 +18,7 @@ import type {
   ListeningChoiceQuestion,
   MatchingQuestion,
   PictureChoiceQuestion,
+  StarterPart,
   WordChoiceQuestion,
 } from "@/lib/types";
 
@@ -50,6 +51,10 @@ const SECTION_LABELS: Record<
 };
 
 function getSectionTag(question: ExamQuestion): SectionTag {
+  // P3-9-B：優先讀 metadata；speaking 屬 P4，本輪不會出現於 /quiz
+  if (question.starterSection === "listening") return "listening";
+  if (question.starterSection === "reading-writing") return "reading-writing";
+  // fallback：依 question.type 推導
   return question.type === "listening-choice" ? "listening" : "reading-writing";
 }
 
@@ -64,7 +69,54 @@ type StarterPartInfo = {
   zhTitle: string;
 };
 
+/**
+ * P3-9-B：Starters Part metadata 的顯示對應表。
+ * 對齊 `docs/STARTERS_PART_TEMPLATES.md` v1 模板的 9 個 part 中文題型描述；
+ * SP1~SP4 屬 P4 預留，本輪不會在 /quiz 出現。
+ */
+const STARTER_PART_DISPLAY: Record<StarterPart, StarterPartInfo> = {
+  L1: { partLabel: "Part 1", zhTitle: "聽句子配人物 / 物件位置" },
+  L2: { partLabel: "Part 2", zhTitle: "聽對話寫 name / number" },
+  L3: { partLabel: "Part 3", zhTitle: "聽音選圖" },
+  L4: { partLabel: "Part 4", zhTitle: "聽指令 · 顏色 / 物件" },
+  RW1: { partLabel: "Part 1", zhTitle: "看圖判斷 / 看圖選答案" },
+  RW2: { partLabel: "Part 2", zhTitle: "看大圖回答 yes / no" },
+  RW3: { partLabel: "Part 3", zhTitle: "看圖認字 / 拼字練習" },
+  RW4: { partLabel: "Part 4", zhTitle: "短文 / 句子填空" },
+  RW5: { partLabel: "Part 5", zhTitle: "圖文配對 / 故事理解預備" },
+  SP1: { partLabel: "Part 1（P4）", zhTitle: "口說 Part 1（P4 預留）" },
+  SP2: { partLabel: "Part 2（P4）", zhTitle: "口說 Part 2（P4 預留）" },
+  SP3: { partLabel: "Part 3（P4）", zhTitle: "口說 Part 3（P4 預留）" },
+  SP4: { partLabel: "Part 4（P4）", zhTitle: "口說 Part 4（P4 預留）" },
+};
+
+/**
+ * 顯示 Part 標示。
+ *
+ * 邏輯：
+ * 1. metadata（`starterSection` / `starterPart`）決定 section / part 的對齊目標。
+ * 2. `question.type` 可協助顯示更精準的練習版文案——同一個 starterPart 下，
+ *    不同題型的實際練習形式可能差很多（例如 RW4 在官方包含「短文填空」與
+ *    「短句選字 preview」兩種偏向，本練習版用 `multiple-choice` 仿前者預備、
+ *    用 `fill-blank` 仿後者）。
+ * 3. fallback：metadata 未補時依 `question.type` 推導，保留「preview」字樣
+ *    以區分尚未補 metadata 的舊資料。
+ *
+ * 提醒：所有顯示文案皆為「練習版近似對應」，不代表官方題目本身。
+ */
 function getStarterPartInfo(question: ExamQuestion): StarterPartInfo {
+  // P3-9-C 小修：(starterPart, question.type) 組合細分文案。
+  // 目前只覆寫一條：RW4 + multiple-choice 顯示「短句選字 / 詞彙選擇 preview」，
+  // 避免被籠統顯示為「短文 / 句子填空」（後者更貼近 fill-blank 的實際形式）。
+  if (question.starterPart === "RW4" && question.type === "multiple-choice") {
+    return { partLabel: "Part 4 preview", zhTitle: "短句選字 / 詞彙選擇" };
+  }
+
+  // P3-9-B：優先讀 metadata
+  if (question.starterPart) {
+    return STARTER_PART_DISPLAY[question.starterPart];
+  }
+  // fallback：依 question.type 推導（保留 preview 字樣以區分尚未補 metadata 的舊資料）
   switch (question.type) {
     case "listening-choice":
       return { partLabel: "Part 3", zhTitle: "聽音選圖" };

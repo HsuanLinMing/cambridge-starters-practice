@@ -79,6 +79,60 @@ export type QuestionType =
 /** 難度標記，可省略；保留給未來分級練習使用。 */
 export type DifficultyLevel = "easy" | "medium" | "hard";
 
+// ============================================================================
+// P3-9-B Starters part metadata（第一刀，optional 欄位）
+// ----------------------------------------------------------------------------
+// 對齊 `docs/STARTERS_PART_TEMPLATES.md` v1 的「未來題型資料欄位建議」段，
+// 讓題目逐步具備正式 Cambridge Pre A1 Starters parts 結構標記。
+//
+// 邊界：
+//   - 4 個欄位皆 **optional**——既有資料不需立刻補，UI 會 fallback 到依 type 推導。
+//   - 不代表官方題目，只代表「自製練習題的對齊目標」。
+//   - Speaking metadata（"speaking" / SP1~SP4 / "spoken"）目前僅預留型別字面量，
+//     **不在 P3 實作**——留給 P4 Speaking Examiner Agent。
+// ============================================================================
+
+/** 對齊正式 Cambridge Pre A1 Starters 三大段落。 */
+export type StarterSection =
+  | "listening"
+  | "reading-writing"
+  | "speaking"; // P4 預留，本輪不實作
+
+/** 對齊正式 Cambridge Pre A1 Starters 各 Part（L1~L4 / RW1~RW5 / SP1~SP4）。 */
+export type StarterPart =
+  | "L1"
+  | "L2"
+  | "L3"
+  | "L4"
+  | "RW1"
+  | "RW2"
+  | "RW3"
+  | "RW4"
+  | "RW5"
+  | "SP1" // 以下屬 P4，本輪不實作
+  | "SP2"
+  | "SP3"
+  | "SP4";
+
+/** 題目主要訓練的能力（對齊 STARTERS_PART_TEMPLATES 模板的 skillFocus 欄位建議）。 */
+export type SkillFocus =
+  | "listening"
+  | "vocabulary"
+  | "spelling"
+  | "reading"
+  | "writing"
+  | "speaking";
+
+/** 答題型態（對齊 STARTERS_PART_TEMPLATES 模板的 expectedAnswerType 欄位建議）。 */
+export type ExpectedAnswerType =
+  | "choice" // 選擇（從 options 選一個）
+  | "text" // 自由文字輸入
+  | "number" // 數字
+  | "name" // 人名
+  | "color" // 顏色名
+  | "one-word" // 單一英文字（RW5 用）
+  | "spoken"; // 口說（屬 P4 Speaking Examiner Agent）
+
 /** 共用題目欄位。所有 P3 題型皆 extend 此 base。 */
 export type BaseQuestion = {
   /** 題目唯一識別碼。 */
@@ -101,6 +155,14 @@ export type BaseQuestion = {
   topic?: string;
   /** AI 生成題的 prompt 版本號，便於回溯出題品質。 */
   promptVersion?: string;
+  /** Starters 段落 metadata（P3-9-B；optional，缺值時 UI fallback 依 `type` 推導）。 */
+  starterSection?: StarterSection;
+  /** Starters Part metadata（P3-9-B；optional，對齊 `docs/STARTERS_PART_TEMPLATES.md`）。 */
+  starterPart?: StarterPart;
+  /** 題目主要訓練的能力清單（P3-9-B；optional）。 */
+  skillFocus?: SkillFocus[];
+  /** 答題型態 metadata（P3-9-B；optional，與 `answer` 欄位處理規則對齊）。 */
+  expectedAnswerType?: ExpectedAnswerType;
 };
 
 /** 圖片選項（給 word-choice / listening-choice 圖片版用）。 */
