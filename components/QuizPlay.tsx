@@ -206,17 +206,10 @@ export default function QuizPlay({ paperId, questions }: QuizPlayProps) {
   }
 
   if (session.submitted) {
-    const correctCount = questions.filter((q) =>
-      isCorrect(q, session.answers[q.id]),
-    ).length;
-    const answeredCount = questions.filter((q) =>
-      isAnswered(session.answers[q.id]),
-    ).length;
     return (
       <ResultView
-        total={total}
-        correctCount={correctCount}
-        answeredCount={answeredCount}
+        questions={questions}
+        answers={session.answers}
         onRestart={handleRestart}
       />
     );
@@ -311,19 +304,197 @@ export default function QuizPlay({ paperId, questions }: QuizPlayProps) {
 // 完成畫面
 // =============================================================
 
+type QuestionStatus = "correct" | "incorrect" | "unanswered";
+
+function getQuestionStatus(
+  question: ExamQuestion,
+  answer: string | undefined,
+): QuestionStatus {
+  if (!isAnswered(answer)) return "unanswered";
+  return isCorrect(question, answer) ? "correct" : "incorrect";
+}
+
+/** 把使用者作答顯示為人類可讀文字（matching 用閱讀型描述、其他直接顯示原值）。 */
+function formatUserAnswer(
+  question: ExamQuestion,
+  answer: string | undefined,
+): string {
+  if (!isAnswered(answer)) return "尚未作答";
+  if (question.type === "matching") {
+    return answer === MATCHING_DONE_TOKEN
+      ? "已完成閱讀配對練習"
+      : "（未完成）";
+  }
+  return answer as string;
+}
+
+/** 把正確答案顯示為人類可讀文字（matching 顯示閱讀型說明）。 */
+function formatCorrectAnswer(question: ExamQuestion): string {
+  if (question.type === "matching") {
+    return "本題目前為閱讀型練習，完成即算正確";
+  }
+  return question.answer;
+}
+
+/** 結果頁顯示題目用的文字版（不重複貼大圖 / 大音檔，僅給家長辨識題目）。 */
+function getQuestionPromptDisplay(question: ExamQuestion): string {
+  if (question.type === "listening-choice") {
+    return question.transcript ?? question.ttsScript ?? "（音檔內容）";
+  }
+  if (question.type === "word-choice") {
+    return `這個英文單字是「${question.prompt}」`;
+  }
+  if (question.type === "picture-choice") {
+    return question.prompt ?? "（看圖選字題）";
+  }
+  if (question.type === "matching") {
+    return question.prompt ?? "（看圖配對題）";
+  }
+  // multiple-choice / fill-blank
+  return question.prompt;
+}
+
+/** 沒有 explanation 時依狀態給鼓勵性 fallback。 */
+function getExplanationDisplay(
+  question: ExamQuestion,
+  status: QuestionStatus,
+): string {
+  if (question.explanation) return question.explanation;
+  if (status === "unanswered") return "下次可以再試一次～";
+  if (status === "correct") return "答得很好！繼續加油！";
+  return "再想一下，下次一定可以的～";
+}
+
+const STATUS_STYLES: Record<
+  QuestionStatus,
+  { bg: string; ring: string; chip: string; icon: string; label: string }
+> = {
+  correct: {
+    bg: "bg-emerald-50",
+    ring: "ring-emerald-200",
+    chip: "bg-emerald-200 text-emerald-800",
+    icon: "✓",
+    label: "答對",
+  },
+  incorrect: {
+    bg: "bg-rose-50",
+    ring: "ring-rose-200",
+    chip: "bg-rose-200 text-rose-800",
+    icon: "✗",
+    label: "答錯",
+  },
+  unanswered: {
+    bg: "bg-amber-50",
+    ring: "ring-amber-200",
+    chip: "bg-amber-200 text-amber-800",
+    icon: "?",
+    label: "未作答",
+  },
+};
+
+type QuestionDetailCardProps = {
+  question: ExamQuestion;
+  index: number;
+  userAnswer: string | undefined;
+};
+
+function QuestionDetailCard({
+  question,
+  index,
+  userAnswer,
+}: QuestionDetailCardProps) {
+  const status = getQuestionStatus(question, userAnswer);
+  const sectionTag = getSectionTag(question);
+  const section = SECTION_LABELS[sectionTag];
+  const partInfo = getStarterPartInfo(question);
+  const userAnswerDisplay = formatUserAnswer(question, userAnswer);
+  const correctAnswerDisplay = formatCorrectAnswer(question);
+  const promptDisplay = getQuestionPromptDisplay(question);
+  const explanation = getExplanationDisplay(question, status);
+  const styles = STATUS_STYLES[status];
+
+  return (
+    <li
+      className={`rounded-2xl ${styles.bg} p-4 ring-1 ${styles.ring}`}
+      aria-label={`第 ${index + 1} 題 ${styles.label}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          <span className="font-bold text-slate-700">第 {index + 1} 題</span>
+          <span aria-hidden className="text-slate-300">
+            ·
+          </span>
+          <span className="text-slate-500">
+            Section {section.number} {section.en}
+          </span>
+          <span aria-hidden className="text-slate-300">
+            ·
+          </span>
+          <span className="text-slate-500">{partInfo.partLabel}</span>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-3 py-0.5 text-xs font-bold ${styles.chip}`}
+        >
+          <span aria-hidden>{styles.icon}</span>
+          {styles.label}
+        </span>
+      </div>
+
+      <p className="mt-3 text-sm text-slate-800">
+        <span className="text-xs font-semibold text-slate-500">題目：</span>
+        {promptDisplay}
+      </p>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-100">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            你的答案
+          </div>
+          <div
+            className={
+              "mt-1 text-sm font-bold " +
+              (status === "unanswered"
+                ? "text-amber-700"
+                : status === "correct"
+                  ? "text-emerald-700"
+                  : "text-rose-700")
+            }
+          >
+            {userAnswerDisplay}
+          </div>
+        </div>
+        <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-100">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            正確答案
+          </div>
+          <div className="mt-1 text-sm font-bold text-emerald-700">
+            {correctAnswerDisplay}
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs text-slate-600">
+        <span className="font-semibold text-slate-500">說明：</span>
+        {explanation}
+      </p>
+    </li>
+  );
+}
+
 type ResultViewProps = {
-  total: number;
-  correctCount: number;
-  answeredCount: number;
+  questions: ExamQuestion[];
+  answers: Record<string, string>;
   onRestart: () => void;
 };
 
-function ResultView({
-  total,
-  correctCount,
-  answeredCount,
-  onRestart,
-}: ResultViewProps) {
+function ResultView({ questions, answers, onRestart }: ResultViewProps) {
+  const total = questions.length;
+  const correctCount = questions.filter((q) =>
+    isCorrect(q, answers[q.id]),
+  ).length;
+  const answeredCount = questions.filter((q) =>
+    isAnswered(answers[q.id]),
+  ).length;
   const unansweredCount = total - answeredCount;
   const ratio = total === 0 ? 0 : correctCount / total;
   let cheer = "你好棒！繼續加油喔！";
@@ -365,6 +536,22 @@ function ResultView({
         )}
         <p className="mt-4 text-base text-slate-600 sm:text-lg">{cheer}</p>
       </div>
+
+      <section className="mt-8" aria-label="每題詳解">
+        <h3 className="mb-3 text-center text-base font-bold text-slate-700 sm:text-lg">
+          每題詳解
+        </h3>
+        <ul className="space-y-3">
+          {questions.map((q, i) => (
+            <QuestionDetailCard
+              key={q.id}
+              question={q}
+              index={i}
+              userAnswer={answers[q.id]}
+            />
+          ))}
+        </ul>
+      </section>
 
       <div className="mt-8 flex flex-col items-center gap-3">
         <button
