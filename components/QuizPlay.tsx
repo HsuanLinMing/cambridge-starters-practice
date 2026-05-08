@@ -152,6 +152,22 @@ export default function QuizPlay({ paperId, questions }: QuizPlayProps) {
     saveSession(session);
   }, [session, hydrated]);
 
+  // 再練習模式（retry mode）— P3-6-B-4 第二刀：純 in-memory state，不存 localStorage、不升 schemaVersion。
+  // null 代表非 retry 模式；string[] 代表 retry 模式的題目 id 清單。
+  const [retryQuestionIds, setRetryQuestionIds] = useState<string[] | null>(
+    null,
+  );
+  const [retryAnswers, setRetryAnswers] = useState<Record<string, string>>({});
+  const [retryIndex, setRetryIndex] = useState(0);
+  const [retrySubmitted, setRetrySubmitted] = useState(false);
+
+  const inRetry = retryQuestionIds !== null;
+  const retryIdSet = new Set(retryQuestionIds ?? []);
+  const retryQuestions = inRetry
+    ? questions.filter((q) => retryIdSet.has(q.id))
+    : [];
+  const retryTotal = retryQuestions.length;
+
   const total = questions.length;
   const currentIndex = session.currentIndex;
   const current = questions[currentIndex];
@@ -191,10 +207,48 @@ export default function QuizPlay({ paperId, questions }: QuizPlayProps) {
     updateSession({ submitted: true, submittedAt: now });
   };
 
+  const resetRetryState = () => {
+    setRetryQuestionIds(null);
+    setRetryAnswers({});
+    setRetryIndex(0);
+    setRetrySubmitted(false);
+  };
+
   const handleRestart = () => {
     clearSession();
     setSession(createEmptySession(paperId, questions));
     setRestoredHint(false);
+    resetRetryState();
+  };
+
+  const handleStartRetry = (ids: string[]) => {
+    if (ids.length === 0) return;
+    setRetryQuestionIds(ids);
+    setRetryAnswers({});
+    setRetryIndex(0);
+    setRetrySubmitted(false);
+  };
+
+  const handleExitRetry = () => {
+    resetRetryState();
+  };
+
+  const handleSelectRetryAnswer = (value: string) => {
+    const retryCurrent = retryQuestions[retryIndex];
+    if (!retryCurrent) return;
+    setRetryAnswers((prev) => ({ ...prev, [retryCurrent.id]: value }));
+  };
+
+  const handleRetryNext = () => {
+    if (retryIndex === retryTotal - 1) {
+      setRetrySubmitted(true);
+    } else {
+      setRetryIndex((i) => i + 1);
+    }
+  };
+
+  const handleRetrySubmitNow = () => {
+    setRetrySubmitted(true);
   };
 
   if (total === 0) {
@@ -205,12 +259,131 @@ export default function QuizPlay({ paperId, questions }: QuizPlayProps) {
     );
   }
 
+  // 再練習模式（retry mode）優先：在原始 quiz / 結果頁之前處理，避免雙重渲染
+  if (inRetry) {
+    if (retrySubmitted) {
+      return (
+        <RetryResultView
+          retryQuestions={retryQuestions}
+          retryAnswers={retryAnswers}
+          allQuestions={questions}
+          onExitRetry={handleExitRetry}
+          onRestart={handleRestart}
+        />
+      );
+    }
+
+    const retryCurrent = retryQuestions[retryIndex];
+    if (!retryCurrent) {
+      // edge case：retryQuestionIds 設定後找不到對應題目（理論上不會發生）
+      return (
+        <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">
+          找不到再練習題目，請按下方按鈕回到完整結果。
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={handleExitRetry}
+              className="flex min-h-12 items-center gap-2 rounded-full bg-white px-6 py-2 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-200"
+            >
+              <span aria-hidden>↩</span> 返回完整結果
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const retryCurrentAnswer = retryAnswers[retryCurrent.id];
+    const retryAnswered = isAnswered(retryCurrentAnswer);
+    const retryIsLast = retryIndex === retryTotal - 1;
+    const retrySectionTag = getSectionTag(retryCurrent);
+    const retrySection = SECTION_LABELS[retrySectionTag];
+    const retryPartInfo = getStarterPartInfo(retryCurrent);
+    const retrySectionAccent =
+      retrySectionTag === "listening"
+        ? "bg-sky-100 text-sky-800"
+        : "bg-amber-100 text-amber-800";
+
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-center ring-1 ring-amber-200">
+          <p className="text-sm font-bold text-amber-800">
+            🔁 再練習模式：只練習錯題與未作答題
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            本次再練習結果<strong className="font-bold">不會覆蓋</strong>
+            原始測驗分數；隨時可按下方「返回完整結果」回到原始結果頁。
+          </p>
+        </div>
+
+        <article className="rounded-3xl bg-white p-6 shadow-md ring-1 ring-amber-100 sm:p-8">
+          <div className="text-center">
+            <div
+              className={
+                "inline-flex items-center gap-2 rounded-full px-4 py-1 text-xs font-bold " +
+                retrySectionAccent
+              }
+            >
+              <span>Section {retrySection.number}</span>
+              <span aria-hidden>·</span>
+              <span>{retrySection.en}</span>
+              <span aria-hidden>｜</span>
+              <span>{retrySection.zh}</span>
+            </div>
+            <p className="mt-2 text-sm font-bold text-slate-700">
+              {retryPartInfo.partLabel}：{retryPartInfo.zhTitle}
+            </p>
+            <div className="mt-2 text-sm font-semibold text-slate-500">
+              再練習 第 {retryIndex + 1} 題 / 共 {retryTotal} 題
+            </div>
+          </div>
+
+          <QuestionView
+            key={retryCurrent.id}
+            question={retryCurrent}
+            currentAnswer={retryCurrentAnswer}
+            onSelectAnswer={handleSelectRetryAnswer}
+          />
+
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              disabled={!retryAnswered}
+              onClick={handleRetryNext}
+              className="flex min-h-14 items-center gap-2 rounded-full bg-amber-400 px-8 py-3 text-lg font-bold text-white shadow-md transition hover:bg-amber-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            >
+              {retryIsLast ? "看再練習結果" : "下一題"}{" "}
+              <span aria-hidden>→</span>
+            </button>
+          </div>
+        </article>
+
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={handleRetrySubmitNow}
+            className="flex min-h-12 items-center gap-2 rounded-full bg-white px-6 py-2 text-sm font-bold text-amber-700 shadow-sm ring-1 ring-amber-200 transition hover:bg-amber-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200"
+          >
+            <span aria-hidden>📝</span> 直接交卷
+          </button>
+          <button
+            type="button"
+            onClick={handleExitRetry}
+            className="flex min-h-12 items-center gap-2 rounded-full bg-white px-6 py-2 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-200"
+          >
+            <span aria-hidden>↩</span> 返回完整結果
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (session.submitted) {
     return (
       <ResultView
         questions={questions}
         answers={session.answers}
         onRestart={handleRestart}
+        onStartRetry={handleStartRetry}
       />
     );
   }
@@ -508,9 +681,15 @@ type ResultViewProps = {
   questions: ExamQuestion[];
   answers: Record<string, string>;
   onRestart: () => void;
+  onStartRetry: (ids: string[]) => void;
 };
 
-function ResultView({ questions, answers, onRestart }: ResultViewProps) {
+function ResultView({
+  questions,
+  answers,
+  onRestart,
+  onStartRetry,
+}: ResultViewProps) {
   const [detailFilter, setDetailFilter] = useState<DetailFilter>("all");
 
   // 一次計算每題狀態，後續四個 count 與 filter 共用
@@ -645,13 +824,155 @@ function ResultView({ questions, answers, onRestart }: ResultViewProps) {
         )}
       </section>
 
-      <div className="mt-8 flex flex-col items-center gap-3">
+      {reviewCount > 0 && (
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() =>
+              onStartRetry(
+                statuses
+                  .filter(
+                    (s) =>
+                      s.status === "incorrect" || s.status === "unanswered",
+                  )
+                  .map((s) => s.question.id),
+              )
+            }
+            className="flex min-h-14 items-center gap-2 rounded-full bg-rose-400 px-7 py-3 text-base font-bold text-white shadow-md transition hover:bg-rose-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-200 sm:text-lg"
+          >
+            <span aria-hidden>🔁</span> 再練習這些題目（{reviewCount}）
+          </button>
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-col items-center gap-3">
         <button
           type="button"
           onClick={onRestart}
           className="flex min-h-14 items-center gap-2 rounded-full bg-amber-400 px-8 py-3 text-lg font-bold text-white shadow-md transition hover:bg-amber-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200"
         >
           <span aria-hidden>🔁</span> 重新測驗
+        </button>
+        <Link
+          href="/"
+          className="text-sm font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+        >
+          回首頁
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+// =============================================================
+// 再練習結果頁（P3-6-B-4 第二刀）
+// =============================================================
+
+type RetryResultViewProps = {
+  /** retry mode 中作答的題目（已 filter 為 incorrect + unanswered） */
+  retryQuestions: ExamQuestion[];
+  /** retry mode 的答案 map（與原始 session.answers 分開） */
+  retryAnswers: Record<string, string>;
+  /** 完整題庫，用於計算每題在原始試卷的 index（顯示「第 N 題」對齊整份試卷） */
+  allQuestions: ExamQuestion[];
+  onExitRetry: () => void;
+  onRestart: () => void;
+};
+
+function RetryResultView({
+  retryQuestions,
+  retryAnswers,
+  allQuestions,
+  onExitRetry,
+  onRestart,
+}: RetryResultViewProps) {
+  const total = retryQuestions.length;
+  const correctCount = retryQuestions.filter((q) =>
+    isCorrect(q, retryAnswers[q.id]),
+  ).length;
+  const answeredCount = retryQuestions.filter((q) =>
+    isAnswered(retryAnswers[q.id]),
+  ).length;
+  const unansweredCount = total - answeredCount;
+  const ratio = total === 0 ? 0 : correctCount / total;
+  let cheer = "再練習也是進步！繼續加油！";
+  if (ratio === 1) cheer = "全部答對！再練習超有成效！🎉";
+  else if (ratio >= 0.7) cheer = "進步好多，超棒的！";
+  else if (ratio >= 0.4) cheer = "比上次更熟悉了，再試一次會更好！";
+  else cheer = "沒關係，多看幾次題目會更熟悉～";
+
+  // 用原始題庫順序找出每題在整份試卷的 index（顯示「第 N 題」對齊整份試卷編號）
+  const originalIndexById = new Map(allQuestions.map((q, i) => [q.id, i]));
+
+  return (
+    <article className="rounded-3xl bg-white p-8 shadow-md ring-1 ring-amber-100 sm:p-10">
+      <div className="rounded-2xl bg-amber-50 px-4 py-3 text-center ring-1 ring-amber-200">
+        <p className="text-sm font-bold text-amber-800">
+          🔁 本次再練習結果
+        </p>
+        <p className="mt-1 text-xs text-amber-700">
+          再練習結果<strong className="font-bold">不會覆蓋</strong>
+          原始測驗分數；原始測驗結果仍保留，按下方「回到完整測驗結果」即可看到。
+        </p>
+      </div>
+
+      <div className="mt-6 text-center">
+        <div className="text-5xl" aria-hidden>
+          🌱
+        </div>
+        <h2 className="mt-3 text-2xl font-black text-amber-700 sm:text-3xl">
+          再練習完成！
+        </h2>
+        <p className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
+          答對 {correctCount} / {total} 題
+        </p>
+        <dl className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-center ring-1 ring-emerald-100">
+            <dt className="text-xs font-semibold text-emerald-700">已作答</dt>
+            <dd className="mt-1 text-xl font-black text-emerald-700">
+              {answeredCount} / {total}
+            </dd>
+          </div>
+          <div className="rounded-2xl bg-rose-50 px-4 py-3 text-center ring-1 ring-rose-100">
+            <dt className="text-xs font-semibold text-rose-600">未作答</dt>
+            <dd className="mt-1 text-xl font-black text-rose-600">
+              {unansweredCount} 題
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-4 text-base text-slate-600 sm:text-lg">{cheer}</p>
+      </div>
+
+      <section className="mt-8" aria-label="再練習每題詳解">
+        <h3 className="mb-3 text-center text-base font-bold text-slate-700 sm:text-lg">
+          再練習每題詳解
+        </h3>
+        <ul className="space-y-3">
+          {retryQuestions.map((q) => (
+            <QuestionDetailCard
+              key={q.id}
+              question={q}
+              index={originalIndexById.get(q.id) ?? 0}
+              userAnswer={retryAnswers[q.id]}
+            />
+          ))}
+        </ul>
+      </section>
+
+      <div className="mt-8 flex flex-col items-center gap-3">
+        <button
+          type="button"
+          onClick={onExitRetry}
+          className="flex min-h-14 items-center gap-2 rounded-full bg-amber-400 px-8 py-3 text-lg font-bold text-white shadow-md transition hover:bg-amber-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200"
+        >
+          <span aria-hidden>↩</span> 回到完整測驗結果
+        </button>
+        <button
+          type="button"
+          onClick={onRestart}
+          className="flex min-h-12 items-center gap-2 rounded-full bg-white px-6 py-2 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-200"
+        >
+          <span aria-hidden>🔁</span> 重新測驗（清除原始與再練習進度）
         </button>
         <Link
           href="/"
