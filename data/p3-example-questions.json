@@ -64,8 +64,7 @@
     "options": [
       { "value": "apple", "image": "/images/apple.svg" },
       { "value": "banana", "image": "/images/banana.svg" },
-      { "value": "cat", "image": "/images/cat.svg" },
-      { "value": "dog", "image": "/images/dog.svg" }
+      { "value": "cat", "image": "/images/cat.svg" }
     ],
     "answer": "apple",
     "explanation": "音檔說小男孩想要蘋果。",

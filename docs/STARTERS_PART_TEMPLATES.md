@@ -127,14 +127,14 @@ Cambridge Pre A1 Starters 正式考試分三大段：
 - **是否需要音檔**：✅ 必要。
 - **是否適合 AI 仿真題生成**：✅ 高度適合——AI 可出對話腳本、name / number 標準答案皆明確；不需精緻圖片。
 
-### Listening Part 3（L3）：聽音選 A/B/C 圖（v2 校正 + P3-9-C 第一刀 audio 準備 + 第三刀 A/B/C/D 圖選項視覺）
+### Listening Part 3（L3）：聽音選 A/B/C 圖（v2 校正 + P3-9-C 第一刀 audio 準備 + 第三刀 A/B/C 圖選項視覺）
 
 - **官方方向簡述**：聽一句問題或短敘述（例如 `What does Tom want?` / `Where is the cat?`），從 **3 張圖（A / B / C）** 中選正確答案。**官方規則**：錄音會聽兩次（heard twice）；本 Part 開頭有 1~2 題 example。
-- **本專案練習版目標**：**目前 `/quiz` 的 `listening-choice` 最接近此 part**。**P3-9-C 第一刀已支援 optional `audioSrc`**——UI render `<audio controls>` 讓孩子自行重播音檔（替代官方「heard twice」固定播放）；無音檔時自動 fallback 到 transcript / ttsScript 文字練習。**P3-9-C 第三刀（2026-05-10）**：`q-lc-001` 已切到 `optionType: "image"`，UI 改 render 2x2 圖卡 + **左上角 A / B / C / D 標籤**，並**隱藏英文單字**避免聽力答案外洩；圖片缺檔（如目前 `banana.svg`）時 fallback 顯示「字母 + 圖片準備中」。後續可加：（1）固定 3 張圖選項版面（目前是 4 張）；（2）真實自製 TTS 音檔產生（屬 P2-4C-2B-2 / P3-9-C 後續）；（3）多題 L3 題庫；（4）音檔快取 / 管理策略；（5）補 `banana.svg` 等缺檔圖。
+- **本專案練習版目標**：**目前 `/quiz` 的 `listening-choice` 最接近此 part**。**P3-9-C 第一刀已支援 optional `audioSrc`**——UI render `<audio controls>` 讓孩子自行重播音檔（替代官方「heard twice」固定播放）；無音檔時自動 fallback 到 transcript / ttsScript 文字練習。**P3-9-C 第三刀（2026-05-10）**：`q-lc-001` 已切到 `optionType: "image"`，UI render 圖卡（手機 `grid-cols-2` / 桌機 `sm:grid-cols-3`）+ **左上角 A / B / C 標籤**，並**隱藏英文單字**避免聽力答案外洩；圖片缺檔時 fallback 顯示「字母 + 圖片準備中」。**P3-9-C 第三刀後續（2026-05-10）**：`q-lc-001` 已從 4 選項調整為 **3 選項 A/B/C**（apple / banana / cat），對齊正式 Cambridge L3 的 3 張版面；`banana.svg` 已補齊，3 張圖卡都顯示真實圖片。後續可加：（1）真實自製 TTS 音檔產生（已 ✅ OpenAI v2）；（2）多題 L3 題庫；（3）音檔快取 / 管理策略。
 - **題目互動方式**：
-  1. **若 `audioSrc` 存在且可載入**：顯示 `<audio controls>` + 「💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習」小提示 + transcript 文字（家長 / 孩子皆可看）。
+  1. **若 `audioSrc` 存在且可載入**：顯示 `<audio controls>` + 「💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習」小提示（**考試中不顯示 transcript**，由 P3-9-C 第二刀規範）。
   2. **若 `audioSrc` 缺值或載入失敗**：自動 fallback 顯示「音檔準備中，先用文字練習」+ transcript / ttsScript 文字。
-  3. 顯示 3 張（或 4 張）圖片選項，標 A / B / C / D。
+  3. 顯示 **3 張**圖片選項，標 A / B / C（手機 2 欄、桌機 3 欄）。
   4. 孩子點選正確圖片。
 - **需要的資料欄位**（已支援，目前 schema 可實作）：
   - `audio`（legacy 必填）/ `audioSrc`（**P3-9-C 第一刀新增 optional**，本專案自製音檔路徑，建議 `/audio/starters/l3/<id>.mp3`）
@@ -151,8 +151,9 @@ Cambridge Pre A1 Starters 正式考試分三大段：
   - 多題 L3 題庫（目前只有 1 題）。
   - 音檔快取 / 管理策略（避免每次 reload 重新下載）。
   - ~~UI 加 A / B / C 標籤覆蓋在圖片角落~~ ✅ **P3-9-C 第三刀已完成**（2026-05-10）。
-  - 限制選項數為 3（目前 schema 不限制；現實作為 4 張 A/B/C/D，與正式 L3 的 3 張版面仍有差異）。
-  - ~~補 `banana.svg` 等目前缺檔的選項圖~~ ✅ **2026-05-10 補件完成**——L3 4 張 ImageOption（apple/banana/cat/dog）全部顯示真實圖片，不再走 fallback。
+  - ~~限制選項數為 3~~ ✅ **2026-05-10 完成**——`q-lc-001` 已從 4 選項調整為 3 選項 A/B/C 對齊正式 Cambridge L3。
+  - ~~補 `banana.svg` 等目前缺檔的選項圖~~ ✅ **2026-05-10 補件完成**——L3 3 張 ImageOption（apple/banana/cat）全部顯示真實圖片，不再走 fallback。
+  - 更完整 L3 Part 3 題型模板（含 Listening Part 3 example handling、heard-twice UI、多題 L3 題庫）。
 - **是否需要圖片**：✅ 必要（3~4 張對比圖）。
 - **是否需要音檔**：✅ 必要（但**本專案不下載官方音檔**——只能是自製或 TTS 自製）。
 - **是否適合 AI 仿真題生成**：✅ **最適合**第一版優先——schema 已就位、AI 出題簡單、圖片需求清楚、音檔可由自製 TTS 產生。
@@ -321,7 +322,7 @@ Cambridge Pre A1 Starters 正式考試分三大段：
 
 | 目前 P3 type | 對應正式 part | 狀態 | 主要差距 |
 | --- | --- | --- | --- |
-| `listening-choice` | **L3 preview / 部分支援** | 🟢 最接近 | ✅ **P3-9-C 第三刀**已加 A / B / C / D 視覺標籤 + 圖選項；缺「heard twice」重播 UI（目前由 `<audio controls>` 自由重播替代）；目前固定 4 張選項（vs. 正式 3 張）；多題 L3 題庫待補 |
+| `listening-choice` | **L3 preview / 部分支援** | 🟢 最接近 | ✅ **P3-9-C 第三刀**已加 A / B / C 視覺標籤 + 圖選項 + **3 選項對齊正式 L3**；缺「heard twice」重播 UI（目前由 `<audio controls>` 自由重播替代）；多題 L3 題庫待補 |
 | `fill-blank` | **RW4 partial** | 🟢 較接近 | 單空格已支援；**多空格短文 + word bank 未支援**；缺「spelling must be correct」嚴格比對開關 |
 | `true-false` | **RW1**（P3-9-C 第三刀） | 🟢 較接近（最直接對齊） | 大型 Yes / No 按鈕已實作（emerald + ✓ / rose + ✗）；多題 RW1 樣本待補（目前只有 q-tf-001 一題）；真正 ✓ / ✗ 手寫互動屬未來進階 |
 
@@ -613,6 +614,7 @@ P4 不是「在客觀題模板上加一個 speaking type」，而是設計一個
   - **新增「v2 後續實作優先順序建議」段**——8 項排序（L3 + TTS 音檔最先 / RW3 拼字輸入 / RW1 yes-no / RW4 多空格 / RW5 picture-story / L2 / L4 / L1 hotspot 最後）+ 排序理由 + 跨項目共通要求（不複製官方原文）。
   - 仍是練習版近似對應，**不複製官方題目 / 圖片 / 音檔 / sample paper 內容**——硬邊界與 v1 一致。
   - **後續若人工瀏覽 handbook / sample paper 後發現更精確的描述**，可升 v3（屬 P3-7-B 後續刀數 + P3-7-D「sample / mock test toolkit 觀察筆記」範圍）。
+- **v2.4**（2026-05-10，P3-9-C 第三刀後續 L3 3 選項對齊正式 Cambridge L3）：`q-lc-001` 從 4 選項（apple / banana / cat / dog）調整為 **3 選項 A/B/C**（apple / banana / cat），對齊正式 Cambridge Starters L3 的 3 張圖選項版面；移除 dog 選項。`components/QuizPlay.tsx` `ListeningChoiceView` image 分支 grid 從 `grid-cols-2` 升級為 `grid-cols-2 sm:grid-cols-3`——手機 2 欄（第 3 張自然換行至第二列獨佔一格）/ 桌機 3 欄（A B C 同一列），對齊官方 L3 3 並排視覺。L3 模板段標題、互動方式、未來功能清單、schema 對應表 `listening-choice` 條目皆同步更新；DATA_SCHEMA jsonc 範例改為 3 個 ImageOption。**仍未做**：多題 L3 題庫 / 更完整 L3 Part 3 題型模板（example handling / heard-twice UI）。**硬邊界不變**。
 - **v2.3**（2026-05-10，P3-9-C 第三刀後續 L3 圖選項視覺第一版）：L3 模板段升級為「P3-9-C 第三刀已實作 A/B/C/D 圖選項視覺」狀態——`q-lc-001` 切到 `optionType: "image"` + 4 張 ImageOption（apple/banana/cat/dog）；UI render 2x2 圖卡 + 左上角 A/B/C/D 標籤 + 隱藏英文單字（避免聽力答案外洩） + 圖片缺檔 fallback 改用標籤字母（不再用 value 首字母）。schema 對應表第一層 `listening-choice` 條目同步更新（✅ 已加 A/B/C/D 視覺標籤）。**仍未做**：限制選項為 3 張對齊正式 L3 / 補 `banana.svg` 等缺檔圖 / 多題 L3 題庫（屬 P3-9-C 後續刀數）。**硬邊界不變**：不複製官方題目 / 不下載官方圖片音檔。
 - **v2.2**（2026-05-10，P3-9-C 第三刀 RW1 true-false 題型落地）：RW1 模板段升級為「P3-9-C 第三刀已實作 true-false 題型」狀態——含本專案練習版目標、題目互動方式、需要的資料欄位、`getStarterPartInfo` 細分覆寫（RW1 + true-false → 「Part 1：看圖判斷 yes / no」）、目前 P3 schema 是否已支援（✅ 完整支援）、未來需要補哪些功能；schema 對應表第一層補 `true-false → RW1` 一筆（🟢 較接近，最直接對齊）；**picture-choice 仍保留作為 RW1 / RW2 preview 第二層**——兩種題型並存（picture-choice = 圖 + 4 文字選項；true-false = 圖 + 1 句描述 + Yes / No 大按鈕）。
 - **v2.1**（2026-05-10，P3-9-C 第一刀 L3 audio 準備版）：在 L3 模板段補 `audioSrc?` optional 欄位說明 + UI fallback 機制（音檔載入失敗自動降級為文字練習，不 crash 頁面）+「聽兩次」UI 提示對應「heard twice」官方規則。資料層 `data/p3-example-questions.json` `q-lc-001` 已補 `audioSrc: /audio/starters/l3/q-lc-001.mp3`（實體 mp3 尚未產生，UI 自動 fallback 文字）。**仍未做** 真實 TTS 音檔產生 / 多題 L3 題庫 / 音檔快取（屬 P2-4C-2B-2 / P3-9-C 後續）。**硬邊界不變**：本專案不下載官方音檔，只能是自製或 TTS 自製。

@@ -172,8 +172,7 @@
   "options": [
     { "value": "apple", "image": "/images/apple.svg" },
     { "value": "banana", "image": "/images/banana.svg" },
-    { "value": "cat", "image": "/images/cat.svg" },
-    { "value": "dog", "image": "/images/dog.svg" }
+    { "value": "cat", "image": "/images/cat.svg" }
   ],
   "answer": "apple"
 }
@@ -185,7 +184,7 @@
 - `audioSrc`：**P3-9-C 第一刀新增** optional 欄位——本專案自製音檔路徑（建議 `/audio/starters/<part>/<id>.mp3`）。`/quiz` UI **優先讀此欄位** render `<audio controls>`；音檔不存在 / 載入失敗時自動 fallback 到 `transcript` / `ttsScript` 文字練習，不會 crash 頁面。
 - `transcript`：字幕，給家長 / 老師看，可同時顯示給小朋友（本練習版未做嚴格隱藏）。
 - `ttsScript`：給 TTS 生成音檔的腳本（可加 SSML 等），與 `transcript` 不一定相同。
-- `optionType`：`"text"`（文字選項）或 `"image"`（圖片選項，`options` 改用 `ImageOption[]`）；預設 `"text"`。**P3-9-C 第三刀（2026-05-10）**：`optionType: "image"` 在 `/quiz` UI 上會 render 成 2x2 圖卡，**左上角自動掛 A / B / C / D 標籤**（依 `options` 順序，不寫進 schema）；**不顯示 `option.value` 英文單字**，避免孩子直接看英文猜聽力答案。圖片缺檔時 fallback 改顯示「A / B / C / D 字母 + 圖片準備中」（不再用 value 首字母，避免洩漏答案）。
+- `optionType`：`"text"`（文字選項）或 `"image"`（圖片選項，`options` 改用 `ImageOption[]`）；預設 `"text"`。**P3-9-C 第三刀（2026-05-10）**：`optionType: "image"` 在 `/quiz` UI 上會 render 成圖卡（手機 `grid-cols-2`、桌機 `sm:grid-cols-3`），**左上角自動掛 A / B / C ...標籤**（依 `options` 順序由 `String.fromCharCode(65 + idx)` 派發，不寫進 schema）；**不顯示 `option.value` 英文單字**，避免孩子直接看英文猜聽力答案。圖片缺檔時 fallback 改顯示「A / B / C 字母 + 圖片準備中」（不再用 value 首字母，避免洩漏答案）。**L3 對齊建議**：正式 Cambridge Starters L3 為 3 張選項（A / B / C），目前 `q-lc-001` 已對齊為 3 個 ImageOption（apple / banana / cat）；其他自製題如未來 4 選項變體 schema 仍允許，但 L3 練習版優先 3 選項。
 
 **audioSrc 硬邊界**：
 

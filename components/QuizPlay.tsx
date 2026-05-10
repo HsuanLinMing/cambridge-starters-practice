@@ -1471,7 +1471,9 @@ function ListeningChoiceView({
       </div>
 
       {isImage ? (
-        <ul className="mt-6 grid grid-cols-2 gap-3 sm:gap-4">
+        // L3 3 選項對齊正式 Cambridge L3（P3-9-C 第三刀後續，2026-05-10）：
+        // 手機 2 欄（第 3 張自然換行至第二列獨佔一格）/ sm+ 3 欄（A B C 同一列）
+        <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           {(question.options as ImageOption[]).map((opt, idx) => (
             <li key={opt.value}>
               <ListeningImageOptionButton
