@@ -11,6 +11,18 @@
 - 對應 `ListeningChoiceQuestion.audioSrc?` optional 欄位（P3-9-C 第一刀）。
 - 音檔載入失敗時 UI 自動 fallback 到 transcript / ttsScript 文字練習，不會 crash 頁面。
 - 提供「正式考試中錄音會播放兩次；本練習版可自行重播音檔練習」的可重播學習體驗。
+- **聽力音檔存在且可播放時，測驗中應隱藏文字稿**（P3-9-C 第二刀，2026-05-10）——避免孩子看到題目原文直接答對；只在音檔缺失時 fallback 顯示文字。
+
+### transcript / ttsScript 主要用途
+
+| 用途 | 何時生效 |
+| --- | --- |
+| **交卷訂正** | 結果頁詳解 / retry mode 結果頁——家長 / 孩子對照「孩子聽到 / 應該聽到的句子」 |
+| **家長檢查** | 結果頁詳解時看 transcript 對應 explanation 講解 |
+| **音檔缺失時 fallback** | `audioSrc` 缺值或載入失敗時，UI 自動 fallback 到 transcript / ttsScript 文字練習 |
+| **TTS 產生來源** | 把 transcript / ttsScript 當作 `say` 指令的輸入文字（本檔流程 step 1） |
+
+⚠️ **在考試中（`/quiz` listening 題作答時），若 `audioSrc` 可播放，UI 不應直接顯示 transcript**——這是 P3-9-C 第二刀的明確設計目標。
 
 ## 硬邊界
 
@@ -184,28 +196,137 @@ public/audio/
 2. 若 commit 訊息提到「下載自...」「來自網路...」，停下來檢查來源。
 3. 在 PR / 提交前用 `git diff --stat` 看新增的 audio 檔案大小，異常大（>500 KB）通常表示是 wav / 高 bitrate mp3 / 官方完整音檔。
 
-## 第二階段（未來）：雲端 TTS 評估
+## 第二階段：OpenAI TTS examiner voice 試產流程（2026-05-10 開放，一題版）
 
-**目前不做**——本輪只用 macOS `say`。未來若需要：
+> **狀態**：流程文件 + 腳本已就位（`scripts/generate_openai_tts_sample.mjs`）；實際試產需家長 / 維護者本機設定 `OPENAI_API_KEY` 後自行跑。本輪**未實際呼叫 API**——Claude 環境無 API key。
 
-- 不同口音（美式 / 英式 / 澳洲）。
-- 更自然的語音（神經網路 TTS 比 `say` 自然）。
+### 目的
+
+產生更接近正式考試員音色的自製音檔，讓孩子在聽力練習時習慣「Cambridge-style young learners examiner」的語氣（清楚、平穩、溫和、語速略慢），並與既有 macOS `say` 版本並存供實聽比較。
+
+### 硬邊界（與第一階段一致 + 雲端 API 額外條款）
+
+- ✅ **OpenAI TTS 只用來把自製文字（transcript / ttsScript）轉成自製音檔**。
+- ❌ **絕不上傳官方題目原文 / 歷屆題 / sample paper 內容給 OpenAI**——把官方原文丟進雲端 API 視同分享給第三方。
+- ❌ **不下載官方音檔**（不變）。
+- ❌ **不批次大量產生**——本階段一題試產（q-lc-001 → q-lc-001-openai.mp3）；批次屬未來範圍，動工前需另外開放。
+- ❌ **不覆蓋既有 macOS `say` 版本**（`q-lc-001.m4a` 維持不變；OpenAI 版本另存 `q-lc-001-openai.mp3`）。
+- ❌ **不直接修改 `data/p3-example-questions.json` 的 `audioSrc`**——本階段只是試產，需人工實聽通過後**下一輪**再切換。
+- ⚠️ **TTS voice 是 AI-generated，不是真人考官聲音**——使用時 UI / README 須處處標示。
+
+### API key 規範
+
+- ✅ `.env.example` 提供範本（`OPENAI_API_KEY=` 空值），可 commit 給其他開發者參考。
+- ✅ 實際 key 寫進 `.env.local`（已被 `.gitignore` 排除；新增 `!.env.example` 例外讓範本可 commit）。
+- ❌ **絕不 commit `.env` / `.env.local` / 任何含真實 key 的檔案**。
+- ❌ 絕不把 key 寫進原始碼或 commit message。
+- ✅ 腳本透過 `process.env.OPENAI_API_KEY` 讀取——即用即丟，不寫入任何檔案。
+
+### 流程
+
+#### Step 1：設定 API key
+
+```bash
+# 在 .env.local 寫入（檔案已被 .gitignore 排除）：
+OPENAI_API_KEY=sk-...你的實際 key...
+```
+
+或單次 export（不寫入檔案）：
+
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+#### Step 2：執行試產腳本
+
+```bash
+# Node 20.6+ 支援 --env-file
+node --env-file=.env.local scripts/generate_openai_tts_sample.mjs
+
+# 或直接帶環境變數（任何 Node 18+）
+OPENAI_API_KEY=sk-... node scripts/generate_openai_tts_sample.mjs
+```
+
+腳本行為：
+
+- 無 `OPENAI_API_KEY` → 印提示後安全退出（exit 0，不視為錯誤）。
+- 既有 `q-lc-001-openai.mp3` 存在 → 拒絕覆蓋，提示先手動刪除。
+- 拒絕覆蓋既有 `q-lc-001.m4a`（macOS say 版本）。
+- 成功 → 寫入 `public/audio/starters/l3/q-lc-001-openai.mp3` + 印檔案大小 + 提示下一步。
+
+#### Step 3：呼叫的 API 與 instructions
+
+- Endpoint：`https://api.openai.com/v1/audio/speech`
+- Model：`gpt-4o-mini-tts`
+- Voice：預設 `alloy`（可透過環境變數 `OPENAI_TTS_VOICE` 覆寫，常見選擇 `alloy` / `ash` / `fable` / `nova` / `shimmer`）
+- Instructions（送給 OpenAI TTS）：
+
+```
+Speak like a calm Cambridge-style young learners English examiner.
+Use clear standard British English pronunciation.
+Speak slowly and clearly for a 6-year-old child.
+Tone: warm, neutral, professional, not cartoonish.
+Do not sound like a storyteller.
+Do not add extra words.
+Read only the given text exactly as written.
+```
+
+- response_format：`mp3`
+
+#### Step 4：人工實聽確認 5 項
+
+產生後 **必須** 人工實聽（`afplay public/audio/starters/l3/q-lc-001-openai.mp3` 或瀏覽器播放）並確認：
+
+1. **發音清楚**——子音 / 母音清晰，無含糊。
+2. **語速適合小一**——不太快、有停頓、孩子聽得懂。
+3. **音色像考試員**——平穩 / 溫和 / 專業，**不**像故事旁白 / 卡通配音。
+4. **沒有多念額外內容**——只有「What does the boy want?」這一句，沒有自行加字（例如「OK kids, listen carefully...」）。
+5. **檔案能在瀏覽器播放**——可用 `npm run dev` 跑開發伺服器，瀏覽器訪問 `http://localhost:3000/audio/starters/l3/q-lc-001-openai.mp3` 確認。
+
+### 切換 audioSrc 的時機
+
+**本階段不切換**——只試產 + 比較。
+
+未來輪次若使用者實聽後決定 OpenAI 版本比 macOS `say` 更好：
+
+1. 在獨立任務單中明示「切換 q-lc-001 audioSrc 從 .m4a 到 .mp3」。
+2. 修改 `data/p3-example-questions.json` `q-lc-001.audioSrc` 從 `/audio/starters/l3/q-lc-001.m4a` 改為 `/audio/starters/l3/q-lc-001-openai.mp3`。
+3. 保留 `q-lc-001.m4a` 不刪（兩版並存供日後比較）。
+4. 若 OpenAI 版本不夠好，跳過此切換 / 嘗試不同 voice / 修 instructions。
+
+### 失敗時的處理
+
+| 情境 | 對應方式 |
+| --- | --- |
+| 腳本印「未設定 OPENAI_API_KEY」 | 設定 `.env.local` 或 export |
+| API 回應 401 / 403 | 確認 key 有效、帳號有 credit |
+| API 回應 429 | rate limit；稍後再試 |
+| API 回應 500 | OpenAI 服務暫時問題；稍後再試 |
+| 音檔不正確（多念字 / 太快 / 不像 examiner） | 改 `instructions` 或 `voice` 重產；本檔可記錄 instructions 版本歷史 |
+| 試產後決定不採用 | 直接刪除 `q-lc-001-openai.mp3`；不切換 audioSrc |
+
+## 第三階段（未來）：其他雲端 TTS 評估
+
+**目前仍不做**——只開放 OpenAI TTS 一題試產。未來若需要：
+
+- 不同口音（美式 / 英式 / 澳洲 / 印度 / ...）。
+- 跨服務比較（OpenAI vs Google vs Azure）。
 - 跨平台支援（其他家長用 Windows 也能產生）。
 
 可評估的雲端方案：
 
 | 方案 | 優點 | 缺點 |
 | --- | --- | --- |
-| OpenAI TTS（`tts-1`）| 自然度高、API 簡單 | 付費 / 需 API key / 需網路 |
+| OpenAI TTS（`gpt-4o-mini-tts`，**已試產**） | 自然度高、`instructions` 可控 examiner 語氣、API 簡單 | 付費 / 需 API key / 需網路 |
 | Google Cloud TTS | WaveNet 自然度高 / 免費額度 | 需 GCP 帳號 / API key 管理 |
 | Azure TTS | 多口音 / 多語音 | 需 Azure 帳號 / API key |
-| Web Speech API（純前端）| 無需後端 / 無 API key | 需在瀏覽器執行、無法產生靜態 mp3 / m4a 檔 |
+| Web Speech API（純前端） | 無需後端 / 無 API key | 需在瀏覽器執行、無法產生靜態 mp3 / m4a 檔 |
 
 評估時的硬邊界仍適用：
 
 - ❌ 不上傳官方原文 / 歷屆題到任何雲端 TTS API。
 - ❌ 不引入需要 OAuth / 大型 SDK 的方案。
-- ✅ 若採用，需先在 PRODUCT_SPEC「目前明確不做」清單中明示「雲端 TTS 已開放」並說明 API key 管理方式。
+- ✅ 若採用，需先在 PRODUCT_SPEC「目前明確不做」清單中明示「雲端 TTS 已開放」並說明 API key 管理方式（例如本階段已做的 OpenAI 例外條款）。
 
 ## 與其他文件的關係
 
@@ -222,3 +343,4 @@ public/audio/
 ## 版本
 
 - **v1**（2026-05-10）：第一版——macOS `say` + `afconvert` 流程；硬邊界（不串雲端 API、不下載官方音檔）；命名規則 / 路徑 / 人工檢查 / git 政策；雲端 TTS 評估規劃。
+- **v2**（2026-05-10）：新增「第二階段：OpenAI TTS examiner voice 試產流程」段——一題試產（`q-lc-001-openai.mp3`）+ 完整 4 步流程 + API key 規範 + examiner-style instructions + 人工實聽確認 5 項 + 失敗處理表 + 切換 audioSrc 時機；對應 `scripts/generate_openai_tts_sample.mjs` 腳本與 `.env.example` 範本；硬邊界（只把自製文字轉自製音檔、絕不上傳官方原文 / 歷屆題、不批次、不覆蓋既有 macOS `say` 版本、不直接改 audioSrc、API key 不 commit、TTS voice 是 AI-generated 須處處標示）。第一階段 macOS `say` 流程仍為主線。

@@ -1,269 +1,316 @@
-# Claude Code 回報 · 本機自製 TTS 音檔流程 + q-lc-001 第一個音檔（P2-4C-2B-2 + P3-9-C）
+# Claude Code 回報 · P3-9-C / P2-4C-2B-2：OpenAI TTS Examiner Voice 試產流程（一題版）
 
 任務日期：2026-05-10
-任務性質：**程式碼 + 文件 + 二進位素材**——本機自製 TTS 音檔流程落地。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪只用 macOS `say` + `afconvert` 本機流程；**未串雲端 TTS API（OpenAI / Google / Azure 全未串）**、未下載官方音檔、未複製官方 sample 音檔；未新增 listening 題目 / 改題目答案 / 改非 listening 題目；未做 Speaking / 錄音 / STT / AI API / crawler；未新增依賴 / 處理 npm audit；未部署、未新增後端 / DB / 登入；未升 localStorage schemaVersion。
+任務性質：**程式碼（Node 腳本）+ 文件 + 環境設定**——OpenAI TTS examiner voice 試產流程文件 + 腳本就位（一題版）。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪只做試產**流程**（文件 + 腳本 + .env.example 範本），**未實際呼叫 OpenAI API**——Claude 環境無 `OPENAI_API_KEY`，腳本「無 key 安全退出」路徑已自測通過。本輪**不批次、不切換 audioSrc、不覆蓋既有 macOS `say` 版本、不修改題目資料、不 commit API key**；未串其他雲端 API；未做 Speaking Agent / 錄音 / STT / 後端 / DB / 登入；未新增依賴 / 處理 npm audit；未部署。
 
 ## 【本輪修改摘要】
 
-第一個自製 TTS 音檔已產生並接入 `/quiz`：
+OpenAI TTS examiner voice 試產流程文件 + 腳本就位，讓使用者本機自行跑 + 實聽比較 macOS `say` vs OpenAI TTS 是否更接近 Cambridge-style young learners examiner 音色。**本輪未實際呼叫 OpenAI API**（Claude 環境無 key），但所有支撐元件（PRODUCT_SPEC 例外條款 / TTS_AUDIO_WORKFLOW 完整流程文件 / Node 腳本 / .env.example 範本 / .gitignore 例外）皆就位。腳本透過 `process.env.OPENAI_API_KEY` 讀取——即用即丟、不寫入任何檔案。用 `gpt-4o-mini-tts` model + Cambridge-style examiner instructions。產出檔名 `q-lc-001-openai.mp3` 與既有 `q-lc-001.m4a`（macOS `say` 版本）並存——**不覆蓋、不切換 audioSrc**。`PROJECT_ROADMAP.md` P3-9-C 把原 ⬜「OpenAI TTS examiner voice 試產流程」升為 1 ✅ + 4 ⬜（使用者實聽比較 / 通過後切 audioSrc / 批次產生多題 / P4 共用策略）；P3-9-C 整體仍 🟡。零依賴新增、未動程式碼（QuizPlay 等）/ 未動 schema / 未動題目資料。`npm run lint` / `typecheck` / `build` 全綠 + 腳本「無 key 安全退出」實跑驗證 exit 0。
 
-- **產生 `public/audio/starters/l3/q-lc-001.m4a`**——透過 macOS 內建 `say` + `afconvert` 兩步流程：(1) `say -o /tmp/q-lc-001.aiff "What does the boy want?"`（產生 86 KB AIFF）→ (2) `afconvert -f m4af -d aac /tmp/q-lc-001.aiff public/audio/starters/l3/q-lc-001.m4a`（轉成 12 KB AAC m4a，1.86 秒）。瀏覽器原生支援 m4a / AAC（Chrome / Safari / Firefox / Edge 全支援）。
-- **`data/p3-example-questions.json` `q-lc-001` audioSrc** 從 `.mp3` 改為 `.m4a` 對齊實體檔案；不改其他欄位。
-- **新增 `docs/TTS_AUDIO_WORKFLOW.md`**（v1）——完整流程文件：用途 / 硬邊界（不串雲端 API / 不下載官方音檔 / 不用網路 mp3 / 不複製官方 sample / 不用第三方教學音檔 / 不抽 PDF 內嵌音）+ macOS `say` + `afconvert` 完整 step 1~6 + 一行 shell 範例 + 命名規則 + 路徑 + audioSrc 對應規則 + 人工檢查 6 項 + git 政策 + 第二階段雲端 TTS 評估規劃。
-- **`README.md`** `/quiz` 條目補「第一個自製音檔已產生」描述 + 文件索引追加 `docs/TTS_AUDIO_WORKFLOW.md`。
-- **`PROJECT_ROADMAP.md`** P3-9-C 加 3 條 ✅（流程文件 / 路徑 / q-lc-001 第一個音檔）+ 4 條 ⬜（多題音檔 / 音檔品質檢查流程 / 雲端 TTS 評估 / 音檔快取管理）；P2-4C-2B-2 「真實音檔」⬜ → 🟡 部分進行中（明示 P3-9-C 第一刀已落地第一個 L3 音檔、P2 vocabulary 音檔仍 ⬜）；P2-4C-2B-2 整體升 🟡 部分進行中。
+## 【OpenAI TTS 試產結果】
 
-零依賴新增、未升 schemaVersion、未動 `lib/types.ts` / `components/QuizPlay.tsx` / 任何 `app/*` 路由。`npm run lint` / `typecheck` / `build` 全綠（路由 88 不變）+ dev smoke test 全綠（audio 檔 fetch 200 / 12008 bytes / `audio/mp4` content-type；visible HTML audio src 指向 m4a；「音檔準備中」fallback 不再出現）。
+**本輪 OpenAI API 未實際呼叫**——Claude 執行環境無 `OPENAI_API_KEY` 環境變數，腳本走「無 key 安全退出」路徑，印出友善提示後 exit 0。預期試產檔案 `public/audio/starters/l3/q-lc-001-openai.mp3` **尚未產生**。
+
+**使用者下一步**（由家長 / 維護者本機執行）：
+
+1. 把 OpenAI API key 寫進 `.env.local`（已被 `.gitignore` 排除）：
+   ```
+   OPENAI_API_KEY=sk-...你的實際 key...
+   ```
+2. 執行腳本：
+   ```bash
+   node --env-file=.env.local scripts/generate_openai_tts_sample.mjs
+   ```
+   或：
+   ```bash
+   OPENAI_API_KEY=sk-... node scripts/generate_openai_tts_sample.mjs
+   ```
+3. 腳本成功後會印 ✅ + 檔案大小，輸出 `public/audio/starters/l3/q-lc-001-openai.mp3`。
+4. 用 `afplay` 或瀏覽器播放實聽，比對 `q-lc-001.m4a`（macOS `say` 版本）。
+5. 通過後在**下一輪**獨立任務單明示「切換 q-lc-001 audioSrc」。
+
+預期 OpenAI TTS 行為（依 docs/TTS_AUDIO_WORKFLOW.md「第二階段」段）：
+
+- model：`gpt-4o-mini-tts`
+- voice：`alloy`（預設；可透過環境變數 `OPENAI_TTS_VOICE` 覆寫為 `ash` / `fable` / `nova` / `shimmer`）
+- text：`What does the boy want?`（自製 transcript）
+- instructions：「Speak like a calm Cambridge-style young learners English examiner. Use clear standard British English pronunciation. Speak slowly and clearly for a 6-year-old child. Tone: warm, neutral, professional, not cartoonish. Do not sound like a storyteller. Do not add extra words. Read only the given text exactly as written.」
+- response_format：`mp3`
+
+腳本拒絕覆蓋情境（已實作）：
+
+- 既存 `q-lc-001-openai.mp3` 存在 → 拒絕覆蓋並提示先手動刪除。
+- 與既有 `q-lc-001.m4a` 路徑相同（不會發生，但 defensive 檢查）→ 拒絕。
 
 ## 【修改檔案清單】
 
-新增 1 份文件 + 1 個音檔 + 1 個 `.gitkeep`-equivalent dir：
+新增 3 份：
 
-- `docs/TTS_AUDIO_WORKFLOW.md`（v1，~210 行）：核心輸出。
-- `public/audio/starters/l3/q-lc-001.m4a`（**12008 bytes / AAC 22050 Hz / 1.86 秒**）：第一個自製 TTS 音檔。
-- `public/audio/starters/l3/`（目錄）：音檔放置路徑。
+- `scripts/generate_openai_tts_sample.mjs`（~150 行 Node 腳本）：一題試產腳本核心輸出。
+- `.env.example`：`OPENAI_API_KEY=` 空值範本 + 說明註解（可 commit）。
+- `scripts/`（新目錄）。
 
-修改 4 份：
+修改 5 份：
 
-- `data/p3-example-questions.json`：`q-lc-001.audioSrc` 從 `/audio/starters/l3/q-lc-001.mp3` 改為 `/audio/starters/l3/q-lc-001.m4a`（其他欄位 0 變動）。
-- `README.md`：`/quiz` 條目補第一個自製音檔已產生描述 + 文件索引追加 `docs/TTS_AUDIO_WORKFLOW.md`。
-- `PROJECT_ROADMAP.md`：P3-9-C 7 條 ✅ → 10 條 ✅ + 4 條 ⬜ 替代既有 3 條 ⬜（為 L3 audio 後續）；P2-4C-2B-2「真實音檔」⬜ → 🟡 + section header「尚未開始」改「🟡 部分進行中」；變更紀錄追加 2026-05-10。
+- `.gitignore`：`.env*` 之後加 `!.env.example` 例外，讓 template 可 commit；實際 key 檔案（`.env` / `.env.local`）仍排除。
+- `docs/PRODUCT_SPEC.md`：「目前明確不做 → AI / 自動化」段補一條「不做大量雲端 TTS 批次產生」+ 新增子段「**OpenAI TTS examiner voice 試產（一題版例外，2026-05-10 開放）**」含 6 條邊界。
+- `docs/TTS_AUDIO_WORKFLOW.md`：升 v2，新增「第二階段：OpenAI TTS examiner voice 試產流程」整段（目的 / 硬邊界 / API key 規範 / 4 步流程 / 切換 audioSrc 時機 / 失敗處理表）+ 第三階段（其他雲端 TTS 評估，仍不做）+ 版本段加 v2 紀錄。
+- `README.md` `/quiz` 條目補「目前正在評估 OpenAI TTS examiner voice」+ 「OpenAI TTS 只用於把自製文字轉自製音檔，絕不上傳官方原文」+ 「API key 不會 commit」+ 「TTS voice 是 AI-generated，不是真人考官聲音」+「本輪未實際呼叫 API（Claude 環境無 key）」+「切換 audioSrc 屬下一輪」。
+- `PROJECT_ROADMAP.md`：P3-9-C 把原 ⬜「OpenAI TTS examiner voice 試產流程」升為 1 ✅（流程文件 + 腳本完成）+ 4 ⬜（使用者實聽比較 / 通過後切 audioSrc / 批次產生多題 / P4 共用 examiner voice 策略）；變更紀錄追加 2026-05-10 一筆。
 - `reports/claude_last_report.md`：本回報。
 
-未動：`lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / `components/QuizPlay.tsx` / 任何 `app/review/*` / 其他 components / `docs/PRODUCT_SPEC.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/DATA_SCHEMA.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `source_materials/*` / 既有 SVG / vocabulary 音檔 / `package.json` / 依賴。
+未動：`lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / `data/p3-example-questions.json`（**audioSrc 仍 `.m4a`，不切換**）/ `app/quiz/page.tsx` / `components/QuizPlay.tsx` / 任何 `app/review/*` / 其他 components / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `source_materials/*` / `public/audio/starters/l3/q-lc-001.m4a`（**macOS `say` 版本完全保留**）/ 既有圖片 / `package.json` / 依賴。
 
 ## 【核心邏輯說明】
 
-### 1. 為什麼用 m4a 而非 mp3
+### 1. 腳本「無 key 安全退出」設計
 
-任務單明示：「如果 `say` 只能輸出 `.aiff` 或 `.m4a`，請優先產生瀏覽器可播放的格式」。`say` 預設輸出 AIFF（86 KB / 秒，瀏覽器支援度差且檔案大）。可選 m4a（AAC 編碼）或 mp3。本輪選 **m4a / AAC**：
+任務單明示「若沒有 `OPENAI_API_KEY`，清楚印出提示並安全退出」。本腳本：
 
-- macOS 內建 `afconvert` **直接支援** AIFF → AAC m4a，不需安裝任何套件。
-- mp3 編碼需要 `lame` / `ffmpeg` 等第三方套件——本輪不引入新依賴。
-- 瀏覽器原生支援 m4a / AAC（Chrome / Safari / Firefox / Edge / iOS Safari 全支援）。
-- 檔案大小：m4a AAC ~12 KB / 1.86 秒（~6 kbps），mp3 同樣編碼率類似。
+```ts
+const apiKey = process.env.OPENAI_API_KEY;
+if (!apiKey) {
+  // 印友善提示 + 設定指引
+  process.exit(0);  // exit 0：不視為錯誤
+}
+```
 
-實際測試：`afinfo` 顯示 `1 ch, 22050 Hz, aac (0x00000000) ... bit rate: 31696 bps`；`file` 顯示 `ISO Media, Apple iTunes ALAC/AAC-LC (.M4A) Audio`；瀏覽器 fetch 顯示 `audio/mp4` content-type（mp4 容器，AAC 軌）。
+**exit 0 而非 exit 1** 的理由：
 
-### 2. audioSrc 從 .mp3 改 .m4a 的理由
+- 無 key 不是 bug，是預期狀態（家長未設定）。
+- 在 CI / 自動化流程中不應失敗（即使腳本不跑也不阻擋 build）。
+- 給使用者清楚的設定指引（`.env.example` 複製 / `--env-file` 用法 / 直接 export）。
 
-P3-9-C 第一刀時 `q-lc-001` 的 audioSrc 用 `.mp3` 副檔名作為「預期格式」placeholder。本輪實際產生的是 m4a，**audioSrc 必須對應實體檔案的真實副檔名**——任務單明示「若無法產生 mp3，請不要硬塞錯誤副檔名」。
+實際自測：在 Claude 環境（無 OPENAI_API_KEY）執行 `node scripts/generate_openai_tts_sample.mjs` → 印提示 + exit 0。✓
 
-修改範圍：只改 `data/p3-example-questions.json` 一個字段；`docs/STARTERS_PART_TEMPLATES.md` v2.1 與 `docs/DATA_SCHEMA.md` 的範例仍用 `.mp3` placeholder（保留作為未來「若有 mp3」的範例選項）；`docs/TTS_AUDIO_WORKFLOW.md` 的範例改用 `.m4a`（呼應實際工作流產出）。
+### 2. 不覆蓋 / 不切換 / 不污染既有資料
 
-### 3. UI 路徑 fallback 自動切換
+任務單明示三個「不」：
 
-P3-9-C 第一刀的 `ListeningChoiceView` 三態邏輯（loading / ready / missing）**未動**——本輪只變動資料層。實體 m4a 檔產生後：
+| 規則 | 實作 |
+| --- | --- |
+| 不要自動覆蓋現有 `q-lc-001.m4a` | 腳本輸出檔名為 `q-lc-001-openai.mp3`（不同檔名）；額外 defensive 檢查 `outputAbsPath === existingMacSayPath` 拒絕 |
+| 不要直接切換 data audioSrc | 腳本完全不讀寫 `data/p3-example-questions.json`；切換屬下一輪人工任務 |
+| 不要修改 `data/p3-example-questions.json` | 腳本只讀環境變數 + 寫 mp3 檔，不動 JSON |
 
-- 瀏覽器 fetch `/audio/starters/l3/q-lc-001.m4a` 返回 200 + 12008 bytes + `audio/mp4` content-type。
-- audio 元素 `onCanPlay` 觸發 → audioStatus 切 `ready`。
-- 「💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習」聽兩次提示顯示。
-- 「音檔準備中」fallback **不**顯示（dev smoke test grep 確認 0 命中）。
-- transcript 仍顯示。
+實際 dev smoke 後檢查：`q-lc-001.m4a` 大小 12008 bytes（與前一輪一致）；`audioSrc` 仍是 `.m4a`。
 
-完整 UI 行為從「audioSrc 存在但實體檔案缺，永遠走 fallback」升級為「audioSrc 存在且實體檔案存在，正常播放」。
+### 3. API key 安全處理
 
-### 4. `docs/TTS_AUDIO_WORKFLOW.md` 結構
+| 風險 | 防護 |
+| --- | --- |
+| API key commit 進 git | `.gitignore` `.env*` 排除 `.env` / `.env.local`；`!.env.example` 例外只允許範本 commit；範本 `OPENAI_API_KEY=` 不填值 |
+| API key 寫進原始碼 | 腳本只透過 `process.env.OPENAI_API_KEY` 讀取，不接受 CLI 參數、不寫入任何檔案 |
+| API key 印進 stdout / log | 腳本失敗時印 `OpenAI API 呼叫失敗：HTTP 401`，不印 key |
+| API key 殘留在 working tree | 本輪只新增 `.env.example`（範本），無 `.env` / `.env.local` 檔案被建立 |
 
-文件層的核心輸出（v1，~210 行）。主要段：
+實際自測：`ls .env*` 只顯示 `.env.example`；`git check-ignore` 確認 `.env.example` 未被 ignore（可 commit）/ `.env` 與 `.env.local` 仍被 ignore。
 
-1. **用途**：對應 P3-9-C audioSrc + UI fallback。
-2. **硬邊界**：✅ 6 條可做（macOS say / afconvert / 自錄音 / 未來雲端 TTS 評估）+ ❌ 6 條不可做（雲端 API、官方音檔、官方 sample 音檔、網路 mp3、第三方教學音檔、PDF 抽音）。
-3. **第一階段：macOS `say` 流程**：環境需求、step 1~6 完整流程、一行 shell 範例。
-4. **命名規則**：檔名格式（`<question-id>.m4a`）、路徑（`public/audio/starters/<part>/<id>.m4a`）、audioSrc 對應 4 條規則表。
-5. **人工檢查 6 項**：檔案存在性 / 格式正確 / 可播放（`afplay`）/ 內容正確（對照 transcript）/ 長度合理（L3 短句 1.5~3 秒）/ 音量合理。
-6. **Git 政策**：可 commit（自製 m4a < 200 KB / 題；commit message 帶 id + 來源）+ 嚴禁 commit（AIFF / 官方音檔 / 網路 mp3 / 包含個資的錄音）+ 避免錯誤 commit 的 3 法。
-7. **第二階段（未來）：雲端 TTS 評估**：4 方案比較（OpenAI tts-1 / Google Cloud TTS / Azure TTS / Web Speech API）+ 採用前提（先在 PRODUCT_SPEC「目前明確不做」開放）。
-8. **與其他文件的關係**：對齊 PRODUCT_SPEC / STARTERS_PART_TEMPLATES / DATA_SCHEMA / OFFICIAL_RESOURCES / source_materials/README / lib/types / QuizPlay。
-9. **版本** v1（2026-05-10）。
+### 4. 不裝套件（用 Node 內建 fetch）
 
-### 5. 一行 shell 範例的設計用意
+任務單明示「不要新增依賴」。OpenAI 官方 SDK（`openai` npm package）會新增依賴 → 不用。改用 Node 18+ 內建 `fetch` 直接呼叫：
 
-文件提供 `TXT="..."; ID="..."; PART="..."; say && afconvert && rm` 的 5 行 shell 範例，目的是：
+```ts
+const response = await fetch("https://api.openai.com/v1/audio/speech", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: MODEL,
+    voice: VOICE,
+    input: TEXT,
+    instructions: INSTRUCTIONS,
+    response_format: RESPONSE_FORMAT,
+  }),
+});
+const audioBuffer = Buffer.from(await response.arrayBuffer());
+await writeFile(outputAbsPath, audioBuffer);
+```
 
-- 家長 / 維護者新增題目時可直接複製貼上 + 改 TXT / ID / PART 變數。
-- 不需記憶完整指令參數。
-- 內含驗證（`afinfo $OUT | head -5`）讓使用者立即看到產出結果。
-- 與「人工檢查 6 項」搭配——shell 完成自動化 step 1~3 + 部分 step 4，人工驗證 step 5~6。
+優點：
 
-### 6. P2-4C-2B-2 「真實音檔」狀態的合理化
+- 不影響 `package.json` / `package-lock.json`。
+- 不引入 SDK 大型依賴（`openai` package 含多模型支援、tokenizer 等不必要功能）。
+- API 呼叫透明可審——一個 fetch + 一個 writeFile，無黑箱。
 
-舊狀態：「真實音檔（建議用 TTS 自製，避免官方版權）」⬜ 未開始。
+### 5. examiner-style instructions 設計
 
-本輪後狀態：🟡 部分進行中——附說明：
+任務單明示音色目標：「Cambridge-style young learners examiner / 清楚 / 平穩 / 溫和 / 偏標準英語 / 英式口音 / 語速略慢 / 不卡通 / 不像故事旁白 / 不自行加字」。腳本 instructions 全文：
 
-- ✅ P3-9-C 第一刀已落地**第一個 L3 listening 自製 TTS 音檔**（q-lc-001.m4a）。
-- ✅ 完整流程與硬邊界文件 `docs/TTS_AUDIO_WORKFLOW.md` 已就位。
-- ⬜ P2 vocabulary 音檔仍 ⬜——需逐筆補 54 字單字音檔，屬未來工作。
+```
+Speak like a calm Cambridge-style young learners English examiner.
+Use clear standard British English pronunciation.
+Speak slowly and clearly for a 6-year-old child.
+Tone: warm, neutral, professional, not cartoonish.
+Do not sound like a storyteller.
+Do not add extra words.
+Read only the given text exactly as written.
+```
 
-P2-4C-2B-2 整體 header 從「尚未開始」改「🟡 部分進行中」對應此狀態。
+7 句覆蓋所有任務單明示要求。最後一句「Read only the given text exactly as written」明示禁止自行加字（避免 model 加「OK kids, listen carefully...」之類），對齊使用者「正式考試感」需求。
+
+### 6. PRODUCT_SPEC 邊界開放對齊既有「目前明確不做」清單
+
+`docs/PRODUCT_SPEC.md`「目前明確不做 → AI / 自動化」段先前明示「不做雲端 TTS 批次產生」。本輪要開放一題試產，但不能無原則開放——所以加：
+
+1. **保留**「不做大量雲端 TTS 批次產生」總原則。
+2. **新增**子段「OpenAI TTS examiner voice 試產（一題版例外，2026-05-10 開放）」，明確標日期 + 6 條邊界。
+3. 對應 ROADMAP 條目鎖定一題範圍（`q-lc-001-openai.mp3`）+ 4 條 ⬜ 後續（使用者實聽 / 通過後切 audioSrc / 批次 / P4 共用策略）需另開任務單動工。
+
+這是**「逐步開放」設計模式**——先試產一題、實聽通過後再批次；批次仍需另外開放邊界。
 
 ### 7. 沒做的事（嚴守任務單禁止清單）
 
-- 沒串 OpenAI TTS / Google TTS / Azure TTS API
-- 沒下載官方音檔 / 不複製官方 sample 音檔
-- 沒新增 listening 題目（仍只有 q-lc-001 一題）
-- 沒改題目答案 / options / transcript / ttsScript
-- 沒改非 listening 題目
-- 沒做 Speaking / 錄音 / STT / AI API / crawler
-- 沒新增依賴（macOS `say` + `afconvert` 是系統內建）
+- 沒批次產生音檔
+- 沒覆蓋現有 `q-lc-001.m4a`
+- 沒直接切換 `data/p3-example-questions.json` audioSrc
+- 沒下載官方音檔 / 不使用官方 sample 音檔
+- 沒新增題目 / 改題目答案
+- 沒做 Speaking Agent / 錄音 / STT
+- 沒新增後端 / DB / 登入
+- 沒部署
 - 沒處理 npm audit
-- 沒部署 / 後端 / DB / 登入
-- 沒改 localStorage schemaVersion
-- 沒做 `/quiz/wrong`
+- 沒 commit API key
+- 沒 commit `.env` / `.env.local`（兩者皆未建立，working tree 只有 `.env.example`）
+- 沒新增依賴（用 Node 內建 fetch）
 
 ## 【測試結果】
 
-- `npm run lint` → **通過**（0 警告 0 錯誤；純資料 + 文件變動 + 1 個二進位素材）。
-- `npm run typecheck` → **通過**（exit 0；無 TS 變動）。
-- `npm run build` → **通過**（路由 88 不變、全 SSG / Static、`Generating static pages 88/88`）。
+- `npm run lint` → **通過**（0 警告 0 錯誤；`scripts/*.mjs` 不在 ESLint 預設掃描範圍內，`components/QuizPlay.tsx` 等仍照常掃描）。
+- `npm run typecheck` → **通過**（exit 0）。
+- `npm run build` → **通過**（路由 88 不變、全 SSG / Static）。
 
-Dev smoke test：
+腳本自測（無 OPENAI_API_KEY 安全退出）：
 
 | 驗證項 | 結果 |
 | --- | --- |
-| 8 條路由 200（`/`、`/review`、`/review/picture`、`/review/words`、`/review/letter/a`、`/review/word/apple`、`/review/word/jump`、`/quiz`） | ✓ |
-| **音檔檔案 fetch**：`/audio/starters/l3/q-lc-001.m4a` HTTP 200 / 12008 bytes / `audio/mp4` content-type | ✓ |
-| `/quiz` SSR 第 1 題 listening visible HTML 含 Listening 徽章 / Part 3 + 聽音選圖 | ✓ |
-| visible audio src 含 `/audio/starters/l3/q-lc-001.m4a`（新副檔名） | ✓ |
-| visible 不再含 `/audio/starters/l3/q-lc-001.mp3`（舊副檔名） | ✓ |
-| 「正式考試中錄音會播放兩次」聽兩次提示 | ✓（命中 1） |
-| transcript「What does the boy want?」visible | ✓ |
-| 「音檔準備中，先用文字練習」**不**在 visible HTML（audioSrc 存在 + 檔案存在 → 不走 fallback） | ✓（命中 0） |
-| `/review/word/apple` 翻牌完整回歸 | ✓ |
-| dev log 無 error / hydration / warn 訊息 | ✓ |
+| `node scripts/generate_openai_tts_sample.mjs`（無 key）印友善提示 | ✓ |
+| 提示含「設定方式」3 步指引 + `.env.example` 引用 + `--env-file` 範例 | ✓ |
+| exit code = 0（非錯誤） | ✓ |
+| 沒有意外建立任何檔案 | ✓（working tree 只新增 `.env.example`） |
 
-音檔檔案驗證：
+`.gitignore` 配置自測：
 
-| 檢查項 | 結果 |
+| 驗證項 | 結果 |
 | --- | --- |
-| `file` 顯示 | `ISO Media, Apple iTunes ALAC/AAC-LC (.M4A) Audio` ✓ |
-| `afinfo` 顯示 | `1 ch, 22050 Hz, aac (0x00000000) ... estimated duration: 1.864354 sec ... bit rate: 31696 bps` ✓ |
-| 檔案大小 | 12008 bytes ✓（< 200 KB / 題建議上限） |
-| 透過 dev server fetch | 200 / `audio/mp4` content-type ✓ |
+| `.env.example` NOT ignored（可 commit） | ✓（`git check-ignore -v` 顯示 `!.env.example` 規則命中） |
+| `.env` ignored | ✓（`.env*` 規則命中） |
+| `.env.local` ignored | ✓（`.env*` 規則命中） |
+| working tree 中無 `.env` / `.env.local` 檔案 | ✓（只有 `.env.example`） |
+
+既有資料保護自測：
+
+| 驗證項 | 結果 |
+| --- | --- |
+| `public/audio/starters/l3/q-lc-001.m4a` 大小未變（12008 bytes） | ✓ |
+| `data/p3-example-questions.json` `audioSrc` 仍是 `.m4a`（未切換） | ✓ |
 
 ## 【手動檢查結果】
 
-> **使用者請依下方清單在 Mac 本機 + 平板區網 IP 上手動驗收。Codex 5/12 恢復後再做完整總驗收。**
+> **使用者本機驗收**：本輪 Claude 未實際呼叫 OpenAI API（無 key），腳本只走無 key 安全退出路徑。實際試產 + 實聽比較需家長 / 維護者本機執行。
 
-Claude 自測（dev SSR + audio file fetch + lint / typecheck / build）通過。
+需要使用者本機操作：
 
-需要使用者瀏覽器互動驗收：
+1. **設定 OPENAI_API_KEY**：
+   ```bash
+   cp .env.example .env.local
+   # 編輯 .env.local 填入 OPENAI_API_KEY=sk-...
+   ```
+2. **執行試產腳本**：
+   ```bash
+   node --env-file=.env.local scripts/generate_openai_tts_sample.mjs
+   ```
+3. **預期輸出**：
+   - 印 🎤 OpenAI TTS examiner voice 試產（一題版）+ 配置資訊。
+   - 呼叫 OpenAI API。
+   - 成功 → 印 ✅ 試產完成 + 檔案大小（mp3 約 5~30 KB / 1~3 秒）+ 下一步指引。
+4. **產生的音檔存在**：`ls -la public/audio/starters/l3/q-lc-001-openai.mp3`。
+5. **瀏覽器可播放**：
+   ```bash
+   npm run dev
+   # 訪問 http://localhost:3000/audio/starters/l3/q-lc-001-openai.mp3
+   ```
+   或直接 `afplay public/audio/starters/l3/q-lc-001-openai.mp3`。
+6. **檔名沒有覆蓋 macOS say 版本**：確認 `public/audio/starters/l3/q-lc-001.m4a` 仍存在且大小不變（12008 bytes）。
+7. **沒有修改 data audioSrc**：`grep audioSrc data/p3-example-questions.json` 仍顯示 `.m4a` 路徑。
+8. **沒有把 API key 寫入任何檔案**：`grep -r "sk-" .` 不應有命中（除了 `.env.local` 自己）；`.env.local` 已被 `.gitignore` 排除、不會 commit。
 
-1. **`/quiz` 第 1 題 audio controls 可播放**：開啟 `/quiz` → 第 1 題 → 應看到瀏覽器原生 audio 控制器（依瀏覽器主題：Chrome 灰底圓形 / Safari 灰底矩形 / Firefox 灰底矩形）→ 點 play 應聽到 macOS `say` 預設語音朗讀「What does the boy want?」（語速正常、約 1.86 秒）。
-2. **不顯示「音檔準備中」**：流程 1 後，sky-50 區塊內**不應**出現 amber-700 字色的「音檔準備中，先用文字練習」訊息（因 audioSrc + 實體檔案都存在）。
-3. **transcript 仍顯示**：「What does the boy want?」transcript 文字仍位於 audio controls 下方（保留既有顯示能力）。
-4. **聽兩次提示仍顯示**：audio 元素正下方應出現「💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習。」sky-600 系小字。
-5. **可以正常作答與下一題**：點 4 個選項按鈕之一（apple / banana / cat / dog）→ 高亮 + 「下一題」變可點 → 進到第 2 題（picture-choice）。
-6. **直接交卷結果頁正常**：作答後直接交卷 → 結果頁顯示「答對 N / 7 題」+ 詳解列表第 1 題（listening）顯示題目文字版（用 transcript）+ 你的答案 + 正確答案。
-7. **retry mode 正常**：若第 1 題答錯或留空 → 進入 retry mode → 第 1 題顯示 audio + 聽兩次提示同 1.；可重播。
-8. **`/review` 路由正常**：`/`、`/review`、`/review/picture`、`/review/words`、`/review/word/apple`、`/review/word/jump` 全部不變、互動正常。
+實聽確認 5 項（任務單明示）：
 
-預期視覺呈現（首次載入第 1 題）：
+1. **發音清楚**——子音 / 母音清晰。
+2. **語速適合小一**——不太快、有停頓。
+3. **音色像考試員**——平穩 / 溫和 / 專業，不像故事旁白 / 卡通。
+4. **沒有多念額外內容**——只有「What does the boy want?」這一句。
+5. **檔案能在瀏覽器播放**——任何主流瀏覽器（Chrome / Safari / Firefox）。
 
-```
-[Section 1 · Listening｜聽力練習]
-Part 3：聽音選圖
-第 1 題 / 共 7 題
-
-  🔊
-  聽聽看
-  [▶] ─────────────── 0:00 / 0:01.86 [HTML5 audio controls]
-  💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習。
-  What does the boy want?
-
-[apple] [banana]
-[cat]   [dog]
-
-[下一題 →]
-
-[📝 直接交卷] [🔁 重新測驗]
-```
+實聽通過後**下一輪**才動 audioSrc 切換（屬獨立任務單）。
 
 ## 【仍未處理】
 
-- **P3-9-C L3 後續** 4 條 ⬜：
-  - 多題 L3 音檔（目前只有 q-lc-001 一題）。
-  - 音檔品質檢查流程（自動化，目前用人工 6 項）。
-  - 未來雲端 TTS 評估（OpenAI / Google / Azure，目前不串 API）。
-  - 音檔快取 / 管理策略。
-- **P3-9-C 其他 part-specific UI** 條目仍 ⬜（L1 場景圖 + hotspot、L2 文字輸入 name / number、L3 A/B/C 圖選項視覺、L4 簡化版選顏色 / 選物件、RW1 ✓/✗ 按鈕、RW2 場景圖固定、RW3 拼字輸入、RW4 多空格 + word bank、RW5 多圖序列 + one-word、`getStarterPartInfo()` 升級為從 starterPart 直接讀）。
-- **P2-4C-2B-2「真實音檔」P2 vocabulary 音檔仍 ⬜**（54 字單字音檔逐筆補；沿用 macOS `say` + `afconvert` 流程即可）。
-- **P3-9-B 後續** 7 條 ⬜（ttsScript / imagePrompt 升正式 schema 評估、difficulty 字面量、part-specific question types、validator、sceneGroup、multi-blank、imageSequence）。
-- **P3-7-B 後續** 3 條 ⬜（handbook / sample paper 人工筆記、v3 校正、wordlist 校正）。
-- **P3-7-C / P3-7-D 全部 ⬜**。
-- **P3-6-B-4 後續** 3 條 ⬜（再練習 sessionStorage、獨立錯題複習頁、wrongQuestionIds 升 v2 + migration、錯題歷史紀錄）。
-- **P3-6-B-5 計時器** 1 條 ⬜。
-- **P3-8 全部 ⬜**。
-- **P4 Speaking Examiner Agent 全部 ⬜**。
-- **P5 完整仿真考試體驗 ⬜**。
-- **P3-2-B / P3-3-B / P3-4 / P3-5 全部 ⬜**。
-- **P1 兩條可選 housekeeping**。
-- `npm audit` 兩個 moderate 警告（任務單禁止處理）。
+- **OpenAI 試產實際執行**：本輪 Claude 未呼叫 API；需家長 / 維護者本機跑。
+- **使用者實聽比較 macOS `say` vs OpenAI TTS**（屬下一輪）。
+- **若實聽通過，切換 q-lc-001 audioSrc 從 `.m4a` 到 `.mp3`**（屬下一輪獨立任務）。
+- **批次產生多題 L3 音檔**（OpenAI 版本通過後，可考慮）。
+- **未來 P4 Speaking Examiner Agent 共用 examiner voice 策略**（與 Listening 試產的 examiner voice 文化對齊）。
+- P3-9-C L3 後續其他 4 條 ⬜（多題 L3 音檔 / 音檔品質檢查流程 / 雲端 TTS 評估 / 音檔快取管理）+ 練習模式顯示文字稿開關 ⬜。
+- P3-9-C 其他 part-specific UI 條目仍 ⬜（L1 場景圖 + hotspot、L2 文字輸入、L3 A/B/C 圖選項視覺、L4 簡化版選顏色 / 物件、RW1 ✓/✗、RW2 場景圖固定、RW3 拼字輸入、RW4 多空格 + word bank、RW5 多圖序列 + one-word、`getStarterPartInfo()` 升級）。
+- P2-4C-2B-2 vocabulary 音檔仍 ⬜。
+- P3-9-B 後續 7 條 ⬜；P3-7-B 後續 3 條 ⬜；P3-7-C / P3-7-D / P3-8 / P4 / P5 全 ⬜；P3-6-B-4 後續 3 條 ⬜；P3-6-B-5 1 條 ⬜；P3-2-B / P3-3-B / P3-4 / P3-5 全 ⬜；P1 兩條可選 housekeeping；npm audit 兩個 moderate 警告（任務單禁止處理）。
 
 ## 【風險點】
 
 > 給 5/12 恢復後的 Codex 與下一輪 ChatGPT / Claude 特別注意。
 
-1. **音檔朗讀內容是否與 transcript 完全一致**：本輪 `say -o /tmp/q-lc-001.aiff "What does the boy want?"` 直接用 transcript 文字；macOS `say` 對英文標點處理通常正確（`?` 變上揚語調）。**Codex 驗收建議**：實際播放確認朗讀「What does the boy want?」內容無錯字 / 多餘字。本輪 Claude 無法直接「聽」音檔。
-2. **m4a 檔案是否真的乾淨**：本輪用系統內建 `say` + `afconvert` 產生，無第三方依賴；但若 macOS 系統有奇怪設定（例如預設語音為非英文、或 audio 編碼有 iCloud / 廣告 metadata），可能在音檔內藏額外資訊。**Codex 驗收建議**：用 `afinfo` 與 `mediainfo` 檢查音檔 metadata，確認無個資。本檔案 `afinfo` 輸出乾淨（只有 codec / sample rate / bit rate）。
-3. **語速 / 語音可能不適合小一**：`say` 預設語速 175 wpm 對小一可能略快；本輪沒設 `-r 150` 或更慢。**Codex 驗收建議**：實聽後若覺得太快，可重產生 `say -r 150 -o ...`；本輪 Claude 無法判斷實際聽感。
-4. **`say` 預設語音**：本輪未指定 `-v`，使用系統預設（通常 macOS 是 Samantha 或依系統語言）。若使用者系統設定為中文，`say` 可能用中文語音念英文 → 朗讀錯誤。**Codex 驗收建議**：確認語音是英文發音；若為非英文，可改 `say -v Samantha "..."` 或 `say -v Alex "..."` 等明確指定英文語音。
-5. **m4a 在某些舊瀏覽器可能不支援**：m4a / AAC 在現代 desktop / iOS / Android 瀏覽器全支援，但 IE 11 / 舊版 Edge legacy 不支援。**本專案不支援這些瀏覽器**（依 Next.js 16 + React 19 預設），但 Codex 驗收建議在 Safari iOS（iPad）實測一次。
-6. **路徑 case sensitive**：macOS 預設檔案系統 case-insensitive，但 Linux 部署環境（若未來部署）case sensitive。**audioSrc 用全小寫**（`/audio/starters/l3/q-lc-001.m4a`）+ 實體檔名也全小寫，已對齊。Codex 驗收提醒未來若部署需測試。
-7. **音檔 commit 進 git 後 repo 大小增加**：本檔 12 KB 影響很小；但若未來補 54 字 vocabulary 音檔（每筆 ~10 KB → 540 KB）+ 多題 listening（每題 10~30 KB → 200~600 KB / 100 題）會累積。建議仍維持 commit（依 git 政策），不另立 git-lfs（過度設計）。
-8. **/tmp/q-lc-001.aiff 已自動清理**：本輪流程 step 3 移除了 AIFF 暫存；但若使用者照 shell 範例操作時忘記移除，AIFF 會留在 /tmp 直到 reboot。**這是 macOS 本機行為，不影響 repo**，但 docs/TTS_AUDIO_WORKFLOW.md 已明示「Step 3：清理暫存」+ shell 一行範例含 `&& rm -f`。
-9. **未來雲端 TTS 引入時的 PRODUCT_SPEC 清單衝突**：本檔提到「未來可評估雲端 TTS」+ `docs/PRODUCT_SPEC.md`「目前明確不做」清單目前不含雲端 TTS。**未來若採用雲端 TTS 需先在 PRODUCT_SPEC「目前明確不做」開放並說明 API key 管理**——本檔已預警。
+1. **Claude 未實際呼叫 OpenAI API**：本輪只完成「流程 + 腳本 + 文件」三層，腳本「無 key 安全退出」自測通過。**實際 API 呼叫的成功率、回應時間、錯誤碼處理**需家長 / 維護者本機跑後驗證。**Codex 5/12 後驗收**：建議 Codex 在本機設 OPENAI_API_KEY 後實跑一次，確認音檔產生、瀏覽器可播。
+2. **`gpt-4o-mini-tts` model 名稱與可用性**：本輪以任務單給的 model 名稱寫進腳本。OpenAI model 命名規則可能變動（例如未來改名 `gpt-4o-tts-mini` 之類）；若實跑時遇 404 model 不存在，需更新腳本中的 `MODEL` 變數。**Codex 驗收建議**：實跑前用 `https://api.openai.com/v1/models` 確認 model 仍存在。
+3. **Voice 預設 `alloy` 可能不是最佳選擇**：`alloy` 是 OpenAI 最 neutral / clear 的 voice，但對 examiner 風格可能不夠 British。`fable` 偏 British 表達 / `nova` 偏溫暖女聲 / `shimmer` 偏柔軟。**腳本支援 `OPENAI_TTS_VOICE` 環境變數覆寫**——使用者可不改腳本嘗試不同 voice。
+4. **`instructions` 在某些 model / voice 組合下可能效果不一**：OpenAI TTS `instructions` 參數對 `gpt-4o-mini-tts` 支援；舊 `tts-1` model 可能不完整支援。腳本明示用 `gpt-4o-mini-tts`。**Codex 驗收建議**：若實跑後 `instructions` 沒生效（音色不像 examiner），可改用 `gpt-4o-mini-tts` 的其他變體或加 prompt engineering。
+5. **Cost 風險**：OpenAI TTS 計費（依字元數）。一題試產約 25 字元 / `What does the boy want?` 成本極低（< $0.001）。但若使用者誤觸或之後批次產生，成本可能增加。**docs/TTS_AUDIO_WORKFLOW.md 已寫「不批次大量產生」邊界**；script 也只處理一題固定 text，不支援批次。
+6. **`.env.local` 若被 IDE / 同步工具誤推**：本輪確保 `.gitignore` `.env*` 排除；但若使用者用某些 IDE 設定 / Dropbox / iCloud 同步資料夾把 `.env.local` 同步上雲端，仍可能洩漏 key。**這超出本專案範圍**，但 docs/TTS_AUDIO_WORKFLOW.md「API key 規範」段已提示「絕不寫進原始碼或 commit message」。
+7. **音檔副檔名 `.mp3` vs `.m4a`**：macOS `say` 流程產 m4a，OpenAI 流程產 mp3。**兩種都被瀏覽器原生支援**。但若使用者切換 audioSrc 從 `.m4a` 到 `.mp3`（下一輪），需確認所有 listening 題的 audioSrc 副檔名一致 / 或在 schema 文件明示「兩種都允許」。docs/DATA_SCHEMA.md 既有 listening-choice 段範例已用 `.m4a`，未來 audioSrc 對應規則表可能需小修。
+8. **`scripts/` 目錄目前只有一支腳本**：未來若新增 batch 產生 / 不同題型的 helper script，可考慮加 `scripts/README.md` 說明各腳本用途。本輪不做。
 
 ## 【後續建議】
 
-1. **使用者本輪手動驗收**：依「【手動檢查結果】」8 個檢核點在 Mac + 平板區網 IP 上跑。**最重要**：
-   - 流程 1（音檔可播放 + 朗讀內容正確）
-   - 流程 2~4（音檔準備中 fallback 不再出現 / transcript / 聽兩次提示）
-   - 流程 8（既有路由回歸）
+1. **使用者本輪手動驗收**：依「【手動檢查結果】」8 項在 Mac 本機跑：
+   - **必跑**：流程 1（設定 key）→ 2（執行腳本）→ 5（瀏覽器播放或 afplay）。
+   - **必確認**：流程 6（不覆蓋 macOS say 版本）/ 流程 7（不改 audioSrc）/ 流程 8（不 commit key）。
+   - **實聽 5 項**：發音 / 語速 / 音色 / 多念字 / 瀏覽器可播。
 2. **5/12 Codex 恢復後跑功能總驗收**：
-   - 實聽音檔驗證朗讀內容、語速、語音是否適合小一。
-   - `afinfo` / `mediainfo` 檢查音檔 metadata 無個資。
-   - Safari iOS（iPad）實測 m4a 可播。
-   - 多瀏覽器（Chrome / Safari / Firefox）audio 控制器視覺一致性。
+   - 實際 OpenAI API 呼叫測試（Codex 本機設 key）。
+   - 跨 voice 比較（`alloy` / `fable` / `nova` / `shimmer`）找出最像 examiner 的選擇。
+   - 跨瀏覽器播放（Chrome / Safari / Firefox / iPad Safari）。
+   - 「`q-lc-001-openai.mp3` 已存在拒絕覆蓋」分支自測。
 3. **下一輪實作建議優先序**（請 ChatGPT 收斂）：
-   - 路線 A：**多題 L3 音檔**——挑幾個既有 vocabulary 字（apple / cat / dog / book / red / blue 等）出 2~5 題新 listening 題（屬 P3-3-A AI 仿真題流程 + P2-4C-2B-2 音檔產生）；用既有流程批次產生。
-   - 路線 B：**P2-4C-2B-2 vocabulary 音檔**——用 `say` 流程批次補 54 字音檔，shell loop 即可。
-   - 路線 C：**P3-9-C 第二刀**——RW1 yes-no 按鈕（schema 改動小、教學價值高）。
-   - 路線 D：**P3-9-B 第二刀**——metadata validator helper（runtime 校驗 metadata 字面值）。
-   - 路線 E：**P3-7-D 動工**——撰寫 sample-paper-observations.md / mock-test-flow.md 第一版。
-4. **批次音檔產生 shell loop**（建議下下輪做）：
-
-```bash
-# 假設有 word list： apple cat dog book ...
-PART=l3
-for word in apple cat dog book; do
-  ID="q-lc-${word}"
-  TXT="What is this? It's a ${word}."
-  TMP="/tmp/${ID}.aiff"
-  OUT="public/audio/starters/${PART}/${ID}.m4a"
-  say -o "$TMP" "$TXT" && afconvert -f m4af -d aac "$TMP" "$OUT" && rm -f "$TMP"
-done
-```
-
-5. **語速調整**（若家長反饋風險點 3）：在 `docs/TTS_AUDIO_WORKFLOW.md` 補一句「**建議語速：`-r 150` 對小一較友善**」+ 範例改 `say -r 150 -o ...`。
+   - 路線 A：**OpenAI 實聽通過後切換 audioSrc**——獨立任務單修改 `data/p3-example-questions.json` `q-lc-001.audioSrc` 從 `.m4a` 改為 `q-lc-001-openai.mp3`；保留 `q-lc-001.m4a` 不刪。
+   - 路線 B：**批次產生多題 L3 音檔**——在開放邊界後，把腳本改寫為「讀題目 id 列表」批次跑。
+   - 路線 C：**P3-9-C 第三刀 RW1 yes-no 按鈕**（schema 改動小、教學價值高）。
+   - 路線 D：**P2-4C-2B-2 vocabulary 音檔**（54 字 shell loop 補齊，先用 macOS `say` / 通過後可擴 OpenAI）。
+   - 路線 E：**P3-9-C 練習模式顯示文字稿開關**（解決前一輪報告風險點 4）。
+4. **OpenAI 實聽結果記錄建議**：使用者實聽後可在 `docs/TTS_AUDIO_WORKFLOW.md` 補一段「實聽紀錄」（本輪實聽用 voice / 評語 / 是否通過 / 改進方向），方便未來新增題目時參考成功經驗。
+5. **批次產生時的 cost 監控**：若未來真的批次產生，建議加：
+   - 在腳本啟動時印「本次預計呼叫 N 次 / 預估 cost X 美元」+ 等待使用者確認。
+   - 加 `--dry-run` 旗標只計算 cost 不實際呼叫。
+6. **Voice 比較的記錄結構**：建議建立 `docs/notes/openai-tts-voice-comparison.md`（屬未來），記錄 alloy / ash / fable / nova / shimmer 等 voice 對 q-lc-001 的實際聲音表現，給後續題目作者參考最佳 voice。
 
 ## 【Roadmap 同步檢查】
 
 對照新版 `PROJECT_ROADMAP.md`：
 
 - ✅ **P1**：未動。
-- 🟡 **P2**：升 🟡（P2-4C-2B-2 「真實音檔」 ⬜ → 🟡 部分進行中；P2-4C-2B-2 整體 header 從「尚未開始」改「🟡 部分進行中」）。
-- 🟡 **P3**：本輪 P3-9-C 從 7 條 ✅ 升為 10 條 ✅（新增 3 條：流程文件 / 路徑 / q-lc-001 第一個音檔）+ 既有 3 條 ⬜ 改寫為 4 條 ⬜（多題音檔 / 音檔品質檢查流程 / 雲端 TTS 評估 / 音檔快取管理）；P3-9 整體仍 🟡。
+- 🟡 **P2**：未動（P2-4C-2B-2 仍 🟡 部分進行中）。
+- 🟡 **P3**：本輪 P3-9-C 把原 ⬜「OpenAI TTS examiner voice 試產流程」升為 1 ✅ + 4 ⬜（使用者實聽比較 / 通過後切 audioSrc / 批次產生多題 / P4 共用 examiner voice 策略）；P3-9-C 從 13 條 ✅ 升為 14 條 ✅、新增 4 條 ⬜（總 14 ✅ + 9 ⬜）；P3-9 整體仍 🟡。
   - ✅ **P3-1 / P3-2-A / P3-3-A / P3-6-A / P3-6-B-1 / P3-6-B-2 / P3-6-B-3 / P3-7-A / P3-9-A**：上輪起維持 ✅，本輪未動。
-  - 🟡 **P3-9-C part-specific quiz UI 實作**：10 條 ✅（audioSrc 欄位 / audio controls UI / fallback / 聽兩次提示 / q-lc-001 metadata / DATA_SCHEMA 補段 / STARTERS_PART_TEMPLATES 升 v2.1 / **新增 3 條：流程文件 / 路徑 / 第一個音檔**）+ 14 條 ⬜（其他 part-specific UI 條目 + L3 audio 後續 4 條）。
+  - 🟡 **P3-9-C part-specific quiz UI 實作**：14 條 ✅ + 9 條 ⬜（其中 5 條為 L3 後續 + 4 條為 OpenAI TTS 後續 + 既有 part-specific UI 條目仍 ⬜）。
   - 🟡 **P3-7-B**：6 條 ✅ + 3 條 ⬜（本輪未動）。
   - 🟡 **P3-9-B**：6 條 ✅ + 7 條 ⬜（本輪未動）。
   - 🟡 **P3-6-B-4**：6 條 ✅ + 3 條 ⬜（本輪未動）。
   - 🟡 **P3-6-B-5 計時器**：1 條 ✅ + 1 條 ⬜（本輪未動）。
   - ⬜ **P3-2-B / P3-3-B / P3-4 / P3-5 / P3-7-C / P3-7-D / P3-8**：本輪未動。
 - ⬜ **P4 / P5**：未動（仍 ⬜）。
-- ➕ **目前明確不做**：未動。本輪所有禁止項目皆守住（不串雲端 TTS API / 不下載官方音檔 / 不複製官方 sample 音檔 / 不用網路 mp3）。
+- ➕ **目前明確不做**：本輪在 PRODUCT_SPEC「目前明確不做 → AI / 自動化」段補一條「不做大量雲端 TTS 批次產生」+ 新增子段「OpenAI TTS examiner voice 試產（一題版例外，2026-05-10 開放）」含 6 條邊界——**邊界已收緊**（明確標日期 + 一題範圍 + 6 條條件）。其他禁止項目皆守住。
 - 變更紀錄追加 2026-05-10 一筆。
 
-P2 升 🟡 進行中（P2-4C-2B-2 部分 🟡）；P3 整體仍 🟡 進行中；P3-9 仍 🟡（A 完成、B 部分完成 6/13、C 部分完成 10/24）；**符合任務單「不要把 P2-4C-2B-2 整體標完成、不要把 P3-9-C 整體標完成、不要把 P3 整體標完成」要求**。
+P3 整體仍 🟡 進行中；P3-9 仍 🟡（A 完成、B 部分完成 6/13、C 部分完成 14/23）；**符合任務單「不要把 P3-9-C 整體標完成、不要把 P2-4C-2B-2 整體標完成、不要把 P3 整體標完成」要求**。

@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 例外：.env.example 是 template（不含真實 secret），需要 commit 給其他開發者參考
+!.env.example
 
 # vercel
 .vercel

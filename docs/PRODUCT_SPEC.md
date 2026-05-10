@@ -357,6 +357,21 @@ Agent 的目標是**模擬考官互動流程**，讓孩子練習「聽懂指令 
 - **P4 Speaking Examiner Agent 提供的「口說練習回饋」不是 AI 評分**——定位是**鼓勵性練習建議**，UI 處處標示「練習回饋 / 不是官方成績」；不對外宣稱能預測 Cambridge 官方分數，也不做 Pre A1 / A1 / A2 等級對應。
 - 不做自動網路爬蟲抓題（題目素材一律由使用者手動匯入，見「測驗與考前練習方向」與 `source_materials/README.md`）。
 - 不下載 Cambridge 官方 PDF / 圖片 / 音檔（即使本機；連結與人工筆記則整理於 P3-7 「官方資源索引」，見 `PROJECT_ROADMAP.md`）。
+- **不做大量雲端 TTS 批次產生**——目前主線仍是本機 macOS `say` + `afconvert`（見 `docs/TTS_AUDIO_WORKFLOW.md`「第一階段」段）。
+
+#### OpenAI TTS examiner voice 試產（一題版例外，2026-05-10 開放）
+
+為了讓孩子的聽力練習音檔更接近正式考試員（Cambridge-style young learners examiner）音色，**允許「一題試產」例外**——使用 OpenAI Audio Speech API 把 `q-lc-001` 的 transcript 轉成 `q-lc-001-openai.mp3`，與既有 macOS `say` 版本並存供使用者實聽比較。**邊界**：
+
+- ✅ **只用於把自製文字（transcript / ttsScript）轉成自製音檔**——絕不上傳官方題目原文 / 歷屆題給 OpenAI。
+- ✅ 一題試產（本輪只產生 q-lc-001-openai.mp3）；批次大量產生仍**不做**。
+- ✅ 試產結果需**人工實聽確認**（發音清楚 / 語速適合小一 / 音色像考試員 / 沒有多念字 / 瀏覽器可播）後，**下一輪**才可在 `data/p3-example-questions.json` 切換 `audioSrc`。
+- ✅ TTS voice 是 **AI-generated，不是真人考官聲音**——使用時 UI / README 須處處標示。
+- ❌ **API key 不可 commit**——`.env.example` 提供範本（`OPENAI_API_KEY=` 空值），實際 key 寫進 `.env.local`（已被 `.gitignore` 排除）。
+- ❌ 不下載官方音檔 / 不使用官方 sample 音檔（與既有邊界一致）。
+- ❌ 不做 OpenAI 以外的雲端 TTS 串接（Google / Azure 仍未開放）。
+
+詳細流程見 `docs/TTS_AUDIO_WORKFLOW.md`「第二階段：OpenAI TTS examiner voice 試產流程」段；腳本見 `scripts/generate_openai_tts_sample.mjs`。
 
 ### 其他
 

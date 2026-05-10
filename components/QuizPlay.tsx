@@ -1332,7 +1332,10 @@ function ListeningChoiceView({
   currentAnswer,
   onSelectAnswer,
 }: ViewProps<ListeningChoiceQuestion>) {
-  // P3-9-C 第一刀：audioSrc 存在則顯示 audio player；載入失敗或缺值時 fallback 到 transcript / ttsScript 文字
+  // Listening 顯示策略（P3-9-C 第二刀，2026-05-10）：
+  // - audioSrc 存在且 status = "loading" / "ready"：考試中只播音檔、不露 transcript（避免直接看題目原文）
+  // - audioSrc 缺值或載入失敗（status = "missing"）：fallback 顯示 transcript / ttsScript 文字練習，避免完全無法練
+  // - 結果頁詳解（QuestionDetailCard）+ retry mode 結果頁仍會顯示 transcript（屬於訂正範圍，邏輯走 getQuestionPromptDisplay 不在本元件）
   const audioSrc = question.audioSrc;
   const transcriptText =
     question.transcript ?? question.ttsScript ?? "（音檔準備中）";
@@ -1367,6 +1370,12 @@ function ListeningChoiceView({
             >
               你的瀏覽器不支援音檔播放，請看下方文字。
             </audio>
+            <p className="mt-3 text-center text-sm font-bold text-sky-700 sm:text-base">
+              🎧 請先聽音檔，再選答案
+            </p>
+            <p className="text-center text-[11px] text-slate-500">
+              文字稿會在交卷後訂正時顯示
+            </p>
             <p className="mt-1 text-[11px] text-sky-600 sm:text-xs">
               💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習。
             </p>
@@ -1374,14 +1383,15 @@ function ListeningChoiceView({
         )}
 
         {showFallbackHint && (
-          <p className="mt-1 text-xs font-semibold text-amber-700">
-            音檔準備中，先用文字練習
-          </p>
+          <>
+            <p className="mt-1 text-xs font-semibold text-amber-700">
+              音檔準備中，先用文字練習
+            </p>
+            <p className="mt-2 text-center text-lg font-bold text-slate-800 sm:text-xl">
+              {transcriptText}
+            </p>
+          </>
         )}
-
-        <p className="mt-2 text-center text-lg font-bold text-slate-800 sm:text-xl">
-          {transcriptText}
-        </p>
       </div>
 
       {isImage ? (

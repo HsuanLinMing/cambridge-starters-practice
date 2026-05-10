@@ -188,20 +188,30 @@
 - ✅ **只能是 `public/audio/` 下的本機自製音檔**（自錄音 / TTS 自製 / macOS `say -o` 等）。
 - ✅ 若音檔尚未產生，可先填入路徑佔位（fallback 機制會自動降級為文字練習）；屬 P2-4C-2B-2 / P3-9-C 未來範圍。
 
-### transcript / ttsScript / audioSrc 三者關係
+### transcript / ttsScript / audioSrc 三者關係（2026-05-10 修正）
 
-| 欄位 | 用途 | 來源 | 是否顯示給孩子 |
-| --- | --- | --- | --- |
-| `audioSrc` | UI 播放的音檔路徑 | 本專案自製 mp3 | ✅ 透過 `<audio controls>` 播放 |
-| `audio` | Legacy 音檔路徑 | 同上 | UI 目前不直接讀取（保留供未來 migration） |
-| `transcript` | 字幕文字 | 人工撰寫 | ✅ 顯示於音檔下方（家長 / 孩子皆可看） |
-| `ttsScript` | TTS 生成腳本 | 人工撰寫 / AI 草稿 | ⚠️ fallback 用（無 transcript 時顯示） |
+| 欄位 | 用途 | 來源 | 考試中是否顯示 | 結果頁是否顯示 |
+| --- | --- | --- | --- | --- |
+| `audioSrc` | UI 播放的音檔路徑 | 本專案自製 mp3 / m4a | ✅ 透過 `<audio controls>` 播放 | ❌ 不重播（詳解只看文字訂正） |
+| `audio` | Legacy 音檔路徑 | 同上 | UI 目前不直接讀取 | UI 目前不直接讀取 |
+| `transcript` | 字幕 / 文字稿 | 人工撰寫 | ⚠️ **音檔可播時不顯示**（避免直接露題目原文）；**音檔缺失時 fallback 才顯示** | ✅ 結果頁詳解 + retry result detail 顯示，供訂正 |
+| `ttsScript` | TTS 生成腳本 | 人工撰寫 / AI 草稿 | 同 transcript（無 transcript 時 fallback 用） | 同 transcript |
 
-`/quiz` UI 顯示策略：
+**關鍵原則（P3-9-C 第二刀）**：
 
-1. 若 `audioSrc` 存在且能成功載入 → 顯示 `<audio controls>` + 「聽兩次」小提示 + transcript 下方備援。
-2. 若 `audioSrc` 缺值 → 顯示「音檔準備中，先用文字練習」+ transcript / ttsScript 文字。
-3. 若 `audioSrc` 存在但載入失敗（onError 觸發）→ 同 2。
+- **考試中若 `audioSrc` 可播放，不應直接顯示 transcript**——避免孩子看文字直接答對、失去聽力練習意義。
+- **若音檔缺失（audioSrc 缺值 / onError 觸發），才允許 fallback 顯示 transcript / ttsScript**——避免完全無法練習。
+- **結果頁 / 每題詳解 / retry mode 結果頁仍會顯示 transcript**——屬於訂正範圍，家長可對照「孩子聽到 / 應該聽到的句子」。
+
+`/quiz` UI 三態顯示策略：
+
+| 場景 | audioStatus | UI 行為 |
+| --- | --- | --- |
+| 1. `audioSrc` 存在且成功載入 | `ready` | 顯示 `<audio controls>` + 🎧「請先聽音檔，再選答案」+ 「文字稿會在交卷後訂正時顯示」+「正式考試中錄音會播放兩次」+ 4 個選項。**不顯示 transcript**。 |
+| 2. `audioSrc` 存在但仍在載入 | `loading` | 同 1（audio 元素已 render，但孩子還不能播；提示語幫他理解先聽再選）。**不顯示 transcript**。 |
+| 3. `audioSrc` 缺值 / 載入失敗 | `missing` | 顯示「音檔準備中，先用文字練習」amber 系訊息 + transcript / ttsScript 大字。**這是 fallback 模式**。 |
+
+結果頁詳解 / retry result detail（`QuestionDetailCard` + `getQuestionPromptDisplay`）對 listening 題仍走「優先 transcript → 退 ttsScript → 退『（音檔內容）』」策略，**始終顯示文字稿**——這是訂正用，與考試中行為刻意分流。
 
 ### `fill-blank`：填空
 

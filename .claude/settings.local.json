@@ -157,7 +157,11 @@
       "Bash(say -o /tmp/q-lc-001.aiff \"What does the boy want?\")",
       "Read(//tmp/**)",
       "Bash(afconvert -f m4af -d aac /tmp/q-lc-001.aiff public/audio/starters/l3/q-lc-001.m4a)",
-      "Bash(afinfo public/audio/starters/l3/q-lc-001.m4a)"
+      "Bash(afinfo public/audio/starters/l3/q-lc-001.m4a)",
+      "Bash(chmod +x /Users/linxuanming/Documents/cambridge-starters-practice/scripts/generate_openai_tts_sample.mjs)",
+      "Bash(unset OPENAI_API_KEY)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(git check-ignore *)"
     ]
   }
 }
