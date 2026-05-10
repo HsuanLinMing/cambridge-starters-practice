@@ -57,6 +57,7 @@
     "type": "listening-choice",
     "source": "ai_generated",
     "audio": "/audio/q-lc-001.mp3",
+    "audioSrc": "/audio/starters/l3/q-lc-001.m4a",
     "transcript": "What does the boy want?",
     "ttsScript": "What does the boy want?",
     "optionType": "text",

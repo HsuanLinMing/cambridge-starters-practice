@@ -204,11 +204,27 @@ export type WordChoiceQuestion = BaseQuestion & {
   answer: string;
 };
 
-/** 聽力題：音檔必填，選項可為文字或圖片。 */
+/**
+ * 聽力題：音檔必填，選項可為文字或圖片。
+ *
+ * 音檔三欄位的關係（P3-9-C 第一刀）：
+ * - `audio`：legacy 必填欄位，指向音檔路徑。建議未來逐步以 `audioSrc` 取代。
+ * - `audioSrc`：P3-9-C 新增 optional 欄位，**本專案自製音檔路徑**（例如
+ *   `/audio/starters/l3/q-lc-001.mp3`）。UI 優先讀此欄位 render `<audio controls>`；
+ *   音檔不存在 / 載入失敗時 fallback 到 `transcript` / `ttsScript` 文字練習。
+ *   **嚴禁**指向官方音檔或外部 URL；只能是 `public/audio/` 下的本機自製路徑。
+ * - `transcript`：字幕（給家長 / 老師看，不一定要顯示給孩子）。
+ * - `ttsScript`：給 TTS 生成音檔的腳本（與 `transcript` 不一定相同，可含 SSML）。
+ */
 export type ListeningChoiceQuestion = BaseQuestion & {
   type: "listening-choice";
-  /** 音檔必填。 */
+  /** Legacy 必填欄位；UI 優先讀 `audioSrc`，缺值才 fallback 到此欄位。 */
   audio: string;
+  /**
+   * P3-9-C 新增 optional 欄位：本專案自製音檔路徑（建議 `/audio/starters/<part>/<id>.mp3`）。
+   * 嚴禁指向官方音檔或外部 URL。音檔載入失敗時 UI 自動 fallback 到 transcript / ttsScript 文字。
+   */
+  audioSrc?: string;
   /** 字幕（家長/老師看，不顯示給小朋友）。 */
   transcript?: string;
   /** 給 TTS 生成音檔的腳本（與 `transcript` 不一定相同，例如可加 SSML）。 */

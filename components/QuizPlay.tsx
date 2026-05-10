@@ -1325,27 +1325,62 @@ function WordChoiceView({
   );
 }
 
+type AudioStatus = "loading" | "ready" | "missing";
+
 function ListeningChoiceView({
   question,
   currentAnswer,
   onSelectAnswer,
 }: ViewProps<ListeningChoiceQuestion>) {
-  // 最小可玩：先顯示 transcript / ttsScript 文字，不播放音檔（音檔自製屬 P2-4C-2B-2 範圍）
-  const text =
+  // P3-9-C 第一刀：audioSrc 存在則顯示 audio player；載入失敗或缺值時 fallback 到 transcript / ttsScript 文字
+  const audioSrc = question.audioSrc;
+  const transcriptText =
     question.transcript ?? question.ttsScript ?? "（音檔準備中）";
   const isImage = question.optionType === "image";
 
+  const [audioStatus, setAudioStatus] = useState<AudioStatus>(() =>
+    audioSrc ? "loading" : "missing",
+  );
+
+  const showAudioPlayer = audioStatus !== "missing" && Boolean(audioSrc);
+  const showFallbackHint = audioStatus === "missing";
+
   return (
     <>
-      <div className="mt-4 flex flex-col items-center justify-center gap-3 rounded-2xl bg-sky-50 px-6 py-8">
+      <div className="mt-4 flex flex-col items-center justify-center gap-2 rounded-2xl bg-sky-50 px-6 py-6">
         <span className="text-3xl" aria-hidden>
           🔊
         </span>
         <span className="text-xs font-semibold tracking-wider text-sky-600">
-          聽聽看（音檔準備中，先看文字）
+          聽聽看
         </span>
-        <p className="text-center text-lg font-bold text-slate-800 sm:text-xl">
-          {text}
+
+        {showAudioPlayer && audioSrc && (
+          <>
+            <audio
+              controls
+              src={audioSrc}
+              onCanPlay={() => setAudioStatus("ready")}
+              onError={() => setAudioStatus("missing")}
+              aria-label="題目音檔（可重播）"
+              className="mt-1 w-full max-w-sm"
+            >
+              你的瀏覽器不支援音檔播放，請看下方文字。
+            </audio>
+            <p className="mt-1 text-[11px] text-sky-600 sm:text-xs">
+              💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習。
+            </p>
+          </>
+        )}
+
+        {showFallbackHint && (
+          <p className="mt-1 text-xs font-semibold text-amber-700">
+            音檔準備中，先用文字練習
+          </p>
+        )}
+
+        <p className="mt-2 text-center text-lg font-bold text-slate-800 sm:text-xl">
+          {transcriptText}
         </p>
       </div>
 

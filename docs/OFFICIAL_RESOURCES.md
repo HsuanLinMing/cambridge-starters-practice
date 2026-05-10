@@ -282,6 +282,22 @@ P3-7-D「sample / mock test toolkit 題型觀察筆記」動工時的預期產�
 
 校正動作**只是**讓 P3-9 模板的「形式描述」與官方公開描述沒有顯著偏差。
 
+### P3-7-B 第一輪校正狀態（2026-05-09）
+
+✅ **已完成 P3-7-B 第一輪校正**：
+
+- `docs/STARTERS_PART_TEMPLATES.md` **已升 v2**——依官方公開 format 說明（Listening 4 parts / 20 Q / 20 min / heard twice，R&W 5 parts / 25 Q / 20 min / spelling must be correct，Speaking 4 parts / 3-5 min）校正 9 個 Part 模板描述。
+- 上述 11 條校正清單第 1~9 項**已第一輪通過**（依官方公開 format 校正後，本專案 L1~L4 + RW1~RW5 模板描述大方向正確；補上「heard twice」「spelling must be correct」「each part has 1~2 examples」三條官方規則）。
+- 上述 11 條校正清單第 10 項（`getStarterPartInfo()` preview 對應）**已第一輪通過**——透過 P3-9-B 第一刀 metadata-first + P3-9-C 小修 (starterPart, type) 細分文案處理。
+- 上述 11 條校正清單第 11 項（`docs/STARTERS_PART_TEMPLATES.md` 升 v2）**已落地**。
+
+⬜ **後續仍需做（第二 / 三輪校正）**：
+
+- 後續若家長 / 維護者人工瀏覽更完整官方 handbook for teachers（A-4 / 公開版本）/ 官方 sample papers（B-2）/ 官方 mock test toolkit（D-2）並逐頁觀察筆記後，可能會發現 v2 仍有偏差，**屆時可升 v3**——屬 P3-7-B 第二輪校正 + P3-7-D「sample / mock test toolkit 觀察筆記」範圍。
+- 整理 `source_materials/notes/sample-paper-observations.md`（規劃中）+ `source_materials/notes/mock-test-flow.md`（規劃中）等人工筆記檔。
+- 整理 `source_materials/notes/wordlist-coverage.md`（規劃中，屬 P3-7-C）。
+- 不複製官方題目 / 不下載官方素材的硬邊界**永遠不變**。
+
 ---
 
 ## AI 仿真題素材來源策略
@@ -332,7 +348,8 @@ P3-7-D「sample / mock test toolkit 題型觀察筆記」動工時的預期產�
 ## 版本
 
 - **v1**（2026-05-08）：第一版——用途 + 硬邊界 + 索引格式 + A 段（4 個官方資源條目，URL 由人工填入）+ B 段（4 個 preparation 條目）+ C 段（wordlist 方向）+ D 段（sample / mock toolkit 方向）+ P3-9 模板校正清單（11 條）+ AI 仿真題素材來源策略 + 與其他文件關係。**未填入特定 sub-page URL**——由家長 / 維護者人工從 A-1 主站導航後驗證填入。
+- **v1.1**（2026-05-09，P3-7-B 第一輪校正進度更新）：在「用官方資源校正 P3-9 模板」段補「P3-7-B 第一輪校正狀態（2026-05-09）」子段——記錄 11 條校正清單第一輪結果（1~11 全條第一輪通過，`docs/STARTERS_PART_TEMPLATES.md` 已升 v2）；列出後續第二 / 三輪校正待辦（handbook / sample paper / mock test toolkit 人工筆記、wordlist 覆蓋分析）；硬邊界不變。
 
 ### 後續版本規劃
 
-- **v2**：等 P3-7-B / P3-7-C / P3-7-D 動工後，依人工瀏覽結果回填 sub-page URL 與「人工筆記檔」指向（例如 `source_materials/notes/sample-paper-observations.md`）；同步修 P3-9 模板校正結果。
+- **v2**：等 P3-7-B 第二 / 三輪校正 / P3-7-C / P3-7-D 動工後，依人工瀏覽結果回填 sub-page URL 與「人工筆記檔」指向（例如 `source_materials/notes/sample-paper-observations.md`）；同步反映 P3-9 模板第二輪校正結果（若有 v3 升級需求）。

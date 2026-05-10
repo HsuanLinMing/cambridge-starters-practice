@@ -164,6 +164,7 @@
   "type": "listening-choice",
   "source": "ai_generated",
   "audio": "/audio/q4.mp3",
+  "audioSrc": "/audio/starters/l3/q4.mp3",
   "transcript": "What does the boy want?",
   "ttsScript": "What does the boy want?",
   "optionType": "text",
@@ -174,10 +175,33 @@
 
 要點：
 
-- `audio` 必填。
-- `transcript`：字幕，給家長 / 老師看，**不顯示給小朋友**。
+- `audio` 必填（legacy 欄位）。建議未來逐步以 `audioSrc` 取代。
+- `audioSrc`：**P3-9-C 第一刀新增** optional 欄位——本專案自製音檔路徑（建議 `/audio/starters/<part>/<id>.mp3`）。`/quiz` UI **優先讀此欄位** render `<audio controls>`；音檔不存在 / 載入失敗時自動 fallback 到 `transcript` / `ttsScript` 文字練習，不會 crash 頁面。
+- `transcript`：字幕，給家長 / 老師看，可同時顯示給小朋友（本練習版未做嚴格隱藏）。
 - `ttsScript`：給 TTS 生成音檔的腳本（可加 SSML 等），與 `transcript` 不一定相同。
 - `optionType`：`"text"`（文字選項）或 `"image"`（圖片選項，`options` 改用 `ImageOption[]`）；預設 `"text"`。
+
+**audioSrc 硬邊界**：
+
+- ❌ 嚴禁指向 Cambridge 官方音檔 / 外部 URL。
+- ❌ 不下載官方 sample paper 音檔。
+- ✅ **只能是 `public/audio/` 下的本機自製音檔**（自錄音 / TTS 自製 / macOS `say -o` 等）。
+- ✅ 若音檔尚未產生，可先填入路徑佔位（fallback 機制會自動降級為文字練習）；屬 P2-4C-2B-2 / P3-9-C 未來範圍。
+
+### transcript / ttsScript / audioSrc 三者關係
+
+| 欄位 | 用途 | 來源 | 是否顯示給孩子 |
+| --- | --- | --- | --- |
+| `audioSrc` | UI 播放的音檔路徑 | 本專案自製 mp3 | ✅ 透過 `<audio controls>` 播放 |
+| `audio` | Legacy 音檔路徑 | 同上 | UI 目前不直接讀取（保留供未來 migration） |
+| `transcript` | 字幕文字 | 人工撰寫 | ✅ 顯示於音檔下方（家長 / 孩子皆可看） |
+| `ttsScript` | TTS 生成腳本 | 人工撰寫 / AI 草稿 | ⚠️ fallback 用（無 transcript 時顯示） |
+
+`/quiz` UI 顯示策略：
+
+1. 若 `audioSrc` 存在且能成功載入 → 顯示 `<audio controls>` + 「聽兩次」小提示 + transcript 下方備援。
+2. 若 `audioSrc` 缺值 → 顯示「音檔準備中，先用文字練習」+ transcript / ttsScript 文字。
+3. 若 `audioSrc` 存在但載入失敗（onError 觸發）→ 同 2。
 
 ### `fill-blank`：填空
 

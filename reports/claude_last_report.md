@@ -1,126 +1,121 @@
-# Claude Code 回報 · P3-9-C 小修：Part 顯示文案依 metadata + question.type 精準化
+# Claude Code 回報 · 本機自製 TTS 音檔流程 + q-lc-001 第一個音檔（P2-4C-2B-2 + P3-9-C）
 
-任務日期：2026-05-09
-任務性質：**程式碼小修 + 文件**——P3-9-C 小修（顯示文案微調，非完整 P3-9-C UI 實作）。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪只動 `getStarterPartInfo()` 一處 + 三份 doc 同步；**未改** schema / data / metadata mapping / 題目本體；**未做** 完整 P3-9-C part-specific UI / validator / ttsScript-imagePrompt schema / `/quiz/wrong` / 獨立錯題頁 / 計時器 / Speaking / TTS / 錄音 / STT / AI API / crawler；未升 localStorage `QUIZ_SESSION_SCHEMA_VERSION`；未新增依賴 / 處理 npm audit；未部署。
+任務日期：2026-05-10
+任務性質：**程式碼 + 文件 + 二進位素材**——本機自製 TTS 音檔流程落地。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪只用 macOS `say` + `afconvert` 本機流程；**未串雲端 TTS API（OpenAI / Google / Azure 全未串）**、未下載官方音檔、未複製官方 sample 音檔；未新增 listening 題目 / 改題目答案 / 改非 listening 題目；未做 Speaking / 錄音 / STT / AI API / crawler；未新增依賴 / 處理 npm audit；未部署、未新增後端 / DB / 登入；未升 localStorage schemaVersion。
 
 ## 【本輪修改摘要】
 
-`/quiz` Part 顯示文案改為「metadata-first + 依 question.type 微調」——`components/QuizPlay.tsx` `getStarterPartInfo(question)` 在原有 metadata-first / type-fallback 邏輯之前加一條 (starterPart, type) 組合特殊覆寫：**`RW4 + multiple-choice` → 「Part 4 preview：短句選字 / 詞彙選擇」**，解決 P3-9-B 第一刀風險點 1 的文案落差（q-mc-001「Which one is a fruit?」之前籠統顯示為「Part 4：短文 / 句子填空」，現顯示更精準的「短句選字 / 詞彙選擇 preview」）。其他 (part, type) 組合維持 default `STARTER_PART_DISPLAY` map 文案；fallback 路徑保留。
+第一個自製 TTS 音檔已產生並接入 `/quiz`：
 
-helper 註解補完整邏輯說明。`docs/DATA_SCHEMA.md` Starters part metadata 段新增「UI 文案細分（依 `question.type` 微調）」一節（6 列對照表 + 設計原則 + 目的）。`PROJECT_ROADMAP.md` P3-9-B 由 5 條 ✅ 升為 6 條 ✅；P3-9 / P3-9-B / P3-9-C 整體仍 🟡。`README.md` `/quiz` 條目 `q-mc-001` mapping 與 metadata-first 描述同步。
+- **產生 `public/audio/starters/l3/q-lc-001.m4a`**——透過 macOS 內建 `say` + `afconvert` 兩步流程：(1) `say -o /tmp/q-lc-001.aiff "What does the boy want?"`（產生 86 KB AIFF）→ (2) `afconvert -f m4af -d aac /tmp/q-lc-001.aiff public/audio/starters/l3/q-lc-001.m4a`（轉成 12 KB AAC m4a，1.86 秒）。瀏覽器原生支援 m4a / AAC（Chrome / Safari / Firefox / Edge 全支援）。
+- **`data/p3-example-questions.json` `q-lc-001` audioSrc** 從 `.mp3` 改為 `.m4a` 對齊實體檔案；不改其他欄位。
+- **新增 `docs/TTS_AUDIO_WORKFLOW.md`**（v1）——完整流程文件：用途 / 硬邊界（不串雲端 API / 不下載官方音檔 / 不用網路 mp3 / 不複製官方 sample / 不用第三方教學音檔 / 不抽 PDF 內嵌音）+ macOS `say` + `afconvert` 完整 step 1~6 + 一行 shell 範例 + 命名規則 + 路徑 + audioSrc 對應規則 + 人工檢查 6 項 + git 政策 + 第二階段雲端 TTS 評估規劃。
+- **`README.md`** `/quiz` 條目補「第一個自製音檔已產生」描述 + 文件索引追加 `docs/TTS_AUDIO_WORKFLOW.md`。
+- **`PROJECT_ROADMAP.md`** P3-9-C 加 3 條 ✅（流程文件 / 路徑 / q-lc-001 第一個音檔）+ 4 條 ⬜（多題音檔 / 音檔品質檢查流程 / 雲端 TTS 評估 / 音檔快取管理）；P2-4C-2B-2 「真實音檔」⬜ → 🟡 部分進行中（明示 P3-9-C 第一刀已落地第一個 L3 音檔、P2 vocabulary 音檔仍 ⬜）；P2-4C-2B-2 整體升 🟡 部分進行中。
 
-零依賴新增、未升 schemaVersion、未動 schema / data / metadata。`npm run lint` / `typecheck` / `build` 全綠（路由 88 不變）+ dev smoke test 全綠（新文案在 client JS chunk 中 grep 命中 2 次）。
+零依賴新增、未升 schemaVersion、未動 `lib/types.ts` / `components/QuizPlay.tsx` / 任何 `app/*` 路由。`npm run lint` / `typecheck` / `build` 全綠（路由 88 不變）+ dev smoke test 全綠（audio 檔 fetch 200 / 12008 bytes / `audio/mp4` content-type；visible HTML audio src 指向 m4a；「音檔準備中」fallback 不再出現）。
 
 ## 【修改檔案清單】
 
+新增 1 份文件 + 1 個音檔 + 1 個 `.gitkeep`-equivalent dir：
+
+- `docs/TTS_AUDIO_WORKFLOW.md`（v1，~210 行）：核心輸出。
+- `public/audio/starters/l3/q-lc-001.m4a`（**12008 bytes / AAC 22050 Hz / 1.86 秒**）：第一個自製 TTS 音檔。
+- `public/audio/starters/l3/`（目錄）：音檔放置路徑。
+
 修改 4 份：
 
-- `components/QuizPlay.tsx`：`getStarterPartInfo()` 加一條特殊覆寫（`RW4 + multiple-choice` → `{ partLabel: "Part 4 preview", zhTitle: "短句選字 / 詞彙選擇" }`，於 metadata 查找之前）+ 完整 docstring 說明三層邏輯（metadata 對齊目標 / question.type 細分 / fallback）+ 內聯註解說明覆寫意圖。
-- `docs/DATA_SCHEMA.md`：在「Starters part metadata（P3-9-B）」段末尾新增「UI 文案細分（依 `question.type` 微調）」子段——6 列對照表（5 個明示組合 + default fallback 規則）+ 3 條設計原則（STARTER_PART_DISPLAY default + getStarterPartInfo 特殊覆寫 + 加新組合只需加 if）+ 3 條目的（解決文案落差 / 維持 metadata-first / 仍是練習版近似對應，不代表官方題目）。
-- `PROJECT_ROADMAP.md`：P3-9-B 加一條 ✅（getStarterPartInfo 升級為 (starterPart, type) 細分文案）+ DATA_SCHEMA 條目末尾補「+ UI 文案細分對照表」；變更紀錄追加 2026-05-09 一筆。
-- `README.md`：`/quiz` 條目 `q-mc-001` mapping 從「RW4 短文 / 句子填空」改為「RW4 preview 短句選字 / 詞彙選擇」+ 補一句「Part 顯示已改為 metadata-first，並可依題型微調練習版文案」+ RW4 fb / mc 兩例對照。
+- `data/p3-example-questions.json`：`q-lc-001.audioSrc` 從 `/audio/starters/l3/q-lc-001.mp3` 改為 `/audio/starters/l3/q-lc-001.m4a`（其他欄位 0 變動）。
+- `README.md`：`/quiz` 條目補第一個自製音檔已產生描述 + 文件索引追加 `docs/TTS_AUDIO_WORKFLOW.md`。
+- `PROJECT_ROADMAP.md`：P3-9-C 7 條 ✅ → 10 條 ✅ + 4 條 ⬜ 替代既有 3 條 ⬜（為 L3 audio 後續）；P2-4C-2B-2「真實音檔」⬜ → 🟡 + section header「尚未開始」改「🟡 部分進行中」；變更紀錄追加 2026-05-10。
+- `reports/claude_last_report.md`：本回報。
 
-未動：`lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / 任何 `data/*.json` / `app/quiz/page.tsx` / 任何 `app/review/*` / 其他 components / `docs/PRODUCT_SPEC.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `source_materials/*` / 既有圖片 / 音檔 / `package.json` / 依賴。
+未動：`lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / `components/QuizPlay.tsx` / 任何 `app/review/*` / 其他 components / `docs/PRODUCT_SPEC.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/DATA_SCHEMA.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `source_materials/*` / 既有 SVG / vocabulary 音檔 / `package.json` / 依賴。
 
 ## 【核心邏輯說明】
 
-### 1. 三層查找邏輯
+### 1. 為什麼用 m4a 而非 mp3
 
-```ts
-function getStarterPartInfo(question) {
-  // 第一層：(starterPart, question.type) 組合特殊覆寫
-  if (question.starterPart === "RW4" && question.type === "multiple-choice") {
-    return { partLabel: "Part 4 preview", zhTitle: "短句選字 / 詞彙選擇" };
-  }
+任務單明示：「如果 `say` 只能輸出 `.aiff` 或 `.m4a`，請優先產生瀏覽器可播放的格式」。`say` 預設輸出 AIFF（86 KB / 秒，瀏覽器支援度差且檔案大）。可選 m4a（AAC 編碼）或 mp3。本輪選 **m4a / AAC**：
 
-  // 第二層：metadata-first（依 starterPart 取 STARTER_PART_DISPLAY default）
-  if (question.starterPart) {
-    return STARTER_PART_DISPLAY[question.starterPart];
-  }
+- macOS 內建 `afconvert` **直接支援** AIFF → AAC m4a，不需安裝任何套件。
+- mp3 編碼需要 `lame` / `ffmpeg` 等第三方套件——本輪不引入新依賴。
+- 瀏覽器原生支援 m4a / AAC（Chrome / Safari / Firefox / Edge / iOS Safari 全支援）。
+- 檔案大小：m4a AAC ~12 KB / 1.86 秒（~6 kbps），mp3 同樣編碼率類似。
 
-  // 第三層：fallback（依 question.type 推導，保留「Part X preview」字樣區分尚未補 metadata 的舊資料）
-  switch (question.type) { ... }
-}
-```
+實際測試：`afinfo` 顯示 `1 ch, 22050 Hz, aac (0x00000000) ... bit rate: 31696 bps`；`file` 顯示 `ISO Media, Apple iTunes ALAC/AAC-LC (.M4A) Audio`；瀏覽器 fetch 顯示 `audio/mp4` content-type（mp4 容器，AAC 軌）。
 
-**為什麼覆寫放最前面**：使 (part, type) 組合特殊處理優先生效；metadata 完整時不會走到 default map；metadata 缺值時走 fallback。三層彼此獨立、不互相干擾。
+### 2. audioSrc 從 .mp3 改 .m4a 的理由
 
-### 2. 為什麼只覆寫 RW4 + multiple-choice
+P3-9-C 第一刀時 `q-lc-001` 的 audioSrc 用 `.mp3` 副檔名作為「預期格式」placeholder。本輪實際產生的是 m4a，**audioSrc 必須對應實體檔案的真實副檔名**——任務單明示「若無法產生 mp3，請不要硬塞錯誤副檔名」。
 
-任務單明示要保留：
+修改範圍：只改 `data/p3-example-questions.json` 一個字段；`docs/STARTERS_PART_TEMPLATES.md` v2.1 與 `docs/DATA_SCHEMA.md` 的範例仍用 `.mp3` placeholder（保留作為未來「若有 mp3」的範例選項）；`docs/TTS_AUDIO_WORKFLOW.md` 的範例改用 `.m4a`（呼應實際工作流產出）。
 
-| 組合 | 顯示 | 來源 |
-| --- | --- | --- |
-| `RW4 + fill-blank` | `Part 4：短文 / 句子填空` | default map（不覆寫） |
-| `RW1 + picture-choice` | `Part 1：看圖判斷 / 看圖選答案` | default map（不覆寫） |
-| `RW3 + word-choice` | `Part 3：看圖認字 / 拼字練習` | default map（不覆寫） |
-| `RW5 + matching` | `Part 5：圖文配對 / 故事理解預備` | default map（不覆寫） |
-| `L3 + listening-choice` | `Part 3：聽音選圖` | default map（不覆寫） |
-| **`RW4 + multiple-choice`** | **`Part 4 preview：短句選字 / 詞彙選擇`** | **特殊覆寫（唯一一條）** |
+### 3. UI 路徑 fallback 自動切換
 
-只有 RW4 + multiple-choice 有 default 文案落差（default 是「短文 / 句子填空」但 mc 題型實際是「短句選字」），其他組合 default 文案已合適。**最小改動**——只覆寫真正需要的組合。
+P3-9-C 第一刀的 `ListeningChoiceView` 三態邏輯（loading / ready / missing）**未動**——本輪只變動資料層。實體 m4a 檔產生後：
 
-### 3. 「preview」字樣的設計取捨
+- 瀏覽器 fetch `/audio/starters/l3/q-lc-001.m4a` 返回 200 + 12008 bytes + `audio/mp4` content-type。
+- audio 元素 `onCanPlay` 觸發 → audioStatus 切 `ready`。
+- 「💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習」聽兩次提示顯示。
+- 「音檔準備中」fallback **不**顯示（dev smoke test grep 確認 0 命中）。
+- transcript 仍顯示。
 
-新覆寫文案是「Part 4 **preview**：短句選字 / 詞彙選擇」，含 preview 字樣。理由：
+完整 UI 行為從「audioSrc 存在但實體檔案缺，永遠走 fallback」升級為「audioSrc 存在且實體檔案存在，正常播放」。
 
-- multiple-choice 與正式 RW4「短文 / 句子填空」**形式差距大**——RW4 真正包含完整短文上下文 + 多空格。本練習版的 mc 只是單句選字，**仿前者預備**。
-- preview 字樣讓家長 / 老師知道這是「練習版近似 RW4，不是完整 RW4」。
-- 對齊 `STARTERS_PART_TEMPLATES.md` 中對 multiple-choice → RW4 的「preview」標註。
+### 4. `docs/TTS_AUDIO_WORKFLOW.md` 結構
 
-對比：`RW4 + fill-blank` 不加 preview，因為 fill-blank 已涵蓋 RW4 短文填空的核心形式（雖未含完整短文上下文，但形式對齊度較高）。
+文件層的核心輸出（v1，~210 行）。主要段：
 
-### 4. helper docstring 結構
+1. **用途**：對應 P3-9-C audioSrc + UI fallback。
+2. **硬邊界**：✅ 6 條可做（macOS say / afconvert / 自錄音 / 未來雲端 TTS 評估）+ ❌ 6 條不可做（雲端 API、官方音檔、官方 sample 音檔、網路 mp3、第三方教學音檔、PDF 抽音）。
+3. **第一階段：macOS `say` 流程**：環境需求、step 1~6 完整流程、一行 shell 範例。
+4. **命名規則**：檔名格式（`<question-id>.m4a`）、路徑（`public/audio/starters/<part>/<id>.m4a`）、audioSrc 對應 4 條規則表。
+5. **人工檢查 6 項**：檔案存在性 / 格式正確 / 可播放（`afplay`）/ 內容正確（對照 transcript）/ 長度合理（L3 短句 1.5~3 秒）/ 音量合理。
+6. **Git 政策**：可 commit（自製 m4a < 200 KB / 題；commit message 帶 id + 來源）+ 嚴禁 commit（AIFF / 官方音檔 / 網路 mp3 / 包含個資的錄音）+ 避免錯誤 commit 的 3 法。
+7. **第二階段（未來）：雲端 TTS 評估**：4 方案比較（OpenAI tts-1 / Google Cloud TTS / Azure TTS / Web Speech API）+ 採用前提（先在 PRODUCT_SPEC「目前明確不做」開放）。
+8. **與其他文件的關係**：對齊 PRODUCT_SPEC / STARTERS_PART_TEMPLATES / DATA_SCHEMA / OFFICIAL_RESOURCES / source_materials/README / lib/types / QuizPlay。
+9. **版本** v1（2026-05-10）。
 
-```ts
-/**
- * 顯示 Part 標示。
- *
- * 邏輯：
- * 1. metadata（starterSection / starterPart）決定 section / part 的對齊目標。
- * 2. question.type 可協助顯示更精準的練習版文案——同一個 starterPart 下，
- *    不同題型的實際練習形式可能差很多（例如 RW4 在官方包含「短文填空」與
- *    「短句選字 preview」兩種偏向，本練習版用 multiple-choice 仿前者預備、
- *    用 fill-blank 仿後者）。
- * 3. fallback：metadata 未補時依 question.type 推導，保留「preview」字樣
- *    以區分尚未補 metadata 的舊資料。
- *
- * 提醒：所有顯示文案皆為「練習版近似對應」，不代表官方題目本身。
- */
-```
+### 5. 一行 shell 範例的設計用意
 
-任務單明示要加註解：「metadata 決定 section / part / question.type 可協助顯示更精準的練習版文案 / 目前仍是練習版近似對應，不代表官方題目」三點全到。
+文件提供 `TXT="..."; ID="..."; PART="..."; say && afconvert && rm` 的 5 行 shell 範例，目的是：
 
-### 5. 結果頁詳解 / retry mode 自動同步
+- 家長 / 維護者新增題目時可直接複製貼上 + 改 TXT / ID / PART 變數。
+- 不需記憶完整指令參數。
+- 內含驗證（`afinfo $OUT | head -5`）讓使用者立即看到產出結果。
+- 與「人工檢查 6 項」搭配——shell 完成自動化 step 1~3 + 部分 step 4，人工驗證 step 5~6。
 
-`QuestionDetailCard`（結果頁詳解）與 retry quiz / RetryResultView 都重複利用 `getStarterPartInfo()`，**不需要任何額外改動**就會同步顯示新文案。本輪零 component 結構變動。
+### 6. P2-4C-2B-2 「真實音檔」狀態的合理化
 
-### 6. RSC payload 與 client JS chunk 驗證
+舊狀態：「真實音檔（建議用 TTS 自製，避免官方版權）」⬜ 未開始。
 
-dev smoke test 確認：
+本輪後狀態：🟡 部分進行中——附說明：
 
-- `/quiz` SSR 第 1 題仍是 listening + L3 + 「Part 3：聽音選圖」（visible HTML，default map 命中）。
-- 客戶端 JS chunk `_10gzo8z._.js` 含「短句選字 / 詞彙選擇」（grep 命中 2 次）+「短文 / 句子填空」（命中 3 次：default map RW4 + fallback fill-blank case + override 中的 fill-blank 對照註解）+ default map 其他文案。
-- visible HTML 不含「Part 4 preview」（第 1 題是 listening、不會 render mc 題）。
-- RSC payload 含 7 題完整 metadata（`"starterPart":"RW4"` 等）給 hydration 後動態組裝。
+- ✅ P3-9-C 第一刀已落地**第一個 L3 listening 自製 TTS 音檔**（q-lc-001.m4a）。
+- ✅ 完整流程與硬邊界文件 `docs/TTS_AUDIO_WORKFLOW.md` 已就位。
+- ⬜ P2 vocabulary 音檔仍 ⬜——需逐筆補 54 字單字音檔，屬未來工作。
+
+P2-4C-2B-2 整體 header 從「尚未開始」改「🟡 部分進行中」對應此狀態。
 
 ### 7. 沒做的事（嚴守任務單禁止清單）
 
-- 沒改 `data/*.json` / metadata mapping
-- 沒新增題目 / 題型
-- 沒新增 part-specific UI（`/quiz/wrong`、獨立錯題頁、part-specific 互動、yes-no 按鈕、拼字輸入等）
-- 沒做 metadata validator
-- 沒做 ttsScript / imagePrompt schema 升級
-- 沒升 localStorage schemaVersion
-- 沒做 Speaking / TTS / 錄音 / STT / AI API / crawler
-- 沒下載官方 PDF / 圖片 / 音檔
-- 沒新增依賴 / 處理 npm audit
-- 沒部署
+- 沒串 OpenAI TTS / Google TTS / Azure TTS API
+- 沒下載官方音檔 / 不複製官方 sample 音檔
+- 沒新增 listening 題目（仍只有 q-lc-001 一題）
+- 沒改題目答案 / options / transcript / ttsScript
+- 沒改非 listening 題目
+- 沒做 Speaking / 錄音 / STT / AI API / crawler
+- 沒新增依賴（macOS `say` + `afconvert` 是系統內建）
+- 沒處理 npm audit
+- 沒部署 / 後端 / DB / 登入
+- 沒改 localStorage schemaVersion
+- 沒做 `/quiz/wrong`
 
 ## 【測試結果】
 
-- `npm run lint` → **通過**（0 警告 0 錯誤）。
-- `npm run typecheck` → **通過**（exit 0）。
+- `npm run lint` → **通過**（0 警告 0 錯誤；純資料 + 文件變動 + 1 個二進位素材）。
+- `npm run typecheck` → **通過**（exit 0；無 TS 變動）。
 - `npm run build` → **通過**（路由 88 不變、全 SSG / Static、`Generating static pages 88/88`）。
 
 Dev smoke test：
@@ -128,59 +123,80 @@ Dev smoke test：
 | 驗證項 | 結果 |
 | --- | --- |
 | 8 條路由 200（`/`、`/review`、`/review/picture`、`/review/words`、`/review/letter/a`、`/review/word/apple`、`/review/word/jump`、`/quiz`） | ✓ |
-| `/quiz` SSR 第 1 題 listening visible HTML 含 Listening 徽章 / 聽音選圖 | ✓ |
-| 第 1 題 visible HTML 不含「Part 4 preview」（首載是 listening 題、不會 render multiple-choice 題） | ✓ |
-| RSC payload 含完整 metadata（`"starterPart":"RW4"` / `"type":"multiple-choice"` / `"type":"fill-blank"` 各 ≥1） | ✓ |
-| client JS chunk `_10gzo8z._.js` 含「短句選字 / 詞彙選擇」字樣（命中 2 次，確認新覆寫文案已 bundle） | ✓ |
-| chunk 同時含「短文 / 句子填空」（3 次：default RW4 / fallback fb case / override 內提及 fill-blank 對照）/「看圖判斷 / 看圖選答案」（2 次）/「圖文配對 / 故事理解預備」（2 次）等其他 default map 文案 | ✓ |
+| **音檔檔案 fetch**：`/audio/starters/l3/q-lc-001.m4a` HTTP 200 / 12008 bytes / `audio/mp4` content-type | ✓ |
+| `/quiz` SSR 第 1 題 listening visible HTML 含 Listening 徽章 / Part 3 + 聽音選圖 | ✓ |
+| visible audio src 含 `/audio/starters/l3/q-lc-001.m4a`（新副檔名） | ✓ |
+| visible 不再含 `/audio/starters/l3/q-lc-001.mp3`（舊副檔名） | ✓ |
+| 「正式考試中錄音會播放兩次」聽兩次提示 | ✓（命中 1） |
+| transcript「What does the boy want?」visible | ✓ |
+| 「音檔準備中，先用文字練習」**不**在 visible HTML（audioSrc 存在 + 檔案存在 → 不走 fallback） | ✓（命中 0） |
 | `/review/word/apple` 翻牌完整回歸 | ✓ |
 | dev log 無 error / hydration / warn 訊息 | ✓ |
+
+音檔檔案驗證：
+
+| 檢查項 | 結果 |
+| --- | --- |
+| `file` 顯示 | `ISO Media, Apple iTunes ALAC/AAC-LC (.M4A) Audio` ✓ |
+| `afinfo` 顯示 | `1 ch, 22050 Hz, aac (0x00000000) ... estimated duration: 1.864354 sec ... bit rate: 31696 bps` ✓ |
+| 檔案大小 | 12008 bytes ✓（< 200 KB / 題建議上限） |
+| 透過 dev server fetch | 200 / `audio/mp4` content-type ✓ |
 
 ## 【手動檢查結果】
 
 > **使用者請依下方清單在 Mac 本機 + 平板區網 IP 上手動驗收。Codex 5/12 恢復後再做完整總驗收。**
 
-Claude 自測（dev SSR + lint / typecheck / build + JS chunk grep）通過。
+Claude 自測（dev SSR + audio file fetch + lint / typecheck / build）通過。
 
 需要使用者瀏覽器互動驗收：
 
-1. **multiple-choice 題顯示 Part 4 preview：短句選字 / 詞彙選擇**：開啟 `/quiz` → 作答到第 4 題 (q-mc-001 「Which one is a fruit?")。Part 標示應該為「Part 4 preview：短句選字 / 詞彙選擇」（**之前是「Part 4：短文 / 句子填空」**，現已修正）。
-2. **fill-blank 題仍顯示 Part 4：短文 / 句子填空**：作答到第 5 / 6 題 (q-fb-001 / q-fb-002 fill-blank)。Part 標示應仍為「Part 4：短文 / 句子填空」（不變）。
-3. **其他題 Part 顯示不壞**：
-   - 第 1 題 (q-lc-001 listening-choice / L3) → 「Part 3：聽音選圖」
-   - 第 2 題 (q-pc-001 picture-choice / RW1) → 「Part 1：看圖判斷 / 看圖選答案」
-   - 第 3 題 (q-wc-001 word-choice / RW3) → 「Part 3：看圖認字 / 拼字練習」
-   - 第 7 題 (q-mt-001 matching / RW5) → 「Part 5：圖文配對 / 故事理解預備」
-4. **結果頁詳解 Part 顯示同步更新**：作答完成或直接交卷後，「每題詳解」列表中第 4 題 (q-mc-001) 卡片頭部應顯示「第 4 題 · Section 2 Reading & Writing · **Part 4 preview**」。第 5/6 題 fill-blank 卡片仍顯示「Part 4」（無 preview）。
-5. **retry mode Part 顯示同步更新**：若作答時故意答錯 q-mc-001 → 進入 retry mode → retry quiz 該題卡片頂端顯示「Part 4 preview：短句選字 / 詞彙選擇」（與一般 quiz 一致）。
-6. **fallback 路徑仍正常**：（可選驗證）暫時把 `data/p3-example-questions.json` 中 q-mc-001 的 `starterPart` 欄位刪除 → 該題顯示應該回到 fallback 路徑「Part 4 preview：短句選字」（type-based switch case 結果，沒有 / 詞彙選擇 字樣）。**驗收後請還原檔案**。
-7. **/review 路由正常**：`/`、`/review`、`/review/picture`、`/review/words`、`/review/word/apple`、`/review/word/jump` 全部不變、互動正常、翻牌功能、看圖練習互動皆無破壞。
+1. **`/quiz` 第 1 題 audio controls 可播放**：開啟 `/quiz` → 第 1 題 → 應看到瀏覽器原生 audio 控制器（依瀏覽器主題：Chrome 灰底圓形 / Safari 灰底矩形 / Firefox 灰底矩形）→ 點 play 應聽到 macOS `say` 預設語音朗讀「What does the boy want?」（語速正常、約 1.86 秒）。
+2. **不顯示「音檔準備中」**：流程 1 後，sky-50 區塊內**不應**出現 amber-700 字色的「音檔準備中，先用文字練習」訊息（因 audioSrc + 實體檔案都存在）。
+3. **transcript 仍顯示**：「What does the boy want?」transcript 文字仍位於 audio controls 下方（保留既有顯示能力）。
+4. **聽兩次提示仍顯示**：audio 元素正下方應出現「💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習。」sky-600 系小字。
+5. **可以正常作答與下一題**：點 4 個選項按鈕之一（apple / banana / cat / dog）→ 高亮 + 「下一題」變可點 → 進到第 2 題（picture-choice）。
+6. **直接交卷結果頁正常**：作答後直接交卷 → 結果頁顯示「答對 N / 7 題」+ 詳解列表第 1 題（listening）顯示題目文字版（用 transcript）+ 你的答案 + 正確答案。
+7. **retry mode 正常**：若第 1 題答錯或留空 → 進入 retry mode → 第 1 題顯示 audio + 聽兩次提示同 1.；可重播。
+8. **`/review` 路由正常**：`/`、`/review`、`/review/picture`、`/review/words`、`/review/word/apple`、`/review/word/jump` 全部不變、互動正常。
 
-預期 Part 標示對照（驗收時對照）：
+預期視覺呈現（首次載入第 1 題）：
 
-| 題目 | 之前（P3-9-B 第一刀） | 現在（P3-9-C 小修） |
-| --- | --- | --- |
-| q-lc-001 (listening-choice / L3) | Part 3：聽音選圖 | Part 3：聽音選圖（不變） |
-| q-pc-001 (picture-choice / RW1) | Part 1：看圖判斷 / 看圖選答案 | Part 1：看圖判斷 / 看圖選答案（不變） |
-| q-wc-001 (word-choice / RW3) | Part 3：看圖認字 / 拼字練習 | Part 3：看圖認字 / 拼字練習（不變） |
-| **q-mc-001 (multiple-choice / RW4)** | **Part 4：短文 / 句子填空** | **Part 4 preview：短句選字 / 詞彙選擇**（**修正**） |
-| q-fb-001 (fill-blank options / RW4) | Part 4：短文 / 句子填空 | Part 4：短文 / 句子填空（不變） |
-| q-fb-002 (fill-blank free / RW4) | Part 4：短文 / 句子填空 | Part 4：短文 / 句子填空（不變） |
-| q-mt-001 (matching / RW5) | Part 5：圖文配對 / 故事理解預備 | Part 5：圖文配對 / 故事理解預備（不變） |
+```
+[Section 1 · Listening｜聽力練習]
+Part 3：聽音選圖
+第 1 題 / 共 7 題
 
-只 q-mc-001 一題的 Part 標示有變化。其餘 6 題完全不變。
+  🔊
+  聽聽看
+  [▶] ─────────────── 0:00 / 0:01.86 [HTML5 audio controls]
+  💡 正式考試中錄音會播放兩次；本練習版可自行重播音檔練習。
+  What does the boy want?
+
+[apple] [banana]
+[cat]   [dog]
+
+[下一題 →]
+
+[📝 直接交卷] [🔁 重新測驗]
+```
 
 ## 【仍未處理】
 
-- **P3-9-B 後續刀數**（7 條 ⬜）：ttsScript / imagePrompt 升正式 schema 評估、difficulty 字面量升級、part-specific question types、metadata validator、sceneGroup、multi-blank、imageSequence、拼字輸入、yes-no、Listening hotspot 等。
-- **P3-9-C 完整 part-specific UI**：part-specific 互動視覺（L1 場景圖 + hotspot、L2 文字輸入 name / number、L3 A/B/C 圖選項、L4 塗色 / 選顏色、RW1 ✓/✗ 按鈕、RW2 場景圖固定 + 多題滾動、RW3 拼字輸入 + 看答案、RW4 多空格 + 字詞 bank、RW5 多圖序列 + one-word 輸入、`getStarterPartInfo()` 從 metadata 升級為從 starterPart 直接讀取的所有 P3-9-C 條目）皆未做。**本輪只做文案小修**。
-- **P3-6-B-4 後續 3 條 ⬜**（再練習 sessionStorage / 獨立錯題複習頁 / wrongQuestionIds 升 v2 + migration / 錯題歷史紀錄）。
-- **P3-6-B-5 計時器**（1 條 ⬜）。
-- **P3-7-B / P3-7-C / P3-7-D 全部 ⬜**（官方資源校正 P3-9 模板 / wordlist 對 vocabulary 校正 / sample / mock test toolkit 觀察筆記）。
-- **P3-8 全部 ⬜**（AI 仿真題生成流程文件）。
-- **P4 Speaking Examiner Agent 全部 ⬜**；`docs/SPEAKING_EXAMINER_AGENT_DESIGN.md` 規劃中文件未建立。
+- **P3-9-C L3 後續** 4 條 ⬜：
+  - 多題 L3 音檔（目前只有 q-lc-001 一題）。
+  - 音檔品質檢查流程（自動化，目前用人工 6 項）。
+  - 未來雲端 TTS 評估（OpenAI / Google / Azure，目前不串 API）。
+  - 音檔快取 / 管理策略。
+- **P3-9-C 其他 part-specific UI** 條目仍 ⬜（L1 場景圖 + hotspot、L2 文字輸入 name / number、L3 A/B/C 圖選項視覺、L4 簡化版選顏色 / 選物件、RW1 ✓/✗ 按鈕、RW2 場景圖固定、RW3 拼字輸入、RW4 多空格 + word bank、RW5 多圖序列 + one-word、`getStarterPartInfo()` 升級為從 starterPart 直接讀）。
+- **P2-4C-2B-2「真實音檔」P2 vocabulary 音檔仍 ⬜**（54 字單字音檔逐筆補；沿用 macOS `say` + `afconvert` 流程即可）。
+- **P3-9-B 後續** 7 條 ⬜（ttsScript / imagePrompt 升正式 schema 評估、difficulty 字面量、part-specific question types、validator、sceneGroup、multi-blank、imageSequence）。
+- **P3-7-B 後續** 3 條 ⬜（handbook / sample paper 人工筆記、v3 校正、wordlist 校正）。
+- **P3-7-C / P3-7-D 全部 ⬜**。
+- **P3-6-B-4 後續** 3 條 ⬜（再練習 sessionStorage、獨立錯題複習頁、wrongQuestionIds 升 v2 + migration、錯題歷史紀錄）。
+- **P3-6-B-5 計時器** 1 條 ⬜。
+- **P3-8 全部 ⬜**。
+- **P4 Speaking Examiner Agent 全部 ⬜**。
 - **P5 完整仿真考試體驗 ⬜**。
-- **P2-4C-2B-2 全部 ⬜**（單字閱讀模式、拼字測驗模式、TTS 真實音檔、補圖、聽力 / 句型 / 位置練習）。
 - **P3-2-B / P3-3-B / P3-4 / P3-5 全部 ⬜**。
 - **P1 兩條可選 housekeeping**。
 - `npm audit` 兩個 moderate 警告（任務單禁止處理）。
@@ -189,61 +205,65 @@ Claude 自測（dev SSR + lint / typecheck / build + JS chunk grep）通過。
 
 > 給 5/12 恢復後的 Codex 與下一輪 ChatGPT / Claude 特別注意。
 
-1. **特殊覆寫只覆蓋 RW4 + multiple-choice 一條**：未來若新增題目 metadata 採用其他 (part, type) 組合且文案有落差，需要再加 if 條件。**現在 7 題範例完全不會觸發其他組合落差**——但若 P3-3-B AI 仿真題開始大量產出 (RW4, multiple-choice) / (RW1, multiple-choice) / 其他組合，可能逐步累積覆寫條件。**Codex 驗收建議**：當覆寫 if 超過 5 條時，重構為「2D map（StarterPart × QuestionType）」結構。本輪不做避免過度設計。
-2. **fallback 路徑與細分覆寫的不一致**：fallback 路徑（依 type）對 multiple-choice 顯示「Part 4 preview：短句選字」（簡短），而新覆寫顯示「Part 4 preview：短句選字 / 詞彙選擇」（含「詞彙選擇」字樣）。**設計選擇**——覆寫文案更明確（明示是「詞彙選擇」測試）；fallback 文案保持簡短。**Codex 驗收提醒**：若家長覺得兩種寫法的「短句選字」與「短句選字 / 詞彙選擇」差異反而困惑，下一輪可統一為「短句選字 / 詞彙選擇」。本輪沿用任務單建議文案。
-3. **DATA_SCHEMA「UI 文案細分」段與 STARTERS_PART_TEMPLATES.md 的同步**：本檔對照表寫了 5 + 1 條，與 `docs/STARTERS_PART_TEMPLATES.md` 的「目前 P3 schema 對應表」+ STARTER_PART_DISPLAY map 對齊。未來若新增覆寫條件，**三處需要同步更新**（QuizPlay 程式碼 / DATA_SCHEMA 對照表 / STARTERS_PART_TEMPLATES 模板段）。
-4. **三層查找邏輯的可讀性**：本輪後 `getStarterPartInfo()` 有三層（特殊覆寫 / metadata-first / type-based fallback）。**對 5/12 之後動工者的學習成本**：若不熟 metadata 與 fallback 設計可能誤刪某層。docstring 已明示三層用途，但實作時建議驗證能讀懂。
-5. **新覆寫的「preview」字樣可能讓家長覺得「為什麼 mc 是 preview 但 fill-blank 不是 preview」**：因為 fill-blank 與 RW4 形式對齊度較高、mc 只是 preview 預備版。**家長視覺體驗**：兩個 RW4 題目顯示不同寫法可能困惑。**Codex 驗收建議**：若家長反饋，下一輪可在頁首再加一行小字「Part 標示為練習版近似對應，preview 字樣表示『仿前者預備』」。本輪不做。
-6. **JSON 雙 cast 仍未驗證 runtime metadata**：`lib/data.ts` 的 `as unknown as ExamQuestion[]` cast 沒驗證 `starterPart` 字面值。若手寫成「L5」之類非預期值 + question.type 是 multiple-choice，特殊覆寫 if 不會命中、走到 metadata 第二層 → `STARTER_PART_DISPLAY[L5]` 是 undefined → render 會崩潰。**Codex 驗收建議**：未來 P3-9-B 第二刀加 metadata validator 時應 runtime 校驗 + log warning。本輪沿用既有風險。
-7. **本輪文案改動對舊使用者的瀏覽器快取**：使用者過去看過「Part 4：短文 / 句子填空」（被覆寫前的籠統文案）的快取頁面，本輪上線後會看到「Part 4 preview：短句選字 / 詞彙選擇」。**對首次更新版本的使用者體驗有微小變化**——可能讓家長覺得「對齊更精準」也可能困惑「為什麼以前是短文現在是短句選字」。**Codex 驗收建議**：若家長反饋，下一輪可考慮加一行 changelog 提示。
+1. **音檔朗讀內容是否與 transcript 完全一致**：本輪 `say -o /tmp/q-lc-001.aiff "What does the boy want?"` 直接用 transcript 文字；macOS `say` 對英文標點處理通常正確（`?` 變上揚語調）。**Codex 驗收建議**：實際播放確認朗讀「What does the boy want?」內容無錯字 / 多餘字。本輪 Claude 無法直接「聽」音檔。
+2. **m4a 檔案是否真的乾淨**：本輪用系統內建 `say` + `afconvert` 產生，無第三方依賴；但若 macOS 系統有奇怪設定（例如預設語音為非英文、或 audio 編碼有 iCloud / 廣告 metadata），可能在音檔內藏額外資訊。**Codex 驗收建議**：用 `afinfo` 與 `mediainfo` 檢查音檔 metadata，確認無個資。本檔案 `afinfo` 輸出乾淨（只有 codec / sample rate / bit rate）。
+3. **語速 / 語音可能不適合小一**：`say` 預設語速 175 wpm 對小一可能略快；本輪沒設 `-r 150` 或更慢。**Codex 驗收建議**：實聽後若覺得太快，可重產生 `say -r 150 -o ...`；本輪 Claude 無法判斷實際聽感。
+4. **`say` 預設語音**：本輪未指定 `-v`，使用系統預設（通常 macOS 是 Samantha 或依系統語言）。若使用者系統設定為中文，`say` 可能用中文語音念英文 → 朗讀錯誤。**Codex 驗收建議**：確認語音是英文發音；若為非英文，可改 `say -v Samantha "..."` 或 `say -v Alex "..."` 等明確指定英文語音。
+5. **m4a 在某些舊瀏覽器可能不支援**：m4a / AAC 在現代 desktop / iOS / Android 瀏覽器全支援，但 IE 11 / 舊版 Edge legacy 不支援。**本專案不支援這些瀏覽器**（依 Next.js 16 + React 19 預設），但 Codex 驗收建議在 Safari iOS（iPad）實測一次。
+6. **路徑 case sensitive**：macOS 預設檔案系統 case-insensitive，但 Linux 部署環境（若未來部署）case sensitive。**audioSrc 用全小寫**（`/audio/starters/l3/q-lc-001.m4a`）+ 實體檔名也全小寫，已對齊。Codex 驗收提醒未來若部署需測試。
+7. **音檔 commit 進 git 後 repo 大小增加**：本檔 12 KB 影響很小；但若未來補 54 字 vocabulary 音檔（每筆 ~10 KB → 540 KB）+ 多題 listening（每題 10~30 KB → 200~600 KB / 100 題）會累積。建議仍維持 commit（依 git 政策），不另立 git-lfs（過度設計）。
+8. **/tmp/q-lc-001.aiff 已自動清理**：本輪流程 step 3 移除了 AIFF 暫存；但若使用者照 shell 範例操作時忘記移除，AIFF 會留在 /tmp 直到 reboot。**這是 macOS 本機行為，不影響 repo**，但 docs/TTS_AUDIO_WORKFLOW.md 已明示「Step 3：清理暫存」+ shell 一行範例含 `&& rm -f`。
+9. **未來雲端 TTS 引入時的 PRODUCT_SPEC 清單衝突**：本檔提到「未來可評估雲端 TTS」+ `docs/PRODUCT_SPEC.md`「目前明確不做」清單目前不含雲端 TTS。**未來若採用雲端 TTS 需先在 PRODUCT_SPEC「目前明確不做」開放並說明 API key 管理**——本檔已預警。
 
 ## 【後續建議】
 
-1. **使用者本輪手動驗收**：依「【手動檢查結果】」7 個檢核點在 Mac + 平板區網 IP 上跑。重點：流程 1（mc 顯示新覆寫文案）、流程 2（fb 仍顯示原文案）、流程 4（結果頁詳解卡片同步）、流程 5（retry mode 同步）、流程 7（既有路由回歸）。
+1. **使用者本輪手動驗收**：依「【手動檢查結果】」8 個檢核點在 Mac + 平板區網 IP 上跑。**最重要**：
+   - 流程 1（音檔可播放 + 朗讀內容正確）
+   - 流程 2~4（音檔準備中 fallback 不再出現 / transcript / 聽兩次提示）
+   - 流程 8（既有路由回歸）
 2. **5/12 Codex 恢復後跑功能總驗收**：
-   - 新覆寫文案在所有渲染位置（題目卡 / 詳解卡片 / retry quiz / retry result detail）的一致性。
-   - fallback 路徑能否被觸發（暫時刪除 metadata 應顯示 fallback 文案）。
-   - 三層查找邏輯的 docstring 是否清楚。
-   - JS chunk 中新文案的 grep 命中（已驗證 2 次命中）。
+   - 實聽音檔驗證朗讀內容、語速、語音是否適合小一。
+   - `afinfo` / `mediainfo` 檢查音檔 metadata 無個資。
+   - Safari iOS（iPad）實測 m4a 可播。
+   - 多瀏覽器（Chrome / Safari / Firefox）audio 控制器視覺一致性。
 3. **下一輪實作建議優先序**（請 ChatGPT 收斂）：
-   - 路線 A：**P3-7-B 動工**（依 P3-7-A 11 條校正清單對 STARTERS_PART_TEMPLATES.md 校正；可能反過來修本輪 mapping 與覆寫條件，建議先做）。
-   - 路線 B：**P3-9-B 第二刀** — metadata validator helper（runtime 校驗 metadata 字面值與 question.type 對應一致）+ ttsScript / imagePrompt 升正式 schema 評估。
-   - 路線 C：**P3-9-C 第一刀** — part-specific UI 實作起點：選 RW1 yes-no 按鈕（最簡單）或 L3 A/B/C 圖選項（schema 已支援）作為第一刀。
-   - 路線 D：**P3-6-B-4 第三刀** — retry sessionStorage 或 wrongQuestionIds 升 v2。
-   - 路線 E：**P2-4C-2B-2 補真實音檔 / 補圖**。
-4. **2D map 重構建議**（當覆寫條件超過 5 條時做）：
+   - 路線 A：**多題 L3 音檔**——挑幾個既有 vocabulary 字（apple / cat / dog / book / red / blue 等）出 2~5 題新 listening 題（屬 P3-3-A AI 仿真題流程 + P2-4C-2B-2 音檔產生）；用既有流程批次產生。
+   - 路線 B：**P2-4C-2B-2 vocabulary 音檔**——用 `say` 流程批次補 54 字音檔，shell loop 即可。
+   - 路線 C：**P3-9-C 第二刀**——RW1 yes-no 按鈕（schema 改動小、教學價值高）。
+   - 路線 D：**P3-9-B 第二刀**——metadata validator helper（runtime 校驗 metadata 字面值）。
+   - 路線 E：**P3-7-D 動工**——撰寫 sample-paper-observations.md / mock-test-flow.md 第一版。
+4. **批次音檔產生 shell loop**（建議下下輪做）：
 
-```ts
-type StarterPartTypeKey = `${StarterPart}:${QuestionType}`;
-const STARTER_PART_TYPE_OVERRIDES: Partial<Record<StarterPartTypeKey, StarterPartInfo>> = {
-  "RW4:multiple-choice": { partLabel: "Part 4 preview", zhTitle: "短句選字 / 詞彙選擇" },
-  // 未來新增
-};
-function getStarterPartInfo(question) {
-  const key = `${question.starterPart}:${question.type}` as StarterPartTypeKey;
-  if (STARTER_PART_TYPE_OVERRIDES[key]) return STARTER_PART_TYPE_OVERRIDES[key]!;
-  // ... 後面同邏輯
-}
+```bash
+# 假設有 word list： apple cat dog book ...
+PART=l3
+for word in apple cat dog book; do
+  ID="q-lc-${word}"
+  TXT="What is this? It's a ${word}."
+  TMP="/tmp/${ID}.aiff"
+  OUT="public/audio/starters/${PART}/${ID}.m4a"
+  say -o "$TMP" "$TXT" && afconvert -f m4af -d aac "$TMP" "$OUT" && rm -f "$TMP"
+done
 ```
 
-本輪不做避免過度設計。
-
-5. **頁首補小字提示**（若家長反饋風險點 5）：在 `app/quiz/page.tsx` 頁首再加一句「Part 標示中『preview』表示『仿前者預備』」。本輪不做。
+5. **語速調整**（若家長反饋風險點 3）：在 `docs/TTS_AUDIO_WORKFLOW.md` 補一句「**建議語速：`-r 150` 對小一較友善**」+ 範例改 `say -r 150 -o ...`。
 
 ## 【Roadmap 同步檢查】
 
 對照新版 `PROJECT_ROADMAP.md`：
 
 - ✅ **P1**：未動。
-- 🟡 **P2**：未動（P2-4C-2B-2 仍 ⬜）。
-- 🟡 **P3**：本輪只在 P3-9-B 加 1 條 ✅（從 5✅+7⬜ 升為 6✅+7⬜）；P3-9 / P3-9-B / P3-9-C 整體仍 🟡。
+- 🟡 **P2**：升 🟡（P2-4C-2B-2 「真實音檔」 ⬜ → 🟡 部分進行中；P2-4C-2B-2 整體 header 從「尚未開始」改「🟡 部分進行中」）。
+- 🟡 **P3**：本輪 P3-9-C 從 7 條 ✅ 升為 10 條 ✅（新增 3 條：流程文件 / 路徑 / q-lc-001 第一個音檔）+ 既有 3 條 ⬜ 改寫為 4 條 ⬜（多題音檔 / 音檔品質檢查流程 / 雲端 TTS 評估 / 音檔快取管理）；P3-9 整體仍 🟡。
   - ✅ **P3-1 / P3-2-A / P3-3-A / P3-6-A / P3-6-B-1 / P3-6-B-2 / P3-6-B-3 / P3-7-A / P3-9-A**：上輪起維持 ✅，本輪未動。
-  - 🟡 **P3-9-B**：6 條 ✅（types / BaseQuestion 欄位 / 範例 metadata / Quiz Part 顯示優先讀 metadata / **getStarterPartInfo (starterPart, type) 細分文案** / DATA_SCHEMA 補段）+ 7 條 ⬜（ttsScript / imagePrompt 評估、difficulty、part-specific types、validator、sceneGroup、multi-blank、imageSequence 等）。
+  - 🟡 **P3-9-C part-specific quiz UI 實作**：10 條 ✅（audioSrc 欄位 / audio controls UI / fallback / 聽兩次提示 / q-lc-001 metadata / DATA_SCHEMA 補段 / STARTERS_PART_TEMPLATES 升 v2.1 / **新增 3 條：流程文件 / 路徑 / 第一個音檔**）+ 14 條 ⬜（其他 part-specific UI 條目 + L3 audio 後續 4 條）。
+  - 🟡 **P3-7-B**：6 條 ✅ + 3 條 ⬜（本輪未動）。
+  - 🟡 **P3-9-B**：6 條 ✅ + 7 條 ⬜（本輪未動）。
   - 🟡 **P3-6-B-4**：6 條 ✅ + 3 條 ⬜（本輪未動）。
   - 🟡 **P3-6-B-5 計時器**：1 條 ✅ + 1 條 ⬜（本輪未動）。
-  - ⬜ **P3-2-B / P3-3-B / P3-4 / P3-5 / P3-7-B / P3-7-C / P3-7-D / P3-8 / P3-9-C**：本輪未動。
+  - ⬜ **P3-2-B / P3-3-B / P3-4 / P3-5 / P3-7-C / P3-7-D / P3-8**：本輪未動。
 - ⬜ **P4 / P5**：未動（仍 ⬜）。
-- ➕ **目前明確不做**：未動。本輪所有禁止項目皆守住。
-- 變更紀錄追加 2026-05-09 一筆。
+- ➕ **目前明確不做**：未動。本輪所有禁止項目皆守住（不串雲端 TTS API / 不下載官方音檔 / 不複製官方 sample 音檔 / 不用網路 mp3）。
+- 變更紀錄追加 2026-05-10 一筆。
 
-P3 整體仍 🟡 進行中；P3-9 仍 🟡（A 完成、B 部分完成 6/13、C 未開始）；**符合任務單「不要把 P3-9-C 整體標完成、不要把 P3-9 整體標完成、不要把 P3 整體標完成」要求**。
+P2 升 🟡 進行中（P2-4C-2B-2 部分 🟡）；P3 整體仍 🟡 進行中；P3-9 仍 🟡（A 完成、B 部分完成 6/13、C 部分完成 10/24）；**符合任務單「不要把 P2-4C-2B-2 整體標完成、不要把 P3-9-C 整體標完成、不要把 P3 整體標完成」要求**。
