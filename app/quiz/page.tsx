@@ -9,16 +9,17 @@ export const metadata = {
 
 /**
  * Reading & Writing 段內題型順序（從易到難 / 從圖到字）：
- * picture-choice → word-choice → multiple-choice → fill-blank → matching
+ * picture-choice → true-false → word-choice → multiple-choice → fill-blank → matching
  */
 const RW_TYPE_ORDER: Record<QuestionType, number> = {
   // listening-choice 不在 R&W 段，給一個任意值即可
   "listening-choice": 0,
   "picture-choice": 1,
-  "word-choice": 2,
-  "multiple-choice": 3,
-  "fill-blank": 4,
-  matching: 5,
+  "true-false": 2, // P3-9-C 第三刀新增：RW1 yes / no 判斷題（與 picture-choice 同 RW1，先做 4 選 1 後做 yes / no）
+  "word-choice": 3,
+  "multiple-choice": 4,
+  "fill-blank": 5,
+  matching: 6,
 };
 
 /**

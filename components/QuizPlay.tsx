@@ -19,6 +19,7 @@ import type {
   MatchingQuestion,
   PictureChoiceQuestion,
   StarterPart,
+  TrueFalseQuestion,
   WordChoiceQuestion,
 } from "@/lib/types";
 
@@ -105,11 +106,12 @@ const STARTER_PART_DISPLAY: Record<StarterPart, StarterPartInfo> = {
  * 提醒：所有顯示文案皆為「練習版近似對應」，不代表官方題目本身。
  */
 function getStarterPartInfo(question: ExamQuestion): StarterPartInfo {
-  // P3-9-C 小修：(starterPart, question.type) 組合細分文案。
-  // 目前只覆寫一條：RW4 + multiple-choice 顯示「短句選字 / 詞彙選擇 preview」，
-  // 避免被籠統顯示為「短文 / 句子填空」（後者更貼近 fill-blank 的實際形式）。
+  // P3-9-C 小修 / 第三刀：(starterPart, question.type) 組合細分文案。
   if (question.starterPart === "RW4" && question.type === "multiple-choice") {
     return { partLabel: "Part 4 preview", zhTitle: "短句選字 / 詞彙選擇" };
+  }
+  if (question.starterPart === "RW1" && question.type === "true-false") {
+    return { partLabel: "Part 1", zhTitle: "看圖判斷 yes / no" };
   }
 
   // P3-9-B：優先讀 metadata
@@ -125,6 +127,8 @@ function getStarterPartInfo(question: ExamQuestion): StarterPartInfo {
         partLabel: "Part 1 / Part 2 preview",
         zhTitle: "看圖判斷 / 看圖選答案",
       };
+    case "true-false":
+      return { partLabel: "Part 1", zhTitle: "看圖判斷 yes / no" };
     case "word-choice":
       return { partLabel: "Part 3", zhTitle: "看圖認字 / 拼字練習" };
     case "multiple-choice":
@@ -539,7 +543,14 @@ function getQuestionStatus(
   return isCorrect(question, answer) ? "correct" : "incorrect";
 }
 
-/** 把使用者作答顯示為人類可讀文字（matching 用閱讀型描述、其他直接顯示原值）。 */
+/** "yes" / "no" 顯示為「Yes ✓」/「No ✗」（給 true-false 訂正頁用）。 */
+function formatYesNoDisplay(value: string): string {
+  if (value === "yes") return "Yes ✓";
+  if (value === "no") return "No ✗";
+  return value;
+}
+
+/** 把使用者作答顯示為人類可讀文字（matching 用閱讀型描述、true-false 用 Yes ✓/No ✗、其他直接顯示原值）。 */
 function formatUserAnswer(
   question: ExamQuestion,
   answer: string | undefined,
@@ -550,13 +561,19 @@ function formatUserAnswer(
       ? "已完成閱讀配對練習"
       : "（未完成）";
   }
+  if (question.type === "true-false") {
+    return formatYesNoDisplay(answer as string);
+  }
   return answer as string;
 }
 
-/** 把正確答案顯示為人類可讀文字（matching 顯示閱讀型說明）。 */
+/** 把正確答案顯示為人類可讀文字（matching 顯示閱讀型說明、true-false 顯示 Yes ✓/No ✗）。 */
 function formatCorrectAnswer(question: ExamQuestion): string {
   if (question.type === "matching") {
     return "本題目前為閱讀型練習，完成即算正確";
+  }
+  if (question.type === "true-false") {
+    return formatYesNoDisplay(question.answer);
   }
   return question.answer;
 }
@@ -1101,6 +1118,14 @@ function QuestionView({
           onSelectAnswer={onSelectAnswer}
         />
       );
+    case "true-false":
+      return (
+        <TrueFalseView
+          question={question}
+          currentAnswer={currentAnswer}
+          onSelectAnswer={onSelectAnswer}
+        />
+      );
   }
 }
 
@@ -1520,5 +1545,96 @@ function MatchingView({
         </button>
       </div>
     </>
+  );
+}
+
+// =============================================================
+// TrueFalseView（P3-9-C 第三刀，2026-05-10）
+// 對齊正式 RW1：圖 + 描述句 + Yes / No 二選一。
+// =============================================================
+
+function TrueFalseView({
+  question,
+  currentAnswer,
+  onSelectAnswer,
+}: ViewProps<TrueFalseQuestion>) {
+  return (
+    <>
+      <div className="mt-4 flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl bg-amber-50">
+        <QuizImage src={question.image} alt="題目圖片" size="lg" />
+      </div>
+      <PromptText prompt={question.prompt} />
+      <p className="mt-2 text-center text-xs text-slate-500">
+        這句話對嗎？
+      </p>
+      <ul
+        className="mt-6 grid grid-cols-2 gap-3 sm:gap-4"
+        role="radiogroup"
+        aria-label="Yes / No 判斷"
+      >
+        <li>
+          <YesNoButton
+            label="Yes"
+            emoji="✓"
+            color="emerald"
+            selected={currentAnswer === "yes"}
+            onClick={() => onSelectAnswer("yes")}
+          />
+        </li>
+        <li>
+          <YesNoButton
+            label="No"
+            emoji="✗"
+            color="rose"
+            selected={currentAnswer === "no"}
+            onClick={() => onSelectAnswer("no")}
+          />
+        </li>
+      </ul>
+    </>
+  );
+}
+
+type YesNoButtonProps = {
+  label: string;
+  emoji: string;
+  color: "emerald" | "rose";
+  selected: boolean;
+  onClick: () => void;
+};
+
+function YesNoButton({
+  label,
+  emoji,
+  color,
+  selected,
+  onClick,
+}: YesNoButtonProps) {
+  const colorClass =
+    color === "emerald"
+      ? selected
+        ? "bg-emerald-300 text-slate-900 ring-2 ring-emerald-500"
+        : "bg-white text-emerald-700 ring-1 ring-emerald-200 hover:-translate-y-0.5 hover:ring-emerald-400"
+      : selected
+        ? "bg-rose-300 text-slate-900 ring-2 ring-rose-500"
+        : "bg-white text-rose-700 ring-1 ring-rose-200 hover:-translate-y-0.5 hover:ring-rose-400";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      role="radio"
+      aria-checked={selected}
+      aria-label={label}
+      className={
+        "flex min-h-24 w-full flex-col items-center justify-center gap-1 rounded-2xl px-4 py-4 shadow-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200 sm:min-h-28 " +
+        colorClass
+      }
+    >
+      <span className="text-4xl sm:text-5xl" aria-hidden>
+        {emoji}
+      </span>
+      <span className="text-2xl font-bold sm:text-3xl">{label}</span>
+    </button>
   );
 }

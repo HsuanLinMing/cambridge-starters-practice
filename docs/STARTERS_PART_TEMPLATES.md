@@ -190,24 +190,26 @@ Cambridge Pre A1 Starters 正式考試分三大段：
 
 ## Reading & Writing 題型模板（Part 1 ~ Part 5）
 
-### Reading & Writing Part 1（RW1）：看圖 + 句子，判斷 yes/no 或 tick/cross（v2 校正）
+### Reading & Writing Part 1（RW1）：看圖 + 句子，判斷 yes/no 或 tick/cross（v2 校正 + P3-9-C 第三刀已實作 true-false 題型）
 
 - **官方方向簡述**：每題顯示一張圖 + 一句描述句（例如 `It is a cat.` 對應一張狗的圖），考生判斷句子是否描述正確，畫 ✓ 或 ✗（部分版本用 yes / no 文字答）。**官方規則**：本 Part 屬 R&W 段，spelling 規則對 yes / no 答案不直接影響（不用打字 yes / no）但孩子要能讀懂句子；本 Part 開頭有 1~2 題 example。
-- **本專案練習版目標**：對應未來的 `true-false` 子題型 / `picture-choice` 變體——一張圖 + 一句敘述 + 兩個大按鈕 ✓ / ✗。**目前 `picture-choice` 只是 RW1 preview**——形式接近但缺原生 yes/no 答題型，需 P3-9-B 後續刀數加 `true-false` 或 `answerStyle: "yes-no"` metadata。
+- **本專案練習版目標**：**P3-9-C 第三刀已實作 `true-false` 題型**——一張圖 + 一句敘述 + 兩個大按鈕（Yes emerald + ✓ / No rose + ✗），透過 `<TrueFalseView>` 渲染。`q-tf-001` 範例題（`/images/cat.svg` + `It is a cat.` + answer `yes`）已在 `data/p3-example-questions.json` 就位、`/quiz` 可實際操作。**`picture-choice` 仍保留作為 RW1 / RW2 preview**——兩種題型並存：picture-choice 是「圖 + 4 文字選項」、true-false 是「圖 + 1 句描述 + Yes / No」，後者更貼近正式 RW1 形式。
 - **題目互動方式**：
-  1. 顯示一張單物件圖。
-  2. 顯示一句描述（≤ 8 字英文）。
-  3. 提供兩個大按鈕：✓ Yes / ✗ No。
+  1. 顯示一張單物件圖（透過既有 `<QuizImage>` 含 fallback）。
+  2. 顯示一句描述（`prompt`，建議 ≤ 8 字英文）。
+  3. 顯示「這句話對嗎？」副提示。
+  4. 提供兩個大按鈕：Yes（emerald + ✓）/ No（rose + ✗），role="radio"，min-h-24/28，aria-label / aria-checked 完整。
 - **需要的資料欄位**：
-  - `image`（單物件圖）
-  - `prompt`（描述句）
-  - `answer`（`"yes"` 或 `"no"`，**或視為兩選項的 `picture-choice` / `multiple-choice` 變體**）
+  - `image`（單物件圖；必填）
+  - `prompt`（描述句；必填）
+  - `answer`（`"yes"` 或 `"no"` 字串字面量；必填）
+  - 可加 `starterSection: "reading-writing"` / `starterPart: "RW1"` / `expectedAnswerType: "choice"` metadata
 - **imagePrompt 建議**：單一物件、無背景、無英文字；風格與 R&W 其他 part 一致。
-- **answer 型態**：`choice`（yes / no 二選一）。
-- **目前 P3 schema 是否已支援**：⚠️ **不直接支援**——目前 6 題型沒有原生 yes/no 題型。可用 `multiple-choice` + `options: ["yes", "no"]` 暫代，但 UI 需要 P3-9-C 加大按鈕的視覺。建議 P3-9-B 加 `true-false` 或 `yes-no` 子題型，或在 metadata 加 `answerStyle: "yes-no"` 標記。
+- **answer 型態**：`choice`（yes / no 二選一；UI 顯示時轉為 `"Yes ✓"` / `"No ✗"`）。
+- **目前 P3 schema 是否已支援**：✅ **完整支援**（P3-9-C 第三刀 2026-05-10 落地）——`lib/types.ts` 新增 `TrueFalseQuestion` type；`QuestionType` union 加 `"true-false"`；`components/QuizPlay.tsx` 新增 `<TrueFalseView>` + `<YesNoButton>`；`getStarterPartInfo` / `formatUserAnswer` / `formatCorrectAnswer` 同步處理 true-false；`app/quiz/page.tsx` `RW_TYPE_ORDER` 加 `"true-false": 2` 排序對齊 RW1。
 - **未來需要補哪些功能**：
-  - `true-false` 題型（或 `yes-no` metadata）。
-  - 大型 ✓ / ✗ 按鈕視覺。
+  - 多題 RW1 yes-no 範例（目前只有 q-tf-001 一題）。
+  - 真正 ✓ / ✗ 手寫互動（畫圈 / 點擊勾叉而非按鈕；屬未來進階）。
 - **是否需要圖片**：✅ 必要。
 - **是否適合 AI 仿真題生成**：✅ 高度適合——AI 易出「正確 vs 故意錯誤」描述對；圖片描述明確。
 
@@ -320,6 +322,7 @@ Cambridge Pre A1 Starters 正式考試分三大段：
 | --- | --- | --- | --- |
 | `listening-choice` | **L3 preview / 部分支援** | 🟢 最接近 | 缺 A / B / C 視覺標籤；缺「heard twice」重播 UI；可擴充 image options |
 | `fill-blank` | **RW4 partial** | 🟢 較接近 | 單空格已支援；**多空格短文 + word bank 未支援**；缺「spelling must be correct」嚴格比對開關 |
+| `true-false` | **RW1**（P3-9-C 第三刀） | 🟢 較接近（最直接對齊） | 大型 Yes / No 按鈕已實作（emerald + ✓ / rose + ✗）；多題 RW1 樣本待補（目前只有 q-tf-001 一題）；真正 ✓ / ✗ 手寫互動屬未來進階 |
 
 ### 第二層：preview / 預備型題型（形式接近、互動或答題型不同）
 
@@ -609,4 +612,5 @@ P4 不是「在客觀題模板上加一個 speaking type」，而是設計一個
   - **新增「v2 後續實作優先順序建議」段**——8 項排序（L3 + TTS 音檔最先 / RW3 拼字輸入 / RW1 yes-no / RW4 多空格 / RW5 picture-story / L2 / L4 / L1 hotspot 最後）+ 排序理由 + 跨項目共通要求（不複製官方原文）。
   - 仍是練習版近似對應，**不複製官方題目 / 圖片 / 音檔 / sample paper 內容**——硬邊界與 v1 一致。
   - **後續若人工瀏覽 handbook / sample paper 後發現更精確的描述**，可升 v3（屬 P3-7-B 後續刀數 + P3-7-D「sample / mock test toolkit 觀察筆記」範圍）。
+- **v2.2**（2026-05-10，P3-9-C 第三刀 RW1 true-false 題型落地）：RW1 模板段升級為「P3-9-C 第三刀已實作 true-false 題型」狀態——含本專案練習版目標、題目互動方式、需要的資料欄位、`getStarterPartInfo` 細分覆寫（RW1 + true-false → 「Part 1：看圖判斷 yes / no」）、目前 P3 schema 是否已支援（✅ 完整支援）、未來需要補哪些功能；schema 對應表第一層補 `true-false → RW1` 一筆（🟢 較接近，最直接對齊）；**picture-choice 仍保留作為 RW1 / RW2 preview 第二層**——兩種題型並存（picture-choice = 圖 + 4 文字選項；true-false = 圖 + 1 句描述 + Yes / No 大按鈕）。
 - **v2.1**（2026-05-10，P3-9-C 第一刀 L3 audio 準備版）：在 L3 模板段補 `audioSrc?` optional 欄位說明 + UI fallback 機制（音檔載入失敗自動降級為文字練習，不 crash 頁面）+「聽兩次」UI 提示對應「heard twice」官方規則。資料層 `data/p3-example-questions.json` `q-lc-001` 已補 `audioSrc: /audio/starters/l3/q-lc-001.mp3`（實體 mp3 尚未產生，UI 自動 fallback 文字）。**仍未做** 真實 TTS 音檔產生 / 多題 L3 題庫 / 音檔快取（屬 P2-4C-2B-2 / P3-9-C 後續）。**硬邊界不變**：本專案不下載官方音檔，只能是自製或 TTS 自製。

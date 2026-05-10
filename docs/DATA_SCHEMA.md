@@ -103,6 +103,7 @@
 | `listening-choice` | 聽力選擇 | `audio` + `options` + `answer` |
 | `fill-blank` | 填空（選項版或自由填空版） | `prompt` + `answer` |
 | `matching` | 連連看 | `pairs` |
+| `true-false` | 看圖判斷 yes / no（對齊正式 RW1） | `image` + `prompt` + `answer`（"yes" 或 "no"） |
 
 ### `multiple-choice`：通用文字 4 選 1
 
@@ -258,6 +259,33 @@
 ```
 
 要點：正確配對由 `pairs` 原始順序決定（`pairs[i].left` ↔ `pairs[i].right`）；UI 端打散後讓使用者拖曳 / 點選配對。
+
+### `true-false`：看圖判斷 yes / no（P3-9-C 第三刀新增）
+
+```jsonc
+{
+  "id": "q-tf-001",
+  "type": "true-false",
+  "source": "ai_generated",
+  "image": "/images/cat.svg",
+  "prompt": "It is a cat.",
+  "answer": "yes",
+  "explanation": "圖片是貓，所以這句話是對的，答 Yes。",
+  "starterSection": "reading-writing",
+  "starterPart": "RW1",
+  "skillFocus": ["reading", "vocabulary"],
+  "expectedAnswerType": "choice"
+}
+```
+
+要點：
+
+- `image` 必填——一張清楚的單物件圖；對齊正式 RW1「圖 + 描述句」結構。
+- `prompt` 必填——簡短英文描述句（例如 `"It is a cat."` / `"This is a red apple."`）；對齊小一閱讀理解難度，建議 ≤ 10 字。
+- `answer` 必填——只能是 `"yes"` 或 `"no"`（全小寫；UI 顯示時自動轉為 `"Yes ✓"` / `"No ✗"`）。
+- 比對策略：直接字串相等（不需 normalize；因為使用者透過按鈕選擇、不會打字）。
+- UI 渲染為兩個大按鈕（Yes = emerald + ✓ / No = rose + ✗），對應「肯定 / 否定」視覺直覺。
+- **與 `picture-choice` 的差異**：picture-choice 是「圖 + 4 個文字選項，4 選 1」（preview RW1 / RW2）；true-false 是「圖 + 1 句描述句 + 2 選 1」（更貼近正式 RW1）。**兩者並存**——picture-choice 仍保留作為 RW1 / RW2 preview。
 
 ---
 

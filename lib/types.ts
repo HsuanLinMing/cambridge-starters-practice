@@ -74,7 +74,8 @@ export type QuestionType =
   | "word-choice" // 看字選圖（題目文字 + 4 圖片選項）
   | "listening-choice" // 聽力選擇（音檔 + 4 文字 / 圖片選項）
   | "fill-blank" // 填空（含選項版 / 自由填空版）
-  | "matching"; // 連連看
+  | "matching" // 連連看
+  | "true-false"; // 看圖判斷 yes / no（對齊正式 RW1）
 
 /** 難度標記，可省略；保留給未來分級練習使用。 */
 export type DifficultyLevel = "easy" | "medium" | "hard";
@@ -250,10 +251,28 @@ export type MatchingPair = {
   right: string;
 };
 
-/** 連連看：左右兩列各 N 項，原始順序即為正確配對；UI 端打散讓使用者配對。 */
+/** 連連看：左右兩列各 N 項，原始順序即為正確配對;UI 端打散讓使用者配對。 */
 export type MatchingQuestion = BaseQuestion & {
   type: "matching";
   pairs: MatchingPair[];
+};
+
+/**
+ * 看圖判斷 yes / no（對齊正式 RW1，P3-9-C 第三刀新增）。
+ * 一張圖 + 一句描述句 + 二選一（yes / no）。比對時直接字串相等（"yes" / "no" 全小寫）。
+ *
+ * 與 `picture-choice` 的差異：
+ *   - picture-choice 是「圖 + 4 個文字選項，4 選 1」（preview RW1 / RW2）。
+ *   - true-false 是「圖 + 1 句描述句 + 2 選 1（yes / no）」（更貼近正式 RW1）。
+ */
+export type TrueFalseQuestion = BaseQuestion & {
+  type: "true-false";
+  /** 題目圖片必填。 */
+  image: string;
+  /** 描述句必填（例如 "It is a cat."）。 */
+  prompt: string;
+  /** 必須是 "yes" 或 "no"（全小寫；UI 顯示時會轉為 "Yes" / "No"）。 */
+  answer: "yes" | "no";
 };
 
 /** P3 全題型 discriminated union。 */
@@ -263,7 +282,8 @@ export type ExamQuestion =
   | WordChoiceQuestion
   | ListeningChoiceQuestion
   | FillBlankQuestion
-  | MatchingQuestion;
+  | MatchingQuestion
+  | TrueFalseQuestion;
 
 /** 一份考卷的子段落（例如 Listening / Reading & Writing）。 */
 export type ExamSection = {

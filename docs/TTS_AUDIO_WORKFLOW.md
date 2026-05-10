@@ -312,7 +312,23 @@ Read only the given text exactly as written.
 | 版本 | 日期 | Output 檔名 | Instructions 重點 | 使用者實聽回饋 |
 | --- | --- | --- | --- | --- |
 | **v1** | 2026-05-10 | `q-lc-001-openai.mp3` | "Speak slowly and clearly for a 6-year-old child"；"Use clear standard British English pronunciation" | 比 macOS `say` 更正式、有 examiner 感；**但語速太慢、聽起來有點刻意** |
-| **v2** | 2026-05-10 | `q-lc-001-openai-v2.mp3` | 移除 "Speak slowly"，改為 "natural exam pace ... not overly slow"；加 "Do not over-emphasize each word"；"British" 改 "standard"（避免被綁死英式） | _待實聽_ |
+| **v2** | 2026-05-10 | `q-lc-001-openai-v2.mp3` | 移除 "Speak slowly"，改為 "natural exam pace ... not overly slow"；加 "Do not over-emphasize each word"；"British" 改 "standard"（避免被綁死英式） | **使用者實聽：v2 版自然很多，先採用**——✅ 已切換為 q-lc-001 正式 examiner voice 音檔（2026-05-10） |
+
+#### 目前 q-lc-001 採用版本（2026-05-10 起）
+
+| 版本 | 檔案 | 角色 | 是否在 `data/p3-example-questions.json` audioSrc 引用 |
+| --- | --- | --- | --- |
+| **OpenAI v2** | `q-lc-001-openai-v2.mp3` | **目前正式 examiner voice 音檔** | ✅ 是（`/audio/starters/l3/q-lc-001-openai-v2.mp3`） |
+| OpenAI v1 | `q-lc-001-openai.mp3` | 比較 / 歷史紀錄；不作為正式使用 | ❌ 否（檔案保留供日後回查） |
+| macOS `say` | `q-lc-001.m4a` | fallback / 歷史比較；本機自製基準線 | ❌ 否（檔案保留供日後回查） |
+
+**為什麼三版都保留**：
+
+- v1 是 OpenAI TTS 第一版實驗，作為「v1 instructions 太強調 slowly」的證據。
+- macOS `say` 版本是「不串雲端 API 也能跑」的 fallback——若未來 OpenAI 服務改版 / API key 失效 / 想完全離線，可改回 macOS say 版本。
+- 三版並存讓 v3+ 試產有對照組（包括「比 v2 自然 / 比 v2 正式」雙向都能定錨）。
+
+⚠️ **TTS voice 是 AI-generated，不是真人考官聲音**——使用時 UI / README 處處標示。
 
 #### v1 → v2 的調整理由
 
@@ -384,5 +400,6 @@ Read only the given text exactly as written.
 ## 版本
 
 - **v1**（2026-05-10）：第一版——macOS `say` + `afconvert` 流程；硬邊界（不串雲端 API、不下載官方音檔）；命名規則 / 路徑 / 人工檢查 / git 政策；雲端 TTS 評估規劃。
+- **v2.2**（2026-05-10，OpenAI v2 實聽通過 + 切換 audioSrc）：在「實聽調整紀錄」表 v2 列「使用者實聽回饋」欄填入「v2 版自然很多，先採用」+ 切換日期；新增「目前 q-lc-001 採用版本」對照表（v2 ✅ 正式 / v1 + macOS say 保留為比較與 fallback）+ 三版並存策略說明 + AI-generated 提醒。`data/p3-example-questions.json` `q-lc-001.audioSrc` 從 `.m4a` 切換為 `q-lc-001-openai-v2.mp3`。
 - **v2.1**（2026-05-10，OpenAI examiner voice 實聽調整 v1 → v2）：在「第二階段」段尾新增「OpenAI examiner voice 實聽調整紀錄」子段——含 v1 / v2 instructions 對照表 + 使用者實聽回饋（v1：比 macOS say 正式但語速太慢、有點刻意）+ v1 → v2 調整理由（移除 Speak slowly / 加 natural exam pace + not overly slow / 加 Do not over-emphasize each word / British → standard）+ v2 實聽檢核點 6 項（語速自然、無過度強調為新增重點）+ v3+ 觸發條件對照表（仍太快 / 太慢 / 像新聞主播 / 仍刻意 / 加字）+ 跑 v3 的環境變數用法（`OPENAI_TTS_OUTPUT_SUFFIX=v3`）。`scripts/generate_openai_tts_sample.mjs` 同步升級——支援 `OPENAI_TTS_OUTPUT_SUFFIX` 環境變數覆寫輸出檔名 suffix（預設 v2，可改 v3 / v2-fable 等）；instructions 改為 v2 版本（natural exam pace 系列，8 句 instructions）；docstring 加版本歷史。
 - **v2**（2026-05-10）：新增「第二階段：OpenAI TTS examiner voice 試產流程」段——一題試產（`q-lc-001-openai.mp3`）+ 完整 4 步流程 + API key 規範 + examiner-style instructions + 人工實聽確認 5 項 + 失敗處理表 + 切換 audioSrc 時機；對應 `scripts/generate_openai_tts_sample.mjs` 腳本與 `.env.example` 範本；硬邊界（只把自製文字轉自製音檔、絕不上傳官方原文 / 歷屆題、不批次、不覆蓋既有 macOS `say` 版本、不直接改 audioSrc、API key 不 commit、TTS voice 是 AI-generated 須處處標示）。第一階段 macOS `say` 流程仍為主線。
