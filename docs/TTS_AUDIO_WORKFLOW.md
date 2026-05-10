@@ -303,7 +303,48 @@ Read only the given text exactly as written.
 | API 回應 429 | rate limit；稍後再試 |
 | API 回應 500 | OpenAI 服務暫時問題；稍後再試 |
 | 音檔不正確（多念字 / 太快 / 不像 examiner） | 改 `instructions` 或 `voice` 重產；本檔可記錄 instructions 版本歷史 |
-| 試產後決定不採用 | 直接刪除 `q-lc-001-openai.mp3`；不切換 audioSrc |
+| 試產後決定不採用 | 直接刪除 `q-lc-001-openai-<suffix>.mp3`；不切換 audioSrc |
+
+### OpenAI examiner voice 實聽調整紀錄
+
+> 每次 instructions 調整後，請於下表追加一筆紀錄。Output suffix 對應實際 mp3 檔名（v1 為例外、無 suffix）。
+
+| 版本 | 日期 | Output 檔名 | Instructions 重點 | 使用者實聽回饋 |
+| --- | --- | --- | --- | --- |
+| **v1** | 2026-05-10 | `q-lc-001-openai.mp3` | "Speak slowly and clearly for a 6-year-old child"；"Use clear standard British English pronunciation" | 比 macOS `say` 更正式、有 examiner 感；**但語速太慢、聽起來有點刻意** |
+| **v2** | 2026-05-10 | `q-lc-001-openai-v2.mp3` | 移除 "Speak slowly"，改為 "natural exam pace ... not overly slow"；加 "Do not over-emphasize each word"；"British" 改 "standard"（避免被綁死英式） | _待實聽_ |
+
+#### v1 → v2 的調整理由
+
+- v1 instructions 過度強調 `Speak slowly` 導致 model 把每個字都拉長，產生「刻意」感。
+- v2 改為「natural exam pace」+「not overly slow」雙保險：給 model 明確「自然但不慢」的 anchor。
+- 加 `Do not over-emphasize each word` 直接對應「刻意感」這個回饋；OpenAI TTS 對「不要做 X」instructions 通常有效。
+- 把 `British English pronunciation` 改為 `standard English pronunciation`：v1 顯式英式可能讓 voice 在某些 voice（如 alloy 預設較中性 / 美式）下產生「假英式」感；改 standard 讓 voice 自然發揮。
+
+#### 使用者實聽 v2 的檢核點
+
+依任務單延伸自原 5 項：
+
+1. **發音清楚**——子音 / 母音清晰，無含糊。
+2. **語速自然**（**v2 重點**）——比 v1 快、比 macOS `say` 更平穩；聽起來像真人在念題目，不是逐字照念。
+3. **音色像考試員**——平穩 / 溫和 / 專業，不像故事旁白 / 卡通配音。
+4. **沒有過度強調**（**v2 重點**）——句子整體 flow 自然，不是每個字都 emphasis。
+5. **沒有多念額外內容**——只有「What does the boy want?」這一句。
+6. **檔案能在瀏覽器播放**——任何主流瀏覽器。
+
+#### v3+ 觸發條件（建議）
+
+若 v2 實聽仍有問題，建議再產 v3：
+
+| v2 觀察 | v3 instructions 調整方向 |
+| --- | --- |
+| 仍太快 | 加 `with comfortable pauses between phrases`（不直接加 slowly） |
+| 仍太慢 | 確認 `not overly slow` 是否被吃掉；加 `at conversational exam pace` |
+| 像新聞主播不像考官 | 加 `with the patience of someone speaking to a young child` |
+| 仍刻意 | 改 voice（嘗試 `fable` / `nova`），同 instructions |
+| 加字 | 加 `Do not greet, do not introduce, do not summarize` |
+
+跑 v3：`OPENAI_TTS_OUTPUT_SUFFIX=v3 node --env-file=.env.local scripts/generate_openai_tts_sample.mjs`
 
 ## 第三階段（未來）：其他雲端 TTS 評估
 
@@ -343,4 +384,5 @@ Read only the given text exactly as written.
 ## 版本
 
 - **v1**（2026-05-10）：第一版——macOS `say` + `afconvert` 流程；硬邊界（不串雲端 API、不下載官方音檔）；命名規則 / 路徑 / 人工檢查 / git 政策；雲端 TTS 評估規劃。
+- **v2.1**（2026-05-10，OpenAI examiner voice 實聽調整 v1 → v2）：在「第二階段」段尾新增「OpenAI examiner voice 實聽調整紀錄」子段——含 v1 / v2 instructions 對照表 + 使用者實聽回饋（v1：比 macOS say 正式但語速太慢、有點刻意）+ v1 → v2 調整理由（移除 Speak slowly / 加 natural exam pace + not overly slow / 加 Do not over-emphasize each word / British → standard）+ v2 實聽檢核點 6 項（語速自然、無過度強調為新增重點）+ v3+ 觸發條件對照表（仍太快 / 太慢 / 像新聞主播 / 仍刻意 / 加字）+ 跑 v3 的環境變數用法（`OPENAI_TTS_OUTPUT_SUFFIX=v3`）。`scripts/generate_openai_tts_sample.mjs` 同步升級——支援 `OPENAI_TTS_OUTPUT_SUFFIX` 環境變數覆寫輸出檔名 suffix（預設 v2，可改 v3 / v2-fable 等）；instructions 改為 v2 版本（natural exam pace 系列，8 句 instructions）；docstring 加版本歷史。
 - **v2**（2026-05-10）：新增「第二階段：OpenAI TTS examiner voice 試產流程」段——一題試產（`q-lc-001-openai.mp3`）+ 完整 4 步流程 + API key 規範 + examiner-style instructions + 人工實聽確認 5 項 + 失敗處理表 + 切換 audioSrc 時機；對應 `scripts/generate_openai_tts_sample.mjs` 腳本與 `.env.example` 範本；硬邊界（只把自製文字轉自製音檔、絕不上傳官方原文 / 歷屆題、不批次、不覆蓋既有 macOS `say` 版本、不直接改 audioSrc、API key 不 commit、TTS voice 是 AI-generated 須處處標示）。第一階段 macOS `say` 流程仍為主線。

@@ -161,7 +161,8 @@
       "Bash(chmod +x /Users/linxuanming/Documents/cambridge-starters-practice/scripts/generate_openai_tts_sample.mjs)",
       "Bash(unset OPENAI_API_KEY)",
       "Bash(echo \"exit code: $?\")",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }
