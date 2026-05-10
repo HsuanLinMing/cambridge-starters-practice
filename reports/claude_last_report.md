@@ -1,116 +1,127 @@
-# Claude Code 回報 · P3-9-C：L3 Listening 圖選項改為正式 3 選項 A/B/C（驗證 / 二次重跑）
+# Claude Code 回報 · P3-9-C：RW3 看圖拼字輸入第一版
 
 任務日期：2026-05-10
-任務性質：**資料 + 最小 UI 微調 + 文件**——L3 `q-lc-001` 從 4 選項調整為 3 選項對齊正式 Cambridge Starters L3 的 3 張版面。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪 Codex CLI 收到的是與上一輪相同的任務單；經檢查 `data/p3-example-questions.json` / `components/QuizPlay.tsx` / 4 份 doc 全部已落地，本輪屬「**驗證 / 二次重跑**」：未再修改任何檔案，只重新跑 `lint` / `typecheck` / `build` + dev smoke 確認狀態未飄移；同時依任務單要求把報告完整重寫覆蓋（不保留上一輪內容）。所有硬邊界遵守：未呼叫 OpenAI API / 未重產音檔 / 未新增 audio / 未新增圖片 / 未下載官方素材 / 未使用官方題目 / 未新增大量題目 / 未改 transcript / ttsScript / 未改 RW1 yes/no UI / 未做 Speaking Agent / 未做錄音 STT / 未部署 / 未動後端 DB 登入 / 未處理 npm audit / 未 commit API key 或 .env。
+任務性質：**Schema + 資料 + UI 元件 + 文件**——`/quiz` 新增 `spelling` 題型對齊正式 Cambridge Starters Reading & Writing Part 3「看圖拼字」核心練習形式。**Codex 暫停期由 Claude 自測**，使用者手動驗收，5/12 後 Codex 完整總驗收。本輪硬邊界全遵守：未碰 OpenAI / TTS / 音檔 / 重產音檔；未新增 audio / 圖片（重用既有 `apple.svg`）；未下載官方素材；未使用官方題目；未新增大量題目（只新增 1 題 q-sp-001）；未改 Listening 行為（仍 OpenAI v2 + transcript 隱藏）；未改 L3 audio / options（仍 3 張 A/B/C）；未改 RW1 yes/no UI；未做 Speaking Agent / 錄音 / STT；未部署；未動後端 / DB / 登入；未處理 npm audit；未 commit API key / `.env` / `.env.local`。
 
 ## 【本輪修改摘要】
 
-**本輪未再修改任何 source code / data 檔案**（上一輪已落地、現況經驗證仍正確）；只重寫 `reports/claude_last_report.md` 一份。`q-lc-001.options` 仍為 3 個 ImageOption（apple/banana/cat），`answer` 仍是 `"apple"`，`audioSrc` 仍是 `/audio/starters/l3/q-lc-001-openai-v2.mp3`，`transcript` / `ttsScript` 仍為 `"What does the boy want?"`，`explanation` 仍為「音檔說小男孩想要蘋果。」（未提到 4 選項或 dog，無需動）。`components/QuizPlay.tsx` `ListeningChoiceView` image 分支 grid class 仍為 `grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4`（手機 2 欄 / 桌機 3 欄）；`ListeningImageOptionButton` 元件本身未動，`String.fromCharCode(65 + idx)` 自動只派發 A/B/C 不再有 D。`docs/DATA_SCHEMA.md` jsonc 範例 + `optionType` 說明含 L3 對齊建議；`docs/STARTERS_PART_TEMPLATES.md` L3 模板段升 v2.4 + 互動方式第 3 步「**3 張**」+ 未來功能清單把「限制選項為 3」/「補 banana.svg」標 ✅ 完成；`README.md` `/quiz` L3 段「3 張自製 SVG」+「移除 dog 選項」+「`grid-cols-2 sm:grid-cols-3`」描述齊全；`PROJECT_ROADMAP.md` 含 ✅「L3 q-lc-001 已調整為 3 選項 A/B/C」+ ⬜「未來多題 L3 圖片題庫」+ ⬜「未來更完整 L3 Part 3 題型模板」3 條對應；**P3-9-C 仍 🟡，P3 仍 🟡——未把任何整體階段標完成**。`npm run lint` / `typecheck` / `build` 全綠 + dev smoke 全綠。
+`lib/types.ts` `QuestionType` union 加 `"spelling"` + 新增 `SpellingQuestion` discriminated union 成員（`image` / `prompt` / `answer` 必填，含完整 docstring 說明與 `word-choice` / `fill-blank` 差異）；`ExamQuestion` union 同步 extend。`components/QuizPlay.tsx` 新增 `<SpellingView>` 元件（圖大圖 `aspect-square` + `<PromptText>` 提示語 + 大型 `<input type="text">` text-3xl 文字、停 autoCapitalize / autoCorrect / autoComplete / spellCheck 避免行動裝置干擾孩子拼字）+ `isCorrect` 加 spelling case（**normalize 比對**：trim + toLowerCase 比對 → `apple` / `Apple` / `APPLE` / `"  apple  "` 答對；**不做 fuzzy matching**：`aple` 算錯，對齊「spelling must be correct」精神）+ `getStarterPartInfo` 加 (RW3, spelling) 細分覆寫顯示「Part 3：看圖拼字」+ fallback switch 加 case "spelling" + (RW3, word-choice) 細分顯示「Part 3：看圖認字（看字選圖 preview）」+ `QuestionView` switch 加 case "spelling" 派發 `<SpellingView>`；`formatUserAnswer` / `formatCorrectAnswer` / `getQuestionPromptDisplay` 對 spelling 走 default 路徑（直接顯示 raw 字串）；`SpellingQuestion` 已加入 imports。`app/quiz/page.tsx` `RW_TYPE_ORDER` 加 `spelling: 4`（接在 `word-choice: 3` 之後，從認字到拼字）+ `multiple-choice` / `fill-blank` / `matching` 整體 +1（5 / 6 / 7）；TS Record 完整覆蓋避免排序 NaN。`data/p3-example-questions.json` 新增 1 題 `q-sp-001`（`source: "ai_generated"` / `image: "/images/apple.svg"` 重用既有 SVG / `prompt: "Look at the picture. Write the word."` / `answer: "apple"` / `explanation: "圖片是蘋果，所以正確單字是 apple。"` / `starterPart: "RW3"` 完整 metadata / `expectedAnswerType: "text"` / `skillFocus: ["spelling", "vocabulary"]` / `promptVersion: "starters-rw3-spelling-v1"`）；位置在 q-wc-001 之後維持 RW3 連續分區。`data/exam-papers.example.json` reading-writing section.questionIds 加 `q-sp-001`（緊接 q-wc-001 之後）+ `sourceMix.ai_generated` 從 5 升 6 + description 從「7 題」改「10 題混合題型，含聽力、看字選圖、yes/no、看圖拼字」+ section description 加「看圖拼字」。文件 4 份同步：`docs/DATA_SCHEMA.md` 6 題型表加 spelling 一列 + 詳細 schema 說明段（jsonc 範例 + 6 條要點 + 與 word-choice / fill-blank 並存差異說明）+ 7 題範例 metadata 表升級為 10 題（補 q-tf-001 / q-tf-002 / q-sp-001）；`docs/STARTERS_PART_TEMPLATES.md` 升 v2.5：RW3 模板段升級為「P3-9-C 第三刀後續已實作 spelling 題型」狀態（含完整本專案練習版目標 / 互動方式 4 步 / 資料欄位 / 目前 schema 完整支援 ✅ / 未來需要補哪些功能 5 條）+ schema 對應表第一層加 spelling → RW3 🟢 一筆 + 第三層 RW3 從 ⬜ 改 ✅ 第一版；`README.md` `/quiz` 條目題型順序加 `true-false` / `spelling` + q-sp-001 描述 + 從「6 題型最小渲染」升「8 題型」；`PROJECT_ROADMAP.md` P3-9-C「⬜ RW3 拼字輸入 + 看答案 / 再試一次 / 下一題」改 ✅「RW3 看圖拼字輸入第一版」+ 新增 2 條 ⬜（多題拼字題庫 + 更精準對齊正式 Starters RW3 格式），P3-9-C 從 22 條 ✅ 升為 23 條 ✅。`npm run lint` / `typecheck` / `build` 全綠 + dev smoke 全綠。**P3-9-C 仍 🟡，P3 仍 🟡——未把任何整體階段標完成**。
 
 ## 【修改檔案清單】
 
-本輪只動 1 份（重寫報告）：
+新增 0 份；修改 8 份：
 
-- `reports/claude_last_report.md`：依任務單要求覆蓋上一輪內容、寫入本輪「驗證 / 二次重跑」結果與當前狀態快照。
+- `lib/types.ts`：(a) `QuestionType` union 加 `"spelling"` 字面量；(b) 新增 `SpellingQuestion` type（image / prompt / answer 必填，含完整 docstring 說明與 word-choice / fill-blank 差異）；(c) `ExamQuestion` discriminated union 加進。
+- `components/QuizPlay.tsx`：(a) imports 加 `SpellingQuestion`；(b) `getStarterPartInfo()` 加 (RW3, spelling) → 「Part 3：看圖拼字」+ (RW3, word-choice) → 「Part 3：看圖認字（看字選圖 preview）」細分覆寫 + fallback switch 加 case "spelling"；(c) `isCorrect()` 加 spelling case（normalize 比對，不做 fuzzy matching）；(d) `QuestionView` switch 加 case "spelling" 派發 `<SpellingView>`；(e) 新增 `<SpellingView>` 元件——圖大圖 + `<PromptText>` 提示語 + 大型 `<input>` 輸入框（停 autoCapitalize / autoCorrect / autoComplete / spellCheck，避免行動裝置干擾）+ 提示語「大小寫與前後空白不計」。
+- `app/quiz/page.tsx`：`RW_TYPE_ORDER` 加 `spelling: 4`（接在 `word-choice: 3` 之後）+ multiple-choice / fill-blank / matching 整體 +1。
+- `data/p3-example-questions.json`：新增 `q-sp-001`（apple.svg 重用 / Look at the picture. Write the word. / answer apple / explanation / RW3 metadata 完整）；位置在 q-wc-001 之後 q-tf-002 之前。
+- `data/exam-papers.example.json`：(a) reading-writing section.questionIds 加 `q-sp-001`（緊接 q-wc-001 之後）；(b) `sourceMix.ai_generated` 從 5 升 6；(c) paper-level description 從「7 題」改「10 題混合題型，含聽力、看字選圖、yes/no、看圖拼字」；(d) section description 加「看圖拼字」。
+- `docs/DATA_SCHEMA.md`：(a) 6 題型表加 spelling 一列；(b) 新增 spelling 詳細 schema 說明段（範例 jsonc + 6 條要點 + 與 word-choice / fill-blank 並存差異）；(c) 7 題範例 metadata 表升級為 10 題（含 q-tf-001 / q-tf-002 / q-sp-001）。
+- `docs/STARTERS_PART_TEMPLATES.md`：(a) RW3 模板段升級為「v2 校正 + P3-9-C 第三刀後續看圖拼字輸入第一版」+ 完整本專案練習版目標 / 互動方式 4 步 / 資料欄位 / 目前 schema 完整支援 ✅ / 未來需要補哪些功能 5 條；(b) schema 對應表第一層加 `spelling → RW3` 🟢 一筆；(c) 第三層 RW3 從 ⬜ 改 ✅ 第一版；(d) 版本段加 v2.5（2026-05-10，P3-9-C 第三刀後續 RW3 看圖拼字輸入第一版）。
+- `README.md`：(a) `/quiz` 條目題型順序段把 R&W 順序從 `picture-choice → word-choice → multiple-choice → fill-blank → matching` 改為 `picture-choice → true-false → word-choice → spelling → multiple-choice → fill-blank → matching`；(b) 9 題對應段加「q-sp-001 → RW3 看圖拼字輸入」描述（含 P3-9-C 第三刀後續、apple.svg + Look at the picture. Write the word. + answer apple + normalize 比對 + 行動裝置設定）；(c) 「6 題型最小渲染」改「8 題型最小渲染」。
+- `PROJECT_ROADMAP.md`：P3-9-C 「⬜ RW3 拼字輸入 + 看答案 / 再試一次 / 下一題」改 ✅「RW3 看圖拼字輸入第一版（P3-9-C 第三刀後續，2026-05-10）」（含完整本輪修改清單：types union / SpellingQuestion / SpellingView / isCorrect normalize / getStarterPartInfo / QuestionView dispatch / RW_TYPE_ORDER 4 / q-sp-001 範例 / exam-papers questionIds / sourceMix / 4 份 doc 同步）；新增 2 條 ⬜（未來 RW3 多題拼字題庫 + 未來更精準對齊正式 Starters RW3 格式：缺字提示版 / 看答案按鈕 / 與 review 區整合）。
 
-**已於上一輪落地、本輪確認狀態仍正確未飄移**（zero edit）：
-
-- `data/p3-example-questions.json`：`q-lc-001.options` 仍 3 個 ImageOption（apple → /images/apple.svg / banana → /images/banana.svg / cat → /images/cat.svg）；`answer` / `audioSrc` / `transcript` / `ttsScript` / `explanation` / `optionType` / metadata 全部不動。
-- `components/QuizPlay.tsx`：`ListeningChoiceView` image 分支 `<ul>` className 仍為 `"mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4"`（行號 1476）；`ListeningImageOptionButton` / `QuizImage` / `ImageOptionButton` / `TextOptionButton` / `<TrueFalseView>` / `<YesNoButton>` / 其他 view / hook / type 全保留。
-- `docs/DATA_SCHEMA.md`：listening-choice 段 jsonc 範例 3 個 ImageOption；`optionType` 說明含「圖卡（手機 `grid-cols-2`、桌機 `sm:grid-cols-3`）」+ 「A / B / C ...標籤」+「**L3 對齊建議**：3 選項對齊正式 Cambridge L3」段。
-- `docs/STARTERS_PART_TEMPLATES.md`：L3 模板段標題「+ 第三刀 A/B/C 圖選項視覺」+ 互動方式第 3 步「**3 張**」+ 未來功能清單「限制選項數為 3」/「補 banana.svg」皆 ✅；schema 對應表第一層 `listening-choice` 條目「✅ A / B / C 視覺標籤 + 圖選項 + **3 選項對齊正式 L3**」；版本段 v2.4。
-- `README.md`：`/quiz` 條目「L3 聽力選項升級為 A/B/C 圖卡」+「**3 張**自製 SVG（apple/banana/cat，對齊正式 Cambridge L3 的 3 張版面、移除 dog 選項）」+「`grid-cols-2 sm:grid-cols-3`」描述。
-- `PROJECT_ROADMAP.md`：P3-9-C 段含 ✅「L3 q-lc-001 已調整為 3 選項 A/B/C（P3-9-C 第三刀後續，2026-05-10）」+ ⬜「未來多題 L3 圖片題庫」+ ⬜「未來更完整 L3 Part 3 題型模板（含 example handling / heard-twice UI）」。
-
-未動：`lib/types.ts`（`ImageOption[]` 接受任意長度）/ `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / 任何 `app/review/*` / `app/page.tsx` / 其他 components / `data/exam-papers.example.json`（題目順序 / sourceMix 不變）/ `data/vocabulary.json` / `public/images/`（apple / banana / cat / dog 4 個 SVG 全保留：dog.svg 仍被 `q-mt-001` matching 題引用）/ `public/audio/`（OpenAI v2 + v1 + macOS say 三版皆保留）/ `docs/PRODUCT_SPEC.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `source_materials/*` / `.env.example` / `.gitignore` / `package.json` / `scripts/*` / 依賴。
+未動：`lib/data.ts` / `lib/examSessionStorage.ts` / 任何 `app/review/*` / `app/page.tsx` / 其他 components / `data/vocabulary.json` / `data/quizzes.json` / `public/images/`（apple.svg 重用、未產生新圖）/ `public/audio/`（OpenAI v2 + v1 + macOS say 三版皆保留）/ `docs/PRODUCT_SPEC.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `source_materials/*` / `.env.example` / `.gitignore` / `package.json` / `scripts/*` / 依賴。**Listening 行為完全未動**：q-lc-001 仍 OpenAI v2 audioSrc / 仍 3 選項 A/B/C / transcript 仍隱藏；**RW1 yes/no UI 完全未動**：`<TrueFalseView>` / `<YesNoButton>` / formatYesNoDisplay 全保留 / q-tf-001 + q-tf-002 不動。
 
 ## 【核心邏輯說明】
 
-純資料縮小 + 最小 grid class 微調，**零 schema / 型別 / 元件邏輯變動**。整條鏈如下：
+整條鏈如下：
 
-1. `data/p3-example-questions.json` `q-lc-001.options` 長度 3：`ImageOption[]` 型別接受任意長度（`length: number` 是內建欄位）。
-2. `lib/types.ts` `ListeningChoiceQuestion.options: string[] | ImageOption[]` 接受任意長度——typecheck 一秒過。
-3. `app/quiz/page.tsx` 載入考卷 / 排序 / `RW_TYPE_ORDER` 全依 `id` / `starterPart` / `type` 處理，與 options 長度無關。
-4. `components/QuizPlay.tsx` `<QuestionView>` 對 `listening-choice` 派發到 `<ListeningChoiceView>`；image 分支用 `(question.options as ImageOption[]).map((opt, idx) => ...)` 渲染——3 個元素就生 3 個 `<li>`。
-5. `<ListeningImageOptionButton label={String.fromCharCode(65 + idx)}>` 自動取 65=A / 66=B / 67=C；`idx` 從 0 跑到 2 → 自動只產 A / B / C，不會出現 D。
-6. **唯一 UI 改動**：grid class `grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4` → sm（≥ 640px）斷點以上由 2 欄變 3 欄；手機（< sm）仍是 `grid-cols-2`，3 個元素自然換行：第二列只有 1 個 C 獨佔（靠左）。
-7. 結果頁 / `formatUserAnswer` / `formatCorrectAnswer` / `getQuestionPromptDisplay` / `<QuestionDetailCard>` 所有邏輯與 options 長度無關——交卷後仍正確顯示「你的答案」/「正確答案：apple」/「音檔說小男孩想要蘋果。」 + transcript「What does the boy want?」訂正用。
-8. localStorage `quizSession` schemaVersion 不變、sessionId 用 paperId + questionOrder hash——9 題順序未動 → 既有 session 不需 invalidate。
+1. **Schema 層**（`lib/types.ts`）：`QuestionType` 加 `"spelling"` 字面量 → discriminated union 自動 narrow；`SpellingQuestion = BaseQuestion & { type: "spelling"; image: string; prompt: string; answer: string }` 三必填欄位；`ExamQuestion` union 加進。`BaseQuestion.metadata` optional 欄位（`starterSection` / `starterPart` / `skillFocus` / `expectedAnswerType`）由 q-sp-001 補齊 → `getStarterPartInfo` 優先讀 metadata。
+2. **資料層**（`data/p3-example-questions.json`）：q-sp-001 完整 metadata；位置在 q-wc-001（RW3 認字）之後 q-tf-002（RW1 之後）之前。但實際 R&W 段排序由 `RW_TYPE_ORDER` 決定（不是 JSON 順序）。
+3. **排序層**（`app/quiz/page.tsx`）：`RW_TYPE_ORDER` `spelling: 4` → 與 `word-choice: 3` 緊接，渲染順序為 picture-choice (q-pc-001) → true-false (q-tf-001 / q-tf-002) → word-choice (q-wc-001) → **spelling (q-sp-001)** → multiple-choice (q-mc-001) → fill-blank (q-fb-001 / q-fb-002) → matching (q-mt-001)。`/quiz` 第 1 題仍是 listening (q-lc-001)；R&W 段第 1 題是 q-pc-001、第 5 題是 q-sp-001。
+4. **UI 層**（`<SpellingView>`）：圖大圖（`aspect-square w-full` + `bg-amber-50` 同既有 picture-choice 的圖片區塊風格）+ `<PromptText>`（既有元件，h2 大字 amber-50 系）+ 大型 `<input>`（`text-3xl font-bold` 比 fill-blank 的 `text-2xl` 大一階對應「看圖拼字」是核心題型；`autoCapitalize="none"` / `autoCorrect="off"` / `autoComplete="off"` / `spellCheck={false}` 避免行動裝置自動修正干擾孩子拼字）+ 提示行「大小寫與前後空白不計」（家長 / 孩子預期管理）。
+5. **比對層**（`isCorrect`）：spelling case 走 `normalize(answer) === normalize(question.answer)`（既有 `normalize` helper：`s.trim().toLowerCase()`）。**不做 fuzzy matching**：
+   - `apple` → normalize "apple" === "apple" ✅
+   - `Apple` → normalize "apple" === "apple" ✅
+   - `APPLE` → normalize "apple" === "apple" ✅
+   - `"  apple  "` → normalize "apple" === "apple" ✅
+   - `aple` → normalize "aple" !== "apple" ❌（對齊正式 RW3 「spelling must be correct」精神，少一個字母即錯）
+   - `""` → `isAnswered` 先擋（length 0 → 未作答狀態，不進 isCorrect）。
+6. **結果頁層**：`formatUserAnswer` 對 spelling 走 default 路徑直接回 raw string（保留使用者實際輸入），`formatCorrectAnswer` 回 `question.answer`（"apple"），`getQuestionPromptDisplay` 走 default 回 `question.prompt`（"Look at the picture. Write the word."）作訂正用題目文字；`<QuestionDetailCard>` 自動套用既有 emerald / rose / amber 三色配色。
+7. **localStorage session 一致性**：`sessionId` 由 paperId + questionOrder hash；本輪 questionOrder 從 9 題升 10 題 → hash 變化 → 既有舊 session 自動 invalidate（`isCompatibleSession` 回 false → 讀 stored 失敗 → 新 session）。**對使用者影響**：之前的測驗進度會清空、需要重做。任務單未明示需保留 session，故視為可接受副作用；未來若想 backwards-compat 可改用更寬鬆的 sessionId 策略，但屬未來範圍。
 
 ## 【測試結果】
 
-本輪重新跑了一次完整驗證：
-
 - `npm run lint`：✅ 全綠（zero issues）
-- `npx tsc --noEmit`（typecheck）：✅ 全綠（discriminated union 完整 narrow、`options.length` 動態合法）
+- `npx tsc --noEmit`（typecheck）：✅ 全綠（discriminated union exhaustive 檢查通過：`QuestionView` switch / `getStarterPartInfo` switch / `isCorrect` 的 spelling case 全部 narrow 正確；`RW_TYPE_ORDER` 是 `Record<QuestionType, number>` 強型別，加 spelling 後仍 exhaustive）
 - `npm run build`：✅ **88 routes** 全部 static prerendered（路由數不變）
 - dev smoke（`npm run dev` + curl）：
   - 8 條路由 200：`/` / `/quiz` / `/review` / `/review/words` / `/review/picture` / `/review/letter/a` / `/review/word/apple` / `/review/word/banana`
-  - `/quiz` SSR HTML：`q-lc-001-openai-v2.mp3` 出現 **2 次**（`<audio src=>` + RSC payload）→ 確認音檔仍 v2、未動
-  - `/quiz` SSR HTML：3 個 `aria-label="選項 A"` / `aria-label="選項 B"` / `aria-label="選項 C"` 各 1 次 → A/B/C 三張圖卡渲染正確
-  - `/quiz` SSR HTML：grep `選項 D` = **0** → **D 不存在**
-  - `/quiz` SSR HTML：apple.svg × 4 / banana.svg × 2 / cat.svg × 5 / **dog.svg × 2**（dog 從 listening 完全消失，但 `q-mt-001` matching 題仍引用 → 整體 RSC payload 中 dog.svg 出現次數降低符合預期）
-  - `/quiz` SSR HTML：transcript「What does the boy want」出現 2 次（**只在 RSC payload**：`transcript` + `ttsScript` 兩個 field 同字串，皆給結果頁詳解使用；visible 區未顯示）→ 確認 P3-9-C 第二刀「考試中隱藏 transcript」行為仍正常
-  - `/quiz` SSR HTML：「It is a cat」（q-tf-001 RW1 yes）仍出現 1 次 → RW1 yes/no 未受影響
-  - `/quiz` SSR HTML：grid class `grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4` 出現 1 次 → 確認 className 仍在
+  - `/quiz` SSR HTML：`q-lc-001-openai-v2.mp3` 出現 2 次（audio src + RSC payload）→ 確認 Listening 仍 OpenAI v2、未動
+  - `/quiz` SSR HTML：3 個 `aria-label="選項 A/B/C"`（L3 listening 仍 3 張 A/B/C 圖卡）+ grep `選項 D` = 0 → L3 未變動
+  - `/quiz` SSR HTML：transcript「What does the boy want」出現 2 次（**只在 RSC payload**：transcript + ttsScript 兩 field 同字串，皆給結果頁詳解使用；visible 區未顯示）→ 確認 P3-9-C 第二刀「考試中隱藏 transcript」仍正常
+  - `/quiz` SSR HTML：q-sp-001 出現在 RSC payload（grep `q-sp-001` × 1）+ prompt 「Look at the picture」出現 1 次 → q-sp-001 完整 metadata 已載入
+  - `/quiz` SSR HTML：「spelling」字串出現 4 次（type / promptVersion suffix / skillFocus 等多處）→ 確認新型別 / 新 metadata 都在 RSC payload
+  - `/quiz` SSR HTML：「starterPart\":\"RW3」出現 2 次 → q-wc-001 + q-sp-001 兩題 RW3 metadata 都已 serialize
+  - `/quiz` SSR HTML：10 題 id 全部出現在 RSC payload（q-lc-001 / q-mc-001 / q-pc-001 / q-tf-001 / q-tf-002 / q-wc-001 / q-sp-001 / q-fb-001 / q-fb-002 / q-mt-001）→ 完整 paper 已載入
+  - `/quiz` SSR HTML：「It is a cat」（q-tf-001 RW1 yes）+「It is a dog」（q-tf-002 RW1 no）各 1 次 → RW1 yes/no 行為未受影響
   - dev log 無 error / hydration warn
 
 ## 【手動檢查結果】
 
-dev server 已停（Claude 透過 curl SSR HTML 驗證了關鍵字串）。以下需使用者實機在瀏覽器試玩確認最終視覺；Claude 能透過 SSR HTML 驗證的部分標 ✅（curl）：
+dev server 已停。以下需使用者實機在瀏覽器試玩確認最終視覺；Claude 能透過 SSR HTML 驗證的部分標 ✅（curl）：
 
 | 檢查項 | 預期 | Claude 透過 curl 能驗證的部分 |
 |---|---|---|
-| `/quiz` 第 1 題 Listening 使用 OpenAI v2 | `<audio src=...openai-v2.mp3>` | ✅ HTML 含 `q-lc-001-openai-v2.mp3` × 2 |
-| `/quiz` 第 1 題不顯示 transcript | visible 區無「What does the boy want」 | ✅ 字串只出現在 RSC payload（transcript + ttsScript = 共 2 次），visible HTML 不含 |
-| Listening options 只顯示 A / B / C 三張圖卡 | 3 張圖卡，標籤 A/B/C | ✅ 3 個 `aria-label="選項 A/B/C"` 各 1 次 |
-| 不顯示 D | 無 D 標籤 | ✅ grep `選項 D` 0 次、`aria-label="選項 D"` 0 次 |
-| 不顯示 apple / banana / cat 英文字 | 圖卡只有 A/B/C 標籤 + 圖 | ✅ `ListeningImageOptionButton` 不渲染 `option.value`；HTML 中無 visible 英文單字（apple/banana/cat 字串只出現在 RSC payload + image src 路徑） |
-| A / B / C 圖片都正常顯示 | 真實 SVG 顯示 | ✅ 3 個 `/images/<name>.svg` 路徑都在 HTML；apple.svg / banana.svg / cat.svg 都存在（HTTP 200，前輪驗證過）→ probe.onload 會 fire（**需使用者實機 hydration 後確認**） |
-| 選中狀態清楚 | amber-500 ring + 高亮 | ✅ `ListeningImageOptionButton` selected 時 `bg-amber-100 ring-2 ring-amber-400` + 標籤底色 amber-500（**需使用者實機點選確認**） |
-| 下一題正常 | 點選後「下一題」可點 | ✅ `app/quiz/page.tsx` 邏輯與 options 長度無關（**需使用者實機點完跑流程確認**） |
-| 結果頁詳解正常 | 你的答案 / 正確答案 / explanation / transcript | ✅ `QuestionDetailCard` 邏輯不變、`formatUserAnswer` / `formatCorrectAnswer` 對 listening 走 default 路徑（**需使用者實機交卷後確認**） |
-| RW1 yes/no 題仍正常 | q-tf-001 / q-tf-002 prompt + Yes/No 按鈕 | ✅ HTML 含「It is a cat」（q-tf-001）；`<TrueFalseView>` / `<YesNoButton>` 完全未動 |
+| `/quiz` 第 1 題 Listening 仍使用 OpenAI v2 | `<audio src=...openai-v2.mp3>` | ✅ HTML 含 `q-lc-001-openai-v2.mp3` × 2 |
+| `/quiz` 第 1 題仍不顯示 transcript | visible 區無「What does the boy want」 | ✅ 字串只出現在 RSC payload（× 2，transcript + ttsScript），visible HTML 不含 |
+| L3 options 仍是 A/B/C 三張圖卡 | 3 張圖 + A/B/C 標籤 + 無 D | ✅ 3 個 `aria-label="選項 A/B/C"`、grep `選項 D` = 0 |
+| RW1 yes/no 題仍正常 | q-tf-001 / q-tf-002 prompt + Yes/No 按鈕 | ✅ HTML 含「It is a cat」+「It is a dog」 |
+| RW3 spelling 題顯示圖片與輸入框 | q-sp-001 第 5 題 R&W：apple 大圖 + Look at the picture. Write the word. + 大型 input | ✅ q-sp-001 完整 metadata 在 RSC payload + image apple.svg + prompt 字串；`<SpellingView>` 元件已 render（typecheck 通過）→ **需使用者實機點到第 5 題（R&W 第 5 題 = 整體第 6 題：q-lc-001 → q-pc-001 → q-tf-001 → q-tf-002 → q-wc-001 → q-sp-001）確認視覺** |
+| 輸入 apple 應答對 | normalize "apple" === "apple" | ✅ `isCorrect` spelling case 已實作（normalize 比對） |
+| 輸入 APPLE 應答對 | normalize "apple" === "apple" | ✅ 同上 |
+| 輸入前後空白的 apple 應答對 | normalize "  apple  " === "apple" | ✅ 同上 |
+| 輸入 aple 應答錯 | normalize "aple" !== "apple" | ✅ 不做 fuzzy matching，`isCorrect` 回 false |
+| 結果頁詳解正常 | q-sp-001 顯示題目 + 你的答案 + 正確答案 apple + explanation | ✅ `formatUserAnswer` / `formatCorrectAnswer` / `getQuestionPromptDisplay` 對 spelling 走 default 路徑（直接回 raw 字串 / question.answer / question.prompt） → **需使用者實機交卷後確認視覺** |
 | review 路由正常 | 8 條 review 系列 200 | ✅ 全 200 |
 
 ## 【仍未處理】
 
-- 多題 L3 題庫（仍只有 q-lc-001 一題）→ ⬜ 留 P3-9-C 後續刀數
-- 更完整 L3 Part 3 題型模板（example handling / heard-twice UI 對齊官方規則 / part-level 題目分組顯示 / 音檔快取管理）→ ⬜ 留 P3-9-C 後續刀數
-- 桌機 3 欄圖卡寬度（既有 `aspect-square` 在 `grid-cols-3` 下會比 2 欄略小，但仍是 1:1 比例）—— 視覺強度需使用者實機確認；若覺得太大可下輪加 `max-w-3xl` 限制 ul 寬度
-- `dog.svg` 仍保留（`q-mt-001` matching 題仍用），未刪除
+- 多題 RW3 拼字題庫（仍只有 q-sp-001 一題）→ ⬜ 留 P3-9-C 後續刀數
+- 缺字提示版（部分字母 + 底線：例如 `a _ _ l e`）→ ⬜ 留 P3-9-C 後續進階形式
+- 「看答案」/「再試一次」按鈕（與 retry mode 整合）→ ⬜ 留 P3-9-C 後續
+- 與 review 區獨立練習模式整合（不交卷的拼字練習）→ ⬜ 屬 P2-4C-2B-2 範圍
+- 嚴格 spelling must be correct 開關（目前已是嚴格比對；未來若有寬鬆模式需設計切換）→ ⬜ 留未來
+- 圖內仍可能露出英文字風險：apple.svg 是純圖無文字 ✅；未來補新題時須維持「圖內無英文字」慣例
+- `data/quizzes.json`（P1~P2 舊 type）未動，仍是 `MultipleChoiceQuestion` only
 
 ## 【風險點】
 
-- **localStorage session 失效風險：低**——session key 由 paperId + questionOrder 構成；上輪未動 `data/exam-papers.example.json` 的 questionIds，questionOrder hash 不變 → 既有使用者作答進度可正常恢復；只是若舊 session 答案存的是 dog（已不存在），UI render 會視覺像未作答但**不會 crash**——`isCorrect("dog") === ("apple" === "dog") === false`，結果頁仍正確顯示「答錯」+「你的答案：dog」（透過 `formatUserAnswer` 取 raw string）。建議使用者若遇到舊 session 顯示異常，按「🔁 重新測驗」清 localStorage 即可。
-- **手機 grid 第二列空白風險：低**——3 個元素 `grid-cols-2` 會排：`A B / C _`（C 獨佔第二列左格），右下角空白；對小孩來說 C 卡仍是足夠大的圖卡。
-- **桌機 3 欄寬度風險：低**——sm（≥ 640px）以上 3 欄並排；正常桌機（≥ 1024px）每張約 ~280px。
-- **a11y 風險：低**——3 個 `aria-label="選項 A/B/C"` 完整、`aria-pressed` 隨 selected 切換、grid 改成 3 欄不影響 screen reader 順序。
-- **dog.svg 殘留風險：低**——`q-mt-001` matching 題仍引用 dog.svg + `data/vocabulary.json` dog 條目可能也指向；本輪未動，無影響。
-- **重複任務 / 飄移風險：低**——本輪確認上一輪所有變更仍在原位（grep 比對 grid class、aria-label、SVG 路徑、transcript 隱藏行為），無人為飄移；報告已依任務單要求覆蓋。
+- **localStorage session 失效風險：中**——本輪 questionOrder 從 9 題升 10 題 → sessionId hash 變化 → 既有使用者的舊 session 自動 invalidate（isCompatibleSession 回 false），重整後從第 1 題重新開始。**對使用者影響**：之前的測驗進度會清空。任務單未明示需保留，視為可接受副作用。
+- **手機輸入框體驗風險：低**——已停 autoCapitalize / autoCorrect / autoComplete / spellCheck，行動裝置不會自動把首字母變大寫或推薦完整單字（這是 RW3 拼字測驗的正確設定，避免幫孩子作弊）；但孩子可能初次接觸時不習慣手動小寫，可由家長口頭引導。
+- **a11y 風險：低**——`<input>` 有 `aria-label="看圖拼字輸入框"` + 提示語放外層 `<PromptText>`（h2 標籤），screen reader 可正確朗讀題目順序；focus ring 用 `ring-amber-200` 與既有 fill-blank 一致。
+- **比對嚴格度風險：低**——「不做 fuzzy matching」對齊正式「spelling must be correct」精神；但若孩子打 `apple ` 含尾空白會被 trim → 算對（這是設計使然，不算錯）；若孩子打 `aple` 算錯（無部分給分），與正式考試一致。
+- **q-sp-001 與 q-wc-001 答案重複（兩題 answer 都是 apple）風險：低**——q-wc-001 是「看字選圖」（題目 prompt 是英文 apple、4 圖選項選 apple 那張）；q-sp-001 是「看圖拼字」（題目圖是 apple、自由輸入 apple）。**雖然答案皆為 apple，但題型不同 → 不同訓練目標**（前者認字、後者拼字），對小一練習而言屬合理重複；未來補多題時可分散主題避免重複。
+- **重複任務 / 飄移風險：低**——上一輪完成 L3 3 選項後本輪不動 L3、不動 Listening、不動 RW1，所有未動清單都實際透過 grep / dev smoke 二次驗證。
 
 ## 【後續建議】
 
 依使用者意向擇一：
 
-1. **多題 L3 題庫擴張**（建議優先，配 OpenAI v2 examiner voice）：補 1~3 題不同主題（例如 `Where is the dog?` 配場景圖 / `How many books?` 配數字 / `Which one is red?` 配顏色），每題 3 張 ImageOption 對齊正式 L3；需要產生新 OpenAI v2 音檔（屬 P2-4C-2B-2 / P3-9-C 後續，需使用者明確啟動 OpenAI API）。
-2. **Listening Part 3 example handling**（屬 P3-9-C 後續刀數）：正式 L3 開頭有 1~2 題 example（不計分、只示範規則），UI 可加「📚 第 1 題是練習題」標示 + 第一個 example 不算分。需要 schema 加 `isExample?: boolean` 欄位 + UI conditional rendering + 結果頁過濾。
-3. **手機 grid 視覺微調**（純視覺，零邏輯）：若使用者實機覺得第二列空白突兀，可加 `place-items-center` 或讓 C 卡在手機跨兩欄。
-4. **L3 audio 進階互動**（屬 P3-9-C 後續）：對齊官方「heard twice」規則——點開始後自動播放 2 次（中間 pause 5 秒），`<audio>` 之外加自製播放控制器。
+1. **多題 RW3 拼字題庫擴張**（建議優先）：補 1~3 題不同主題（例如 `book` / `cat` / `red` / `one` / `mother` 配既有 SVG），每題重用既有圖片 + 不同 answer 字串；零新圖、零新 OpenAI；屬最小 churn 高 leverage 的方向。
+2. **缺字提示版**（屬正式 RW3 進階形式）：schema 加 `spellingHint?: string`（例如 `"a _ _ l e"`）；UI render 為單獨灰色字 + 紅色底線；孩子在 input 中拼完整字。
+3. **看答案 / 再試一次按鈕**（屬 P3-9-C 後續）：與 retry mode 結合，spelling 題答錯後可按「再試一次」清空 input、答對後按「看答案」進下一題；零後端、純 React state。
+4. **review 區獨立拼字練習模式**（屬 P2-4C-2B-2）：把 RW3 spelling 邏輯抽成 file-private helper / hook，給 `/review/word/[id]` 加「拼字練習」tab；不交卷、無分數、純練習。
+5. **嚴格 vs 寬鬆比對切換**：若家長偏好「拼錯一個字母仍鼓勵」，可加 `strictSpelling: boolean` metadata + 寬鬆比對策略（例如 Levenshtein distance ≤ 1 算對）；屬未來 metadata 範圍。
 
-**短期建議**：先讓使用者實機看 `/quiz` 第 1 題的 3 張圖卡（手機 / 桌機 兩種斷點視覺）+ 確認 hydration 後 banana 顯示真實香蕉圖 + 點選 / 下一題流程順暢，再決定下一刀方向。
+**短期建議**：先讓使用者實機跑完整 10 題（特別是第 6 題 q-sp-001 spelling）+ 試各種輸入（apple / Apple / APPLE / "  apple  " / aple / 空字串）+ 交卷看結果頁詳解 + 確認 RW1 / L3 / Listening / review 都未受影響，再決定下一刀方向。
 
 ## 【Roadmap 同步檢查】
 
-- ✅ L3 q-lc-001 已調整為 3 選項 A/B/C（P3-9-C 第三刀後續，2026-05-10）—— 上一輪已落地、本輪驗證未飄移
-- ✅ L3 A / B / C 圖選項視覺第一版（P3-9-C 第三刀後續，2026-05-10）—— 早輪完成
-- ✅ L3 q-lc-001 三張圖卡完整顯示（P2-4C-2B-1 / P3-9-C 第三刀後續，2026-05-10）—— banana.svg 補件已完成
-- ⬜ 未來多題 L3 圖片題庫（多元主題、配新 OpenAI v2 音檔）
-- ⬜ 未來更完整 L3 Part 3 題型模板（example handling / heard-twice UI / part-level 分組）
+- ✅ RW3 看圖拼字輸入第一版（P3-9-C 第三刀後續，2026-05-10）—— 本輪完成
+- ⬜ 未來 RW3 多題拼字題庫
+- ⬜ 未來更精準對齊正式 Starters RW3 格式（缺字提示版 / 看答案按鈕 / 與 review 區整合）
+- ✅ L3 q-lc-001 已調整為 3 選項 A/B/C（前輪完成，本輪驗證未飄移）
+- ✅ L3 q-lc-001 三張圖卡完整顯示（前輪完成）
+- ⬜ 未來多題 L3 圖片題庫
+- ⬜ 未來更完整 L3 Part 3 題型模板
 - 🟡 P2-4C-2B-1 整體：「已完成 + 持續補件中」（11 個 SVG）
 - 🟡 P2-4C-2B-2 整體：仍部分進行中（vocabulary 音檔仍 ⬜；listening 音檔已落地）
-- 🟡 P3-9-C 整體：仍部分進行中——**未把整體標完成**
+- 🟡 P3-9-C 整體：仍部分進行中——**未把整體標完成**（從 22 條 ✅ 升為 23 條 ✅）
 - 🟡 P3 整體：仍部分進行中——**未把整體標完成**
 - ⬜ P4 / P5：仍未開始
 
-**特別注意**：本輪是 L3 Listening 3 選項對齊任務的「驗證 / 二次重跑」，未處理 OpenAI / TTS / 新增題庫——硬邊界遵守。
+**特別注意**：本輪是 RW3 看圖拼字輸入第一版，未處理 OpenAI / TTS / Listening / Speaking——硬邊界遵守。
+
+題目總數從 9 題升 10 題（exam paper 含 1 題 listening + 9 題 R&W：q-mc-001 / q-pc-001 / q-tf-001 / q-tf-002 / q-wc-001 / **q-sp-001** / q-fb-001 / q-fb-002 / q-mt-001）。`sourceMix.ai_generated` 從 5 升 6；`sourceMix.custom` 4 不變；total 10 題。

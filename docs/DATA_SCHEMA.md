@@ -104,6 +104,7 @@
 | `fill-blank` | 填空（選項版或自由填空版） | `prompt` + `answer` |
 | `matching` | 連連看 | `pairs` |
 | `true-false` | 看圖判斷 yes / no（對齊正式 RW1） | `image` + `prompt` + `answer`（"yes" 或 "no"） |
+| `spelling` | 看圖拼字輸入（對齊正式 RW3） | `image` + `prompt` + `answer`（normalize 比對） |
 
 ### `multiple-choice`：通用文字 4 選 1
 
@@ -291,6 +292,33 @@
 - UI 渲染為兩個大按鈕（Yes = emerald + ✓ / No = rose + ✗），對應「肯定 / 否定」視覺直覺。
 - **與 `picture-choice` 的差異**：picture-choice 是「圖 + 4 個文字選項，4 選 1」（preview RW1 / RW2）；true-false 是「圖 + 1 句描述句 + 2 選 1」（更貼近正式 RW1）。**兩者並存**——picture-choice 仍保留作為 RW1 / RW2 preview。
 
+### `spelling`：看圖拼字輸入（P3-9-C 第三刀後續新增）
+
+```jsonc
+{
+  "id": "q-sp-001",
+  "type": "spelling",
+  "source": "ai_generated",
+  "image": "/images/apple.svg",
+  "prompt": "Look at the picture. Write the word.",
+  "answer": "apple",
+  "explanation": "圖片是蘋果，所以正確單字是 apple。",
+  "starterSection": "reading-writing",
+  "starterPart": "RW3",
+  "skillFocus": ["spelling", "vocabulary"],
+  "expectedAnswerType": "text"
+}
+```
+
+要點：
+
+- `image` 必填——一張單一主體的清楚圖；對齊正式 RW3「看圖拼字」結構。
+- `prompt` 必填——固定提示語，例如 `"Look at the picture. Write the word."`；給孩子提示要做什麼。
+- `answer` 必填——正確英文單字；比對時 **normalize**（trim + toLowerCase），所以 `"Apple"` / `"APPLE"` / `"  apple  "` 皆答對；**不做 fuzzy matching**——`"aple"` 算錯。
+- UI 渲染：圖片大圖 + 提示語 + 大型輸入框（`type="text"`，停 autoCapitalize / autoCorrect / spellCheck，避免行動裝置干擾孩子拼字）。
+- **與 `word-choice`（看字選圖）的差異**：word-choice 是「英文單字題目 + 4 圖片選項」（preview RW3 認字）；spelling 是「圖片題目 + 自由文字輸入」（更貼近正式 RW3 拼字）。**兩者並存**——可以作為 RW3 練習版的不同階段（先認字、後拼字）。
+- **與 `fill-blank`（自由填空版）的差異**：fill-blank 是純文字 prompt + 句中空格輸入（RW4 短文 / 句子填空）；spelling 是圖 + 提示 + 完整單字輸入（RW3 看圖拼字）。型別獨立 case 以利 UI / metadata 細分。
+
 ---
 
 ## Starters part metadata（P3-9-B）
@@ -344,13 +372,16 @@
 }
 ```
 
-### 目前 7 題範例的 metadata 對應
+### 目前 10 題範例的 metadata 對應
 
 | id | type | starterSection | starterPart | skillFocus | expectedAnswerType |
 | --- | --- | --- | --- | --- | --- |
 | `q-mc-001` | multiple-choice | reading-writing | RW4 | reading / vocabulary | choice |
 | `q-pc-001` | picture-choice | reading-writing | RW1 | vocabulary / reading | choice |
+| `q-tf-001` | true-false（yes） | reading-writing | RW1 | reading / vocabulary | choice |
+| `q-tf-002` | true-false（no） | reading-writing | RW1 | reading / vocabulary | choice |
 | `q-wc-001` | word-choice | reading-writing | RW3 | vocabulary / spelling | choice |
+| `q-sp-001` | spelling | reading-writing | RW3 | spelling / vocabulary | text |
 | `q-lc-001` | listening-choice | listening | L3 | listening / vocabulary | choice |
 | `q-fb-001` | fill-blank（選項版） | reading-writing | RW4 | reading / writing / vocabulary | text |
 | `q-fb-002` | fill-blank（自由填空） | reading-writing | RW4 | reading / writing / vocabulary | text |

@@ -141,6 +141,22 @@
     "expectedAnswerType": "choice"
   },
   {
+    "id": "q-sp-001",
+    "type": "spelling",
+    "source": "ai_generated",
+    "image": "/images/apple.svg",
+    "prompt": "Look at the picture. Write the word.",
+    "answer": "apple",
+    "explanation": "圖片是蘋果，所以正確單字是 apple。",
+    "difficulty": "easy",
+    "topic": "food",
+    "promptVersion": "starters-rw3-spelling-v1",
+    "starterSection": "reading-writing",
+    "starterPart": "RW3",
+    "skillFocus": ["spelling", "vocabulary"],
+    "expectedAnswerType": "text"
+  },
+  {
     "id": "q-tf-002",
     "type": "true-false",
     "source": "ai_generated",

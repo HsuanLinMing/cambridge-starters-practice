@@ -18,6 +18,7 @@ import type {
   ListeningChoiceQuestion,
   MatchingQuestion,
   PictureChoiceQuestion,
+  SpellingQuestion,
   StarterPart,
   TrueFalseQuestion,
   WordChoiceQuestion,
@@ -113,6 +114,12 @@ function getStarterPartInfo(question: ExamQuestion): StarterPartInfo {
   if (question.starterPart === "RW1" && question.type === "true-false") {
     return { partLabel: "Part 1", zhTitle: "看圖判斷 yes / no" };
   }
+  if (question.starterPart === "RW3" && question.type === "spelling") {
+    return { partLabel: "Part 3", zhTitle: "看圖拼字" };
+  }
+  if (question.starterPart === "RW3" && question.type === "word-choice") {
+    return { partLabel: "Part 3", zhTitle: "看圖認字（看字選圖 preview）" };
+  }
 
   // P3-9-B：優先讀 metadata
   if (question.starterPart) {
@@ -131,6 +138,8 @@ function getStarterPartInfo(question: ExamQuestion): StarterPartInfo {
       return { partLabel: "Part 1", zhTitle: "看圖判斷 yes / no" };
     case "word-choice":
       return { partLabel: "Part 3", zhTitle: "看圖認字 / 拼字練習" };
+    case "spelling":
+      return { partLabel: "Part 3", zhTitle: "看圖拼字" };
     case "multiple-choice":
       return { partLabel: "Part 4 preview", zhTitle: "短句選字" };
     case "fill-blank":
@@ -157,7 +166,11 @@ function isCorrect(question: ExamQuestion, answer: string | undefined): boolean 
     // 自由填空：忽略大小寫與前後空白
     return normalize(answer) === normalize(question.answer);
   }
-  // multiple-choice / picture-choice / word-choice / listening-choice / fill-blank（選項版）
+  if (question.type === "spelling") {
+    // 看圖拼字（RW3）：normalize 比對忽略大小寫與前後空白；不做 fuzzy matching（錯字算錯）
+    return normalize(answer) === normalize(question.answer);
+  }
+  // multiple-choice / picture-choice / word-choice / listening-choice / fill-blank（選項版）/ true-false
   return answer === question.answer;
 }
 
@@ -1126,6 +1139,14 @@ function QuestionView({
           onSelectAnswer={onSelectAnswer}
         />
       );
+    case "spelling":
+      return (
+        <SpellingView
+          question={question}
+          currentAnswer={currentAnswer}
+          onSelectAnswer={onSelectAnswer}
+        />
+      );
   }
 }
 
@@ -1498,6 +1519,40 @@ function ListeningChoiceView({
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+function SpellingView({
+  question,
+  currentAnswer,
+  onSelectAnswer,
+}: ViewProps<SpellingQuestion>) {
+  // RW3 看圖拼字（P3-9-C 第三刀後續，2026-05-10）：
+  // 圖 + 提示語 + 大型輸入框；比對由 isCorrect normalize 處理（trim + toLowerCase）
+  return (
+    <>
+      <div className="mt-4 flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl bg-amber-50">
+        <QuizImage src={question.image} alt="題目圖片" size="lg" />
+      </div>
+      <PromptText prompt={question.prompt} />
+      <div className="mt-6 flex justify-center">
+        <input
+          type="text"
+          value={currentAnswer ?? ""}
+          onChange={(e) => onSelectAnswer(e.target.value)}
+          placeholder="在這裡輸入英文單字…"
+          aria-label="看圖拼字輸入框"
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          className="w-full max-w-md rounded-2xl border-2 border-amber-200 bg-white px-5 py-4 text-center text-3xl font-bold text-slate-900 placeholder:text-slate-300 focus:border-amber-400 focus:outline-none focus:ring-4 focus:ring-amber-200"
+        />
+      </div>
+      <p className="mt-2 text-center text-xs text-slate-400">
+        提示：輸入英文單字，大小寫與前後空白不計
+      </p>
     </>
   );
 }

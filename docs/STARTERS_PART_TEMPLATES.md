@@ -235,28 +235,29 @@ Cambridge Pre A1 Starters 正式考試分三大段：
 - **是否需要圖片**：✅ 必要（一張大場景）。
 - **是否適合 AI 仿真題生成**：✅ 適合——AI 出場景描述 + 5~6 題 yes/no 對；場景圖較複雜，由人手繪 SVG 或多次 AI 出 imagePrompt 後人挑選。
 
-### Reading & Writing Part 3（RW3）：看圖拼字（v2 校正）
+### Reading & Writing Part 3（RW3）：看圖拼字（v2 校正 + P3-9-C 第三刀後續看圖拼字輸入第一版）
 
 - **官方方向簡述**：每題顯示一張物件圖 + 缺字提示（例如 `a _ _ _ e` 對應 `apple`，或字母被打散需重組），考生**拼出**完整單字並寫進空格。**官方規則重點**：本 Part 是「spelling must be correct」最直接生效的場景——拼錯一個字母即整題不算對（無部分給分）；本 Part 開頭有 1~2 題 example。
-- **本專案練習版目標**：對應使用者提出的「**只顯示圖片、不顯示英文，孩子自己拼字輸入、可按看答案、下一題**」單字拼字測驗模式。**這是未來單字拼字測驗模式（屬 P2-4C-2B-2 review 區或 P3-9-C quiz 區）的重要依據**。**比對策略**：對應「spelling must be correct」，比對時忽略大小寫但**不容錯字母**——`appel` ≠ `apple`，需嚴格匹配。
+- **本專案練習版目標**：**P3-9-C 第三刀後續（2026-05-10）已實作 `spelling` 題型第一版**——`q-sp-001`：圖（apple.svg）+ 提示語「Look at the picture. Write the word.」+ 自由文字輸入框。**比對策略**：normalize（trim + toLowerCase）—— `apple` / `Apple` / `APPLE` / `"  apple  "` 皆答對；**不做 fuzzy matching**——`aple` 算錯（對齊「spelling must be correct」精神）。第一版**不顯示部分字母提示**（孩子全字拼），未來可加缺字提示版。
 - **題目互動方式**：
-  1. 顯示物件圖（**圖內不放英文字**，避免洩漏答案——color 類同既有規則）。
-  2. 顯示缺字提示（部分字母 + 底線），或完全空白（孩子全字拼）。
-  3. 孩子用 `<input>` 拼字輸入。
-  4. 按「看答案」顯示正解；按「下一題」前進。
-- **需要的資料欄位**：
+  1. 顯示物件圖（**圖內不放英文字**，避免洩漏答案）。
+  2. 顯示提示語（例如「Look at the picture. Write the word.」）。
+  3. 孩子用 `<input type="text">` 拼字輸入；行動裝置停 autoCapitalize / autoCorrect / spellCheck，避免干擾。
+  4. 點選 / 輸入後可按「下一題」；最後一題交卷後在結果頁詳解看正確答案 + explanation。
+- **需要的資料欄位**（已支援，目前 schema 可實作）：
   - `image`（物件圖，必填）
-  - `answer`（完整英文單字）
-  - `prompt`（拼字提示，如 `a _ _ l e`，可選；無提示版即全字拼）
-  - `expectedAnswerType: "spelling"`（**未來欄位**）
+  - `prompt`（提示語必填）
+  - `answer`（完整英文單字，必填）
+  - `starterPart: "RW3"` + `starterSection: "reading-writing"` + `expectedAnswerType: "text"` + `skillFocus: ["spelling", "vocabulary"]`
 - **imagePrompt 建議**：單一物件、清楚識別、無英文字；對齊 `data/vocabulary.json` 既有 54 字優先。
 - **answer 型態**：`text`（自由文字，比對忽略大小寫與前後空白）。
-- **目前 P3 schema 是否已支援**：⚠️ **半支援**——`fill-blank` 自由填空版（無 `options`，有 `answer`）可達成第一版拼字，但 schema 沒有「圖片必填 + 不顯示文字答案 + 拼字提示」結構。建議 P3-9-B 加 `spelling-input` 子題型或在 metadata 加 `inputMode: "spelling"` 標記。
+- **目前 P3 schema 是否已支援**：✅ **已支援**——`spelling` 題型於 P3-9-C 第三刀後續（2026-05-10）落地：`lib/types.ts` 加 `SpellingQuestion` discriminated union；`components/QuizPlay.tsx` 加 `<SpellingView>` 元件 + `isCorrect` normalize 比對；`data/p3-example-questions.json` 補 `q-sp-001` 範例題。
 - **未來需要補哪些功能**：
-  - `spelling-input` 題型（或 `inputMode` metadata）。
-  - 拼字提示渲染（部分字母 + 底線，每字一格輸入）。
-  - 「看答案」/「再試一次」/「下一題」三按鈕視覺。
+  - 多題 RW3 spelling 題庫（目前只有 1 題；需依 vocabulary 各主題補 1~2 題）。
+  - 拼字提示渲染（部分字母 + 底線，每字一格輸入；屬正式 RW3 進階形式）。
+  - 「看答案」/「再試一次」按鈕（與 retry mode 結合）。
   - 與 review 區獨立練習模式（不交卷）的整合（屬 P2-4C-2B-2 範圍）。
+  - 嚴格「拼錯一個字母即不算對」開關（目前已是嚴格比對；未來若有寬鬆模式需設計切換）。
 - **是否需要圖片**：✅ 必要。
 - **是否適合 AI 仿真題生成**：✅ 適合——AI 從 vocabulary 取詞 + 自動產生 spelling 提示；圖片由現有 SVG 庫挑或 AI 出 `imagePrompt` 後人手繪。
 
@@ -325,6 +326,7 @@ Cambridge Pre A1 Starters 正式考試分三大段：
 | `listening-choice` | **L3 preview / 部分支援** | 🟢 最接近 | ✅ **P3-9-C 第三刀**已加 A / B / C 視覺標籤 + 圖選項 + **3 選項對齊正式 L3**；缺「heard twice」重播 UI（目前由 `<audio controls>` 自由重播替代）；多題 L3 題庫待補 |
 | `fill-blank` | **RW4 partial** | 🟢 較接近 | 單空格已支援；**多空格短文 + word bank 未支援**；缺「spelling must be correct」嚴格比對開關 |
 | `true-false` | **RW1**（P3-9-C 第三刀） | 🟢 較接近（最直接對齊） | 大型 Yes / No 按鈕已實作（emerald + ✓ / rose + ✗）；多題 RW1 樣本待補（目前只有 q-tf-001 一題）；真正 ✓ / ✗ 手寫互動屬未來進階 |
+| `spelling` | **RW3**（P3-9-C 第三刀後續） | 🟢 較接近（最直接對齊看圖拼字輸入） | 圖 + 提示語 + 大型輸入框已實作；normalize 比對忽略大小寫與前後空白；多題 RW3 樣本待補（目前只有 q-sp-001 一題）；缺字提示版（部分字母 + 底線）屬未來進階 |
 
 ### 第二層：preview / 預備型題型（形式接近、互動或答題型不同）
 
@@ -348,7 +350,7 @@ Cambridge Pre A1 Starters 正式考試分三大段：
 | **L4** 聽指令塗色（真正塗色互動） | ⬜ 尚未支援 | colorPalette + instructions 結構 + SVG 點擊填色 |
 | **RW1** 完整圖句判斷（yes/no） | ⬜ 尚未支援 | `true-false` 子題型 / `answerStyle: "yes-no"` metadata + 大型 ✓/✗ 按鈕 |
 | **RW2** 共用 scene image yes/no（多題共用） | ⬜ 尚未支援 | `sceneGroup` / `sharedSceneImage` schema + 場景圖固定版面 |
-| **RW3** 看圖拼字 | ⬜ 尚未支援 | `spelling-input` 子題型 / `inputMode: "spelling"` metadata + 嚴格拼字比對 |
+| **RW3** 看圖拼字 | ✅ 第一版（P3-9-C 第三刀後續） | `spelling` 題型已落地；未來可加缺字提示版 / 看答案按鈕 / 多題題庫 |
 | **RW4** 多空格短文 + word bank | ⬜ 尚未支援 | `multiBlankAnswers: string[]` + `wordBank: string[]` schema + 拖曳互動 |
 | **RW5** picture-story + one-word answer | ⬜ 尚未支援 | `imageSequence: string[]` schema + `expectedAnswerType: "one-word"` 嚴格單字比對 |
 | **Speaking SP1~SP4** | ⬜ 不在 P3 範圍 | 整段 P4 Speaking Examiner Agent（狀態機 + TTS + 錄音 + STT） |
@@ -614,6 +616,7 @@ P4 不是「在客觀題模板上加一個 speaking type」，而是設計一個
   - **新增「v2 後續實作優先順序建議」段**——8 項排序（L3 + TTS 音檔最先 / RW3 拼字輸入 / RW1 yes-no / RW4 多空格 / RW5 picture-story / L2 / L4 / L1 hotspot 最後）+ 排序理由 + 跨項目共通要求（不複製官方原文）。
   - 仍是練習版近似對應，**不複製官方題目 / 圖片 / 音檔 / sample paper 內容**——硬邊界與 v1 一致。
   - **後續若人工瀏覽 handbook / sample paper 後發現更精確的描述**，可升 v3（屬 P3-7-B 後續刀數 + P3-7-D「sample / mock test toolkit 觀察筆記」範圍）。
+- **v2.5**（2026-05-10，P3-9-C 第三刀後續 RW3 看圖拼字輸入第一版）：RW3 模板段升級為「P3-9-C 第三刀後續已實作 `spelling` 題型」狀態——`lib/types.ts` 新增 `SpellingQuestion` discriminated union 成員（image / prompt / answer 必填）+ `QuestionType` union 加 `"spelling"`；`components/QuizPlay.tsx` 新增 `<SpellingView>` 元件（圖大圖 + 提示語 + 大型 `<input type="text">`，停 autoCapitalize / autoCorrect / spellCheck 避免行動裝置干擾）+ `isCorrect` 加 spelling case（normalize trim + toLowerCase 比對）+ `getStarterPartInfo` 加 (RW3, spelling) 細分覆寫顯示「Part 3：看圖拼字」+ fallback switch 加 case "spelling"；`app/quiz/page.tsx` `RW_TYPE_ORDER` 加 `spelling: 4`（接在 word-choice 之後，從認字到拼字）+ multiple-choice / fill-blank / matching 整體 +1；新增 `q-sp-001` 範例題（apple.svg + Look at the picture. Write the word. + answer apple + RW3 metadata 完整）；`data/exam-papers.example.json` reading-writing section.questionIds 加 q-sp-001（緊接 q-wc-001 之後）+ sourceMix.ai_generated 從 5 升 6 + description 升級。schema 對應表第一層加 spelling → RW3 🟢 一筆；第三層 RW3 從 ⬜ 改 ✅ 第一版。**仍未做**：缺字提示版 / 看答案按鈕 / 多題 RW3 題庫 / 與 review 區獨立練習模式整合。**硬邊界不變**。
 - **v2.4**（2026-05-10，P3-9-C 第三刀後續 L3 3 選項對齊正式 Cambridge L3）：`q-lc-001` 從 4 選項（apple / banana / cat / dog）調整為 **3 選項 A/B/C**（apple / banana / cat），對齊正式 Cambridge Starters L3 的 3 張圖選項版面；移除 dog 選項。`components/QuizPlay.tsx` `ListeningChoiceView` image 分支 grid 從 `grid-cols-2` 升級為 `grid-cols-2 sm:grid-cols-3`——手機 2 欄（第 3 張自然換行至第二列獨佔一格）/ 桌機 3 欄（A B C 同一列），對齊官方 L3 3 並排視覺。L3 模板段標題、互動方式、未來功能清單、schema 對應表 `listening-choice` 條目皆同步更新；DATA_SCHEMA jsonc 範例改為 3 個 ImageOption。**仍未做**：多題 L3 題庫 / 更完整 L3 Part 3 題型模板（example handling / heard-twice UI）。**硬邊界不變**。
 - **v2.3**（2026-05-10，P3-9-C 第三刀後續 L3 圖選項視覺第一版）：L3 模板段升級為「P3-9-C 第三刀已實作 A/B/C/D 圖選項視覺」狀態——`q-lc-001` 切到 `optionType: "image"` + 4 張 ImageOption（apple/banana/cat/dog）；UI render 2x2 圖卡 + 左上角 A/B/C/D 標籤 + 隱藏英文單字（避免聽力答案外洩） + 圖片缺檔 fallback 改用標籤字母（不再用 value 首字母）。schema 對應表第一層 `listening-choice` 條目同步更新（✅ 已加 A/B/C/D 視覺標籤）。**仍未做**：限制選項為 3 張對齊正式 L3 / 補 `banana.svg` 等缺檔圖 / 多題 L3 題庫（屬 P3-9-C 後續刀數）。**硬邊界不變**：不複製官方題目 / 不下載官方圖片音檔。
 - **v2.2**（2026-05-10，P3-9-C 第三刀 RW1 true-false 題型落地）：RW1 模板段升級為「P3-9-C 第三刀已實作 true-false 題型」狀態——含本專案練習版目標、題目互動方式、需要的資料欄位、`getStarterPartInfo` 細分覆寫（RW1 + true-false → 「Part 1：看圖判斷 yes / no」）、目前 P3 schema 是否已支援（✅ 完整支援）、未來需要補哪些功能；schema 對應表第一層補 `true-false → RW1` 一筆（🟢 較接近，最直接對齊）；**picture-choice 仍保留作為 RW1 / RW2 preview 第二層**——兩種題型並存（picture-choice = 圖 + 4 文字選項；true-false = 圖 + 1 句描述 + Yes / No 大按鈕）。

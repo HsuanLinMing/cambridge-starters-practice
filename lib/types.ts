@@ -75,7 +75,8 @@ export type QuestionType =
   | "listening-choice" // 聽力選擇（音檔 + 4 文字 / 圖片選項）
   | "fill-blank" // 填空（含選項版 / 自由填空版）
   | "matching" // 連連看
-  | "true-false"; // 看圖判斷 yes / no（對齊正式 RW1）
+  | "true-false" // 看圖判斷 yes / no（對齊正式 RW1）
+  | "spelling"; // 看圖拼字輸入（對齊正式 RW3）
 
 /** 難度標記，可省略；保留給未來分級練習使用。 */
 export type DifficultyLevel = "easy" | "medium" | "hard";
@@ -275,6 +276,25 @@ export type TrueFalseQuestion = BaseQuestion & {
   answer: "yes" | "no";
 };
 
+/**
+ * 看圖拼字輸入（對齊正式 RW3，P3-9-C 第三刀後續新增）。
+ * 一張圖 + 提示文字 + 自由文字輸入；比對時忽略大小寫與前後空白（不做 fuzzy matching）。
+ *
+ * 與其他題型的差異：
+ *   - 與 `word-choice`（看字選圖、4 圖片選項）相反：本題顯示**圖**、要求孩子**輸入英文單字**。
+ *   - 與 `fill-blank`（自由填空版）形似，但 RW3 是「看圖拼字」、有圖片必填、prompt 為固定提示語。
+ *     未來可延伸 RW3 多題庫；本題型獨立 case 以利 UI / 結果頁 / metadata 細分。
+ */
+export type SpellingQuestion = BaseQuestion & {
+  type: "spelling";
+  /** 題目圖片必填（看圖拼字）。 */
+  image: string;
+  /** 提示語（例如 "Look at the picture. Write the word."）。 */
+  prompt: string;
+  /** 正確英文單字；比對時 normalize（trim + toLowerCase）。 */
+  answer: string;
+};
+
 /** P3 全題型 discriminated union。 */
 export type ExamQuestion =
   | ExamMultipleChoiceQuestion
@@ -283,7 +303,8 @@ export type ExamQuestion =
   | ListeningChoiceQuestion
   | FillBlankQuestion
   | MatchingQuestion
-  | TrueFalseQuestion;
+  | TrueFalseQuestion
+  | SpellingQuestion;
 
 /** 一份考卷的子段落（例如 Listening / Reading & Writing）。 */
 export type ExamSection = {

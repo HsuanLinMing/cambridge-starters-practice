@@ -9,7 +9,7 @@ export const metadata = {
 
 /**
  * Reading & Writing 段內題型順序（從易到難 / 從圖到字）：
- * picture-choice → true-false → word-choice → multiple-choice → fill-blank → matching
+ * picture-choice → true-false → word-choice → spelling → multiple-choice → fill-blank → matching
  */
 const RW_TYPE_ORDER: Record<QuestionType, number> = {
   // listening-choice 不在 R&W 段，給一個任意值即可
@@ -17,9 +17,10 @@ const RW_TYPE_ORDER: Record<QuestionType, number> = {
   "picture-choice": 1,
   "true-false": 2, // P3-9-C 第三刀新增：RW1 yes / no 判斷題（與 picture-choice 同 RW1，先做 4 選 1 後做 yes / no）
   "word-choice": 3,
-  "multiple-choice": 4,
-  "fill-blank": 5,
-  matching: 6,
+  spelling: 4, // P3-9-C 第三刀後續新增：RW3 看圖拼字（接在 word-choice / 看字選圖之後，從認字到拼字）
+  "multiple-choice": 5,
+  "fill-blank": 6,
+  matching: 7,
 };
 
 /**
