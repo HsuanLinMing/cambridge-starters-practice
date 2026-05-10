@@ -164,7 +164,13 @@
       "Bash(git check-ignore *)",
       "Bash(echo \"exit=$?\")",
       "Bash(afinfo /Users/linxuanming/Documents/cambridge-starters-practice/public/audio/starters/l3/q-lc-001-openai-v2.mp3)",
-      "Bash(grep -n 'Reading & Writing Part 1\\\\|目前 P3 schema 是否已支援.*RW1\\\\|目前 `picture-choice` 是 RW1 / RW2 preview' /Users/linxuanming/Documents/cambridge-starters-practice/docs/STARTERS_PART_TEMPLATES.md)"
+      "Bash(grep -n 'Reading & Writing Part 1\\\\|目前 P3 schema 是否已支援.*RW1\\\\|目前 `picture-choice` 是 RW1 / RW2 preview' /Users/linxuanming/Documents/cambridge-starters-practice/docs/STARTERS_PART_TEMPLATES.md)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"PID=$!\")",
+      "Bash(curl -s -o /dev/null http://localhost:3000/)",
+      "Bash(curl -s http://localhost:3000/quiz)",
+      "Bash(kill 49183)",
+      "Bash(kill 52497)"
     ]
   }
 }

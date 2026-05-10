@@ -60,8 +60,13 @@
     "audioSrc": "/audio/starters/l3/q-lc-001-openai-v2.mp3",
     "transcript": "What does the boy want?",
     "ttsScript": "What does the boy want?",
-    "optionType": "text",
-    "options": ["apple", "banana", "cat", "dog"],
+    "optionType": "image",
+    "options": [
+      { "value": "apple", "image": "/images/apple.svg" },
+      { "value": "banana", "image": "/images/banana.svg" },
+      { "value": "cat", "image": "/images/cat.svg" },
+      { "value": "dog", "image": "/images/dog.svg" }
+    ],
     "answer": "apple",
     "explanation": "音檔說小男孩想要蘋果。",
     "difficulty": "easy",

@@ -1201,6 +1201,57 @@ function ImageOptionButton({
   );
 }
 
+// ListeningImageOptionButton：L3 聽力專用圖卡（P3-9-C 第三刀，2026-05-10）
+// - 角落顯示 A / B / C / D 標籤，便於小孩定位
+// - 不顯示 option.value 英文單字，避免直接洩漏聽力答案
+// - fallbackInitial 改用標籤字母，圖片缺失時也不會露出英文單字首字
+type ListeningImageOptionButtonProps = {
+  option: ImageOption;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+};
+
+function ListeningImageOptionButton({
+  option,
+  label,
+  selected,
+  onClick,
+}: ListeningImageOptionButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      aria-label={`選項 ${label}`}
+      className={
+        "relative block w-full rounded-2xl p-2 shadow-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-200 " +
+        (selected
+          ? "bg-amber-100 ring-2 ring-amber-400"
+          : "bg-white ring-1 ring-amber-100 hover:-translate-y-0.5 hover:ring-amber-300")
+      }
+    >
+      <span
+        className={
+          "absolute left-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-black shadow-sm sm:h-8 sm:w-8 " +
+          (selected ? "bg-amber-500 text-white" : "bg-sky-500 text-white")
+        }
+        aria-hidden
+      >
+        {label}
+      </span>
+      <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-amber-50">
+        <QuizImage
+          src={option.image}
+          alt={`選項 ${label}`}
+          fallbackInitial={label}
+          size="sm"
+        />
+      </div>
+    </button>
+  );
+}
+
 // QuizImage：file-private 圖片 fallback（與 PracticeImage 同模式但獨立，避免動 P2-4C 元件）
 type ImageStatus = "loading" | "ready" | "missing";
 
@@ -1421,10 +1472,11 @@ function ListeningChoiceView({
 
       {isImage ? (
         <ul className="mt-6 grid grid-cols-2 gap-3 sm:gap-4">
-          {(question.options as ImageOption[]).map((opt) => (
+          {(question.options as ImageOption[]).map((opt, idx) => (
             <li key={opt.value}>
-              <ImageOptionButton
+              <ListeningImageOptionButton
                 option={opt}
+                label={String.fromCharCode(65 + idx)}
                 selected={currentAnswer === opt.value}
                 onClick={() => onSelectAnswer(opt.value)}
               />
