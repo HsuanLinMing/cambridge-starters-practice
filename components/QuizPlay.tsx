@@ -1530,12 +1530,35 @@ function SpellingView({
 }: ViewProps<SpellingQuestion>) {
   // RW3 看圖拼字（P3-9-C 第三刀後續，2026-05-10）：
   // 圖 + 提示語 + 大型輸入框；比對由 isCorrect normalize 處理（trim + toLowerCase）
+  // 2026-05-12：optional spellingHint 在圖 + 提示語之後 / 輸入框之前顯示，僅 UI 提示、不參與 isCorrect
   return (
     <>
       <div className="mt-4 flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl bg-amber-50">
         <QuizImage src={question.image} alt="題目圖片" size="lg" />
       </div>
       <PromptText prompt={question.prompt} />
+      {question.spellingHint && (
+        <div className="mt-5 flex flex-col items-center justify-center gap-1 rounded-2xl bg-sky-50 px-6 py-4">
+          <span className="text-xs font-semibold tracking-wider text-sky-600">
+            缺字提示
+          </span>
+          <span className="font-mono text-3xl font-black tracking-[0.4em] text-slate-900 sm:text-4xl">
+            {question.spellingHint}
+          </span>
+        </div>
+      )}
+      {question.letterScramble && (
+        // P3-9-C 第三刀後續、2026-05-13：字母重組提示。
+        // 僅 UI 顯示打散字母、不參與 isCorrect；第一版不做拖曳 / 點選組字互動。
+        <div className="mt-3 flex flex-col items-center justify-center gap-1 rounded-2xl bg-violet-50 px-6 py-4">
+          <span className="text-xs font-semibold tracking-wider text-violet-600">
+            字母重組
+          </span>
+          <span className="font-mono text-3xl font-black tracking-[0.4em] text-slate-900 sm:text-4xl">
+            {question.letterScramble}
+          </span>
+        </div>
+      )}
       <div className="mt-6 flex justify-center">
         <input
           type="text"

@@ -293,6 +293,21 @@ export type SpellingQuestion = BaseQuestion & {
   prompt: string;
   /** 正確英文單字；比對時 normalize（trim + toLowerCase）。 */
   answer: string;
+  /**
+   * 缺字提示（optional，P3-9-C 第三刀後續、2026-05-12 新增）。
+   * 例如 `"a _ _ l e"` / `"c _ t"` / `"b _ _ k"`。
+   * **只用於 UI 顯示提示、絕不參與 `answer` 比對**——`isCorrect` 不讀此欄位。
+   * 字串內容自由（建議用 `_` 表示缺字、空格分隔字母提升小一可讀性）。
+   */
+  spellingHint?: string;
+  /**
+   * 字母重組提示（optional，P3-9-C 第三刀後續、2026-05-13 新增）。
+   * 例如 `"p p a l e"`（apple 打散）/ `"t a c"`（cat 打散）/ `"g d o"`（dog 打散）/ `"o b k o"`（book 打散）。
+   * **只用於 UI 顯示提示、絕不參與 `answer` 比對**——`isCorrect` 不讀此欄位、`normalize` 不變。
+   * 字串內容自由（建議空格分隔每個字母提升小一可讀性）；第一版**只顯示打散字母**、不做拖曳 / 點選組字互動。
+   * 可與 `spellingHint` 並存於同一題（提供「缺字 + 重組」兩種視覺輔助）。
+   */
+  letterScramble?: string;
 };
 
 /** P3 全題型 discriminated union。 */

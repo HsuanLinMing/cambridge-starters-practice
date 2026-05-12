@@ -175,7 +175,9 @@
       "Bash(kill 54232)",
       "Bash(grep -oE 'starterPart[\"\\\\\\\\:]*[^,]{0,20}RW3' /tmp/quiz-rw3.html)",
       "Bash(kill 55075)",
-      "Bash(kill 56134)"
+      "Bash(kill 56134)",
+      "Bash(kill 87917)",
+      "Bash(kill 98133)"
     ]
   }
 }

@@ -302,6 +302,8 @@
   "image": "/images/apple.svg",
   "prompt": "Look at the picture. Write the word.",
   "answer": "apple",
+  "spellingHint": "a _ _ l e",
+  "letterScramble": "p p a l e",
   "explanation": "圖片是蘋果，所以正確單字是 apple。",
   "starterSection": "reading-writing",
   "starterPart": "RW3",
@@ -315,7 +317,9 @@
 - `image` 必填——一張單一主體的清楚圖；對齊正式 RW3「看圖拼字」結構。
 - `prompt` 必填——固定提示語，例如 `"Look at the picture. Write the word."`；給孩子提示要做什麼。
 - `answer` 必填——正確英文單字；比對時 **normalize**（trim + toLowerCase），所以 `"Apple"` / `"APPLE"` / `"  apple  "` 皆答對；**不做 fuzzy matching**——`"aple"` 算錯。
-- UI 渲染：圖片大圖 + 提示語 + 大型輸入框（`type="text"`，停 autoCapitalize / autoCorrect / spellCheck，避免行動裝置干擾孩子拼字）。
+- `spellingHint` optional（**P3-9-C 第三刀後續、2026-05-12 新增**）——缺字提示字串，例如 `"a _ _ l e"` / `"c _ t"` / `"b _ _ k"`；建議以 `_` 表示缺字、字母間空格分隔提升小一可讀性。**只用於 UI 顯示提示、不參與 `isCorrect` 比對**；4 題 q-sp-001~004 皆已補。
+- `letterScramble` optional（**P3-9-C 第三刀後續、2026-05-13 新增**）——字母重組提示字串，例如 `"p p a l e"`（apple 打散）/ `"t a c"`（cat 打散）/ `"g d o"`（dog 打散）/ `"o b k o"`（book 打散）；建議空格分隔每個字母提升小一可讀性。**只用於 UI 顯示提示、不參與 `isCorrect` 比對**；可與 `spellingHint` 並存於同一題；4 題 q-sp-001~004 皆已補。第一版**只顯示打散字母**、不做拖曳 / 點選組字互動（屬未來進階）。
+- UI 渲染：圖片大圖 + 提示語 + （若有 `spellingHint`）淡藍提示區塊（標籤「缺字提示」+ font-mono 大字 + 大字間距）+ （若有 `letterScramble`）淡紫提示區塊（標籤「字母重組」+ 同字型樣式區別配色 violet-50）+ 大型輸入框（`type="text"`，停 autoCapitalize / autoCorrect / spellCheck，避免行動裝置干擾孩子拼字）。
 - **與 `word-choice`（看字選圖）的差異**：word-choice 是「英文單字題目 + 4 圖片選項」（preview RW3 認字）；spelling 是「圖片題目 + 自由文字輸入」（更貼近正式 RW3 拼字）。**兩者並存**——可以作為 RW3 練習版的不同階段（先認字、後拼字）。
 - **與 `fill-blank`（自由填空版）的差異**：fill-blank 是純文字 prompt + 句中空格輸入（RW4 短文 / 句子填空）；spelling 是圖 + 提示 + 完整單字輸入（RW3 看圖拼字）。型別獨立 case 以利 UI / metadata 細分。
 
