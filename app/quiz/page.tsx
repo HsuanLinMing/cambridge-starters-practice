@@ -27,7 +27,7 @@ const RW_TYPE_ORDER: Record<QuestionType, number> = {
  * 把題目分兩段排序，貼近正式 Cambridge Starters 結構：
  *
  *   Section 1：Listening（listening-choice）
- *   Section 2：Reading & Writing（picture-choice → word-choice → multiple-choice → fill-blank → matching）
+ *   Section 2：Reading & Writing（picture-choice → true-false → word-choice → spelling → multiple-choice → fill-blank → matching）
  *
  * 段內 stable sort（同題型維持原始順序）；不修改 JSON 來源。
  */

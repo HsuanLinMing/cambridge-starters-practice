@@ -372,7 +372,7 @@
 }
 ```
 
-### 目前 10 題範例的 metadata 對應
+### 目前 13 題範例的 metadata 對應
 
 | id | type | starterSection | starterPart | skillFocus | expectedAnswerType |
 | --- | --- | --- | --- | --- | --- |
@@ -381,7 +381,10 @@
 | `q-tf-001` | true-false（yes） | reading-writing | RW1 | reading / vocabulary | choice |
 | `q-tf-002` | true-false（no） | reading-writing | RW1 | reading / vocabulary | choice |
 | `q-wc-001` | word-choice | reading-writing | RW3 | vocabulary / spelling | choice |
-| `q-sp-001` | spelling | reading-writing | RW3 | spelling / vocabulary | text |
+| `q-sp-001` | spelling（apple / food） | reading-writing | RW3 | spelling / vocabulary | text |
+| `q-sp-002` | spelling（cat / animals） | reading-writing | RW3 | spelling / vocabulary | text |
+| `q-sp-003` | spelling（dog / animals） | reading-writing | RW3 | spelling / vocabulary | text |
+| `q-sp-004` | spelling（book / school） | reading-writing | RW3 | spelling / vocabulary | text |
 | `q-lc-001` | listening-choice | listening | L3 | listening / vocabulary | choice |
 | `q-fb-001` | fill-blank（選項版） | reading-writing | RW4 | reading / writing / vocabulary | text |
 | `q-fb-002` | fill-blank（自由填空） | reading-writing | RW4 | reading / writing / vocabulary | text |

@@ -2,7 +2,7 @@
   {
     "examPaperId": "starters-mock-001",
     "title": "Starters 模擬考 #1（範例）",
-    "description": "P3-1 schema 演示用範例；10 題混合題型，含聽力、看字選圖、yes/no、看圖拼字。",
+    "description": "P3-1 schema 演示用範例；13 題混合題型，含聽力、看字選圖、yes/no、看圖拼字（4 題 RW3 多元主題）。",
     "sections": [
       {
         "id": "listening",
@@ -21,6 +21,9 @@
           "q-tf-002",
           "q-wc-001",
           "q-sp-001",
+          "q-sp-002",
+          "q-sp-003",
+          "q-sp-004",
           "q-fb-001",
           "q-fb-002",
           "q-mt-001"
@@ -28,7 +31,7 @@
       }
     ],
     "sourceMix": {
-      "ai_generated": 6,
+      "ai_generated": 9,
       "custom": 4
     },
     "createdAt": "2026-05-08T00:00:00.000Z",
