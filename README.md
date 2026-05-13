@@ -164,4 +164,5 @@ reports/              # Claude / Codex 回報檔案輸出位置
 - `docs/PRACTICE_DATA_IMPORT_PLAN.md` — 正式練習資料匯入流程與來源欄位規劃（P3-10-A）
 - `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` — 網路資源 collector / crawler 規劃（P3-10-B）
 - `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` — 匯入題目轉正式 schema 的 normalize 流程（P3-10-C）
+- `docs/DISCOVERY_CRAWLER_PLAN.md` — 自動發現題庫 / 歷屆考題 / 學習資源來源的 discovery crawler 規劃（P3-10-D-2）
 - `reports/` — Claude / Codex 回報檔案輸出位置（例如 `reports/claude_last_report.md`）

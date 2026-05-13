@@ -10,6 +10,11 @@
  *   - 把單一 URL 抓回來、做簡單 HTML 解析、輸出 resource-index 或 source-document JSON。
  *   - 屬 P3-10-B 範圍，本輪只實作 index-only 與 full-text 兩個模式；asset-aware 屬未來範圍。
  *
+ * P3-10-D 補強（2026-05-13）：
+ *   - 加 `warnings: []` 陣列到 output JSON；non-2xx 與 non-HTML 自動 push warning entry。
+ *   - non-HTML content-type 時跳過 HTML regex 解析（headings / links / assets / cleanedText / candidates 皆給空），避免對 binary 跑 regex 出垃圾字串。
+ *   - 加 `mode` / `retrievedAt` 欄位到 output（向後相容、不破壞 example JSON）。
+ *
  * 硬邊界（對齊 docs/WEB_RESOURCE_COLLECTOR_PLAN.md A 段）：
  *   - ❌ 不爬蟲式批次抓——本 CLI 一次只處理一個 URL；無 spider / 無 follow-link。
  *   - ❌ 不繞 robots.txt——任何被 robots 禁止的 URL，使用者自行決定是否跑。
@@ -420,16 +425,36 @@ function detectCandidates(cleanedText) {
 // 組裝 output payload
 // ---------------------------------------------------------------------------
 
+// P3-10-D 補強（2026-05-13）：non-2xx / non-HTML 時補 warnings + 跳過 HTML 解析
+function buildWarnings(fetched) {
+  const warnings = [];
+  if (fetched.status < 200 || fetched.status >= 300) {
+    warnings.push({
+      code: "non_2xx_status",
+      message: `HTTP status ${fetched.status} is not 2xx; payload 可能不是預期的 HTML 內容（例如 404 / 403 / 500 錯誤頁），請人工檢查 content / cleanedText 後決定是否視為有效來源。`,
+    });
+  }
+  const ct = (fetched.contentType ?? "").toLowerCase();
+  const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
+  if (!isHtml) {
+    warnings.push({
+      code: "non_html_content_type",
+      message: `content-type "${fetched.contentType}" 不是 HTML；本 collector v0.1 不解析 binary / PDF / image / audio。請改用未來 asset-aware 模式或 PDF parser 處理（屬 P3-10-D 後續 / P3-10 後續刀數）。`,
+    });
+  }
+  return { warnings, isHtml };
+}
+
 function buildResourceIndexEntry(args, fetched) {
   const urlObj = new URL(args.url);
-  const title = extractTagContent(fetched.text, "title");
-  const description = extractMetaContent(fetched.text, "description");
-  const h1Match = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(fetched.text);
-  const h1 = h1Match
-    ? decodeEntities(stripAllTags(h1Match[1])).trim()
-    : "";
-  const linksCount = (fetched.text.match(/<a\b/gi) ?? []).length;
-  const cleanedText = buildCleanedText(fetched.text).slice(0, 2000);
+  const { warnings, isHtml } = buildWarnings(fetched);
+  // non-HTML 時不對 binary 跑 HTML regex（避免出垃圾 cleanedText / 假 title）
+  const title = isHtml ? extractTagContent(fetched.text, "title") : "";
+  const description = isHtml ? extractMetaContent(fetched.text, "description") : "";
+  const h1Match = isHtml ? /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(fetched.text) : null;
+  const h1 = h1Match ? decodeEntities(stripAllTags(h1Match[1])).trim() : "";
+  const linksCount = isHtml ? (fetched.text.match(/<a\b/gi) ?? []).length : 0;
+  const cleanedText = isHtml ? buildCleanedText(fetched.text).slice(0, 2000) : "";
   return {
     id: `res-gen-${Date.now()}`,
     url: args.url,
@@ -437,34 +462,43 @@ function buildResourceIndexEntry(args, fetched) {
     sourceDomain: urlObj.hostname,
     sourceType: args.sourceType,
     sourceName: args.sourceName ?? urlObj.hostname,
-    resourceType: inferResourceType(args.url, title, cleanedText),
+    resourceType: isHtml
+      ? inferResourceType(args.url, title, cleanedText)
+      : inferResourceType(args.url, "", ""),
     description,
     h1,
     linksCount,
     httpStatus: fetched.status,
     contentType: fetched.contentType,
+    mode: "index-only",
     retrievedAt: new Date().toISOString(),
     collectorVersion: COLLECTOR_VERSION,
+    warnings,
     notes: "由 web_resource_collect.mjs index-only 模式產生；單筆覆寫式輸出。",
   };
 }
 
 function buildSourceDocumentEntry(args, fetched) {
   const urlObj = new URL(args.url);
-  const title = extractTagContent(fetched.text, "title");
-  const description = extractMetaContent(fetched.text, "description");
-  const headings = extractAllHeadings(fetched.text);
-  const links = extractAllLinks(fetched.text, args.url);
-  const assets = extractAllAssets(fetched.text, args.url);
-  const cleanedText = buildCleanedText(fetched.text);
-  const extractedCandidates = detectCandidates(cleanedText);
+  const { warnings, isHtml } = buildWarnings(fetched);
+  // non-HTML 時不解析 HTML，所有欄位給空陣列 / 空字串；reviewer 可從 warnings + contentType 判斷
+  const title = isHtml ? extractTagContent(fetched.text, "title") : "";
+  const description = isHtml ? extractMetaContent(fetched.text, "description") : "";
+  const headings = isHtml ? extractAllHeadings(fetched.text) : [];
+  const links = isHtml ? extractAllLinks(fetched.text, args.url) : [];
+  const assets = isHtml ? extractAllAssets(fetched.text, args.url) : [];
+  const cleanedText = isHtml ? buildCleanedText(fetched.text) : "";
+  const extractedCandidates = isHtml ? detectCandidates(cleanedText) : [];
+  const nowIso = new Date().toISOString();
   return {
     id: `doc-gen-${Date.now()}`,
     resourceId: null,
     sourceUrl: args.url,
     sourceName: args.sourceName ?? urlObj.hostname,
     sourceType: args.sourceType,
-    importedAt: new Date().toISOString(),
+    mode: "full-text",
+    importedAt: nowIso,
+    retrievedAt: nowIso,
     contentType: fetched.contentType,
     httpStatus: fetched.status,
     title,
@@ -475,6 +509,7 @@ function buildSourceDocumentEntry(args, fetched) {
     links,
     assets,
     extractedCandidates,
+    warnings,
     provenance: {
       collectorVersion: COLLECTOR_VERSION,
       collectorMode: "full-text",
@@ -559,7 +594,25 @@ async function main() {
   console.error(`[collector] wrote ${outPath}`);
 }
 
-main().catch((err) => {
-  console.error(`[collector] unexpected error: ${err.stack ?? err.message}`);
-  process.exit(1);
-});
+// P3-10-D-3 補強（2026-05-13）：把 main() 包進「是否為直接 CLI 呼叫」的判斷，
+// 讓其他腳本（例如 scripts/collect_discovered_resources.mjs）可以 import 此檔的
+// helper 函式而不會觸發 CLI flow。CLI 行為對使用者完全不變。
+import { pathToFileURL } from "node:url";
+const isCliInvocation = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
+if (isCliInvocation) {
+  main().catch((err) => {
+    console.error(`[collector] unexpected error: ${err.stack ?? err.message}`);
+    process.exit(1);
+  });
+}
+
+// 給 P3-10-D-3 pipe 重用的 helper exports（不影響既有 CLI 介面 / 不影響輸出 JSON 結構）。
+export {
+  COLLECTOR_VERSION,
+  COLLECTOR_USER_AGENT,
+  DEFAULT_TIMEOUT_MS,
+  fetchUrl,
+  buildResourceIndexEntry,
+  buildSourceDocumentEntry,
+  buildWarnings,
+};

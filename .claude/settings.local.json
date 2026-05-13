@@ -177,7 +177,11 @@
       "Bash(kill 55075)",
       "Bash(kill 56134)",
       "Bash(kill 87917)",
-      "Bash(kill 98133)"
+      "Bash(kill 98133)",
+      "Bash(echo \"---exit=$?---\")",
+      "Bash(unset BRAVE_SEARCH_API_KEY)",
+      "Bash(echo \"exit_check=$?\")",
+      "Bash(echo \"exit_examples=$? \\(預期 1 = 沒命中、沒被忽略\\)\")"
     ]
   }
 }

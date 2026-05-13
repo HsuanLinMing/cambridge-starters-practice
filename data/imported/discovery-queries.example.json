@@ -1,0 +1,155 @@
+[
+  {
+    "id": "dq-en-official-001",
+    "query": "Cambridge Pre A1 Starters sample paper",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["sample_paper", "pdf", "page"],
+    "expectedExamParts": ["L1", "L2", "L3", "L4", "RW1", "RW2", "RW3", "RW4", "RW5"],
+    "notes": "官方 sample paper 入口；多半連到 Cambridge English 官方頁或 PDF。仍只人工瀏覽參考，不下載複製。"
+  },
+  {
+    "id": "dq-en-official-002",
+    "query": "Pre A1 Starters sample test PDF",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["sample_paper", "pdf"],
+    "expectedExamParts": ["L1", "L2", "L3", "L4", "RW1", "RW2", "RW3", "RW4", "RW5"],
+    "notes": "瞄準 PDF 檔的 sample test；多半第三方或官方 handbook。"
+  },
+  {
+    "id": "dq-en-official-003",
+    "query": "Cambridge Starters listening sample paper",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["sample_paper", "listening_practice"],
+    "expectedExamParts": ["L1", "L2", "L3", "L4"],
+    "notes": "Listening 區段的 sample paper。"
+  },
+  {
+    "id": "dq-en-official-004",
+    "query": "Cambridge Starters reading writing sample paper",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["sample_paper", "reading_writing_practice"],
+    "expectedExamParts": ["RW1", "RW2", "RW3", "RW4", "RW5"],
+    "notes": "Reading & Writing 區段的 sample paper。"
+  },
+  {
+    "id": "dq-en-practice-001",
+    "query": "Cambridge Starters practice questions",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["page", "worksheet", "reading_writing_practice", "listening_practice"],
+    "expectedExamParts": ["L1", "L2", "L3", "L4", "RW1", "RW2", "RW3", "RW4", "RW5"],
+    "notes": "練習題；第三方教學網站常見。"
+  },
+  {
+    "id": "dq-en-practice-002",
+    "query": "Pre A1 Starters practice test",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["page", "worksheet"],
+    "expectedExamParts": ["unknown"],
+    "notes": "practice test 入口頁。"
+  },
+  {
+    "id": "dq-en-practice-003",
+    "query": "Starters reading writing practice",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["reading_writing_practice", "worksheet"],
+    "expectedExamParts": ["RW1", "RW2", "RW3", "RW4", "RW5"],
+    "notes": "R&W 練習頁。"
+  },
+  {
+    "id": "dq-en-practice-004",
+    "query": "Starters listening practice",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["listening_practice", "audio"],
+    "expectedExamParts": ["L1", "L2", "L3", "L4"],
+    "notes": "Listening 練習頁。本專案音檔絕不直接使用、需自製 TTS。"
+  },
+  {
+    "id": "dq-en-vocab-001",
+    "query": "Pre A1 Starters word list",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["vocabulary_list", "pdf", "page"],
+    "expectedExamParts": ["unknown"],
+    "notes": "官方 / 第三方 word list；對齊本專案 vocabulary.json 用。"
+  },
+  {
+    "id": "dq-en-vocab-002",
+    "query": "Cambridge Starters vocabulary worksheet",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["worksheet", "vocabulary_list"],
+    "expectedExamParts": ["RW3"],
+    "notes": "詞彙 worksheet；可作為 RW3 拼字題候選來源。"
+  },
+  {
+    "id": "dq-en-vocab-003",
+    "query": "Starters picture vocabulary",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["vocabulary_list", "image"],
+    "expectedExamParts": ["RW3"],
+    "notes": "圖片詞彙頁；圖片不直接使用、改自製 SVG。"
+  },
+  {
+    "id": "dq-en-vocab-004",
+    "query": "Starters spelling worksheet",
+    "language": "en",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["worksheet"],
+    "expectedExamParts": ["RW3"],
+    "notes": "拼字 worksheet。"
+  },
+  {
+    "id": "dq-zh-001",
+    "query": "劍橋 Starters 題庫",
+    "language": "zh-TW",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["page", "sample_paper"],
+    "expectedExamParts": ["unknown"],
+    "notes": "中文「題庫」關鍵字；多半第三方教學部落格或補習班頁面。"
+  },
+  {
+    "id": "dq-zh-002",
+    "query": "劍橋兒童英檢 Starters 歷屆試題",
+    "language": "zh-TW",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["sample_paper", "pdf"],
+    "expectedExamParts": ["unknown"],
+    "notes": "歷屆試題；授權邊界較嚴格，需確認來源。"
+  },
+  {
+    "id": "dq-zh-003",
+    "query": "Pre A1 Starters 練習題",
+    "language": "zh-TW",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["page", "worksheet"],
+    "expectedExamParts": ["unknown"],
+    "notes": "中文練習題；通常落在第三方網站。"
+  },
+  {
+    "id": "dq-zh-004",
+    "query": "Starters 單字表",
+    "language": "zh-TW",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["vocabulary_list", "pdf"],
+    "expectedExamParts": ["unknown"],
+    "notes": "中文單字表；對齊本專案 vocabulary.json 用。"
+  },
+  {
+    "id": "dq-zh-005",
+    "query": "劍橋 Starters 聽力 練習",
+    "language": "zh-TW",
+    "targetLevel": "Pre A1 Starters",
+    "targetResourceTypes": ["listening_practice", "audio"],
+    "expectedExamParts": ["L1", "L2", "L3", "L4"],
+    "notes": "中文聽力練習；音檔仍不直接使用、改自製 TTS。"
+  }
+]

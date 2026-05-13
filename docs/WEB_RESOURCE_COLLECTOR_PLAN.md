@@ -226,8 +226,71 @@ Collector 與 AI normalizer 都是**單向、可重跑**的工具——重跑只
 
 本輪只完成 1 + 2 模式的最小原型（index-only / full-text）；其他屬 P3-10-D 後續。
 
+**Discovery crawler 上游**：P3-10-D-2 已建立 `scripts/discover_resources.mjs` 與 `docs/DISCOVERY_CRAWLER_PLAN.md`——後續批次 collector 模式應從 `data/imported/discovered-resources.generated.json` 內 `shouldCollect = true` 的條目讀 URL；`collectorMode` 欄位已標明該 URL 適合 `full-text` 還是 `index-only`，可直接作為 collector 跑批的 hint。
+
+**P3-10-D-3 pipe（2026-05-13 落地）**：`scripts/collect_discovered_resources.mjs` v0.1 已實作 discovery → collector pipe：
+- 直接讀 `data/imported/discovered-resources.generated.json` 內 `shouldCollect=true` 的條目，依 `collectorMode` 分流到 collector 既有的 `buildSourceDocumentEntry`（full-text）/ `buildResourceIndexEntry`（index-only）。
+- 為了讓 pipe 能 `import`，本檔對應的 `scripts/web_resource_collect.mjs` 做了**小幅 refactor**：把 `main()` 包進「是否為直接 CLI 呼叫」判斷 + 加 `export { fetchUrl, buildResourceIndexEntry, buildSourceDocumentEntry, buildWarnings, COLLECTOR_VERSION, COLLECTOR_USER_AGENT, DEFAULT_TIMEOUT_MS }`。**CLI 行為完全不變**——直接 `node scripts/web_resource_collect.mjs --mode ... --url ...` 仍照舊跑 `main()`；只有透過 `import` 時不會觸發 CLI flow。
+- pipe 對 pdf / image / audio / video **不下載 binary**——只用 HEAD 抓 metadata（contentType / contentLength / httpStatus）+ 加 `asset_collection_not_implemented` / `pdf_parser_not_implemented` warnings；正式 asset-aware 下載 + PDF parser 仍屬未來範圍。
+- 輸出統一為 batch 結構 `data/imported/source-documents.batch.generated.json`（已 gitignore）；不寫單筆 `resource-index.generated.json` / `source-document.generated.json`（避免與既有 collector CLI 單 URL 輸出衝突）。
+
 ---
 
-## G. 版本
+## G. Non-2xx / Non-HTML / Fetch failure 處理策略（P3-10-D 補強）
 
+P3-10-D 實測後對 collector 補了三種異常狀況的處理；v0.1 行為固化如下：
+
+| 狀況 | exit code | output JSON 變化 | 是否仍寫檔 |
+| --- | --- | --- | --- |
+| HTTP 200~299 + HTML | 0 | `warnings: []`（空陣列） | ✅ 寫 |
+| **HTTP 非 2xx**（404 / 403 / 500 等） | **0**（仍寫檔以便人工檢查） | `warnings` push `{ code: "non_2xx_status", message }` | ✅ 寫；`httpStatus` 反映真實狀態碼 |
+| **non-HTML content-type**（image / pdf / audio / video / binary 等） | **0** | `warnings` push `{ code: "non_html_content_type", message }` + 解析欄位全給空（headings / links / assets / cleanedText / extractedCandidates） | ✅ 寫；reviewer 可從 warnings + contentType 判斷 |
+| **fetch failure**（DNS / network / TLS / abort） | **1** | 不寫 generated JSON | ❌ 不寫 |
+| **timeout**（超過 `--timeout` ms） | **1** | 不寫 generated JSON | ❌ 不寫 |
+| **缺 `--url` / `--mode` 不對 / unknown arg** | **2** | 不寫 generated JSON | ❌ 不寫；印 HELP_TEXT 到 stderr |
+
+**設計原則**：collector 是「最佳努力把抓到的東西寫進 generated JSON」，**不是 quality gate**——quality gate 屬 normalizer + human review。404 / 非 HTML 的內容仍寫檔以保留證據；warnings 陣列讓 reviewer 一眼看到需要注意的點。
+
+---
+
+## H. Duplicate URL / 重抓策略
+
+當前實作（v0.1）：
+
+- **同一 URL 重跑時 generated JSON 完全覆寫**——僅保留最新一次抓取的結果，舊內容遺失。
+- **無歷史版本機制**——不寫 `data/imported/history/` 或時間戳檔名。
+- **無多 URL 批次模式**——一次 CLI 呼叫只處理一個 URL。
+
+未來批次模式（屬 P3-10-D 後續刀數）建議規範：
+
+- **去重 key**：使用 `normalizedUrl`（將 scheme 統一為 https、移除 trailing slash、移除 fragment / utm_*、按字典序排序 query params）+ `sourceDomain`；同 normalizedUrl 視為同來源。
+- **保留 retrievedAt**：每筆都帶 `retrievedAt`，批次模式應在 source-document array 內保留同 URL 多次抓取記錄（按 retrievedAt 排序）。
+- **更新策略候選**：
+  - A. **always replace**：批次模式遇到既有 normalizedUrl 直接以新 fetch 結果取代（v0.1 等同；簡單但會丟失歷史）。
+  - B. **append history**：保留所有歷史抓取，array 內按 retrievedAt 由新到舊；reviewer 可比對內容變化。
+  - C. **diff-only append**：只在 cleanedText hash 與既有最新版本不同時才 append；介於 A / B 之間。
+- **是否保留歷史版本留待後續決策**：目前傾向 P3-10-D 後續實作時走 B（append history），預設保留全部抓取記錄、靠 reviewStatus + warnings + retrievedAt 排序在 UI 上顯示；但**不是本檔最終決策**，等 collector 有實際多次抓取需求時再敲定。
+
+**v0.1 注意**：因為是覆寫式，使用者跑多 URL 時若直接 chain CLI 呼叫，每次都會把上一次結果蓋掉；想保留多筆請手動 `mv` 到不同檔名，或等 P3-10-D 後續批次模式上線。
+
+---
+
+## I. Output JSON 欄位（P3-10-D 補強）
+
+P3-10-D 在原 schema 之上補了三個欄位，**保持向後相容**（example JSON 仍可用）：
+
+| 欄位 | 適用模式 | 值 | 用途 |
+| --- | --- | --- | --- |
+| `mode` | 兩者 | `"index-only"` / `"full-text"` | 標示這筆 entry 是哪種模式產的，未來合併 array 時可區分 |
+| `retrievedAt` | index-only（既有）+ **full-text 新增** | ISO 8601 | full-text 之前只有 `importedAt`，補一致 |
+| `warnings` | 兩者新增 | `Array<{ code, message }>` | 標示異常（non-2xx / non-HTML 等）；正常情況為空陣列 |
+
+example JSON（`data/imported/*.example.json`）刻意**不補這三欄**——保留 v0.1 原貌；generated JSON 才會出現。reviewer / 後續 normalizer 應該對 example / generated 兩種 schema 都相容。
+
+---
+
+## J. 版本
+
+- **v1.2**（2026-05-13，P3-10-D-3 微調）：F 段尾段補 P3-10-D-3 pipe 落地說明；`scripts/web_resource_collect.mjs` 加 `export` + `main()` 包進 entry-script 判斷（CLI 行為完全不變）；新增 `data/imported/source-documents.batch.generated.json` 排除到 `.gitignore`。**collector 核心邏輯與輸出 JSON 結構皆未改**。
+- **v1.1**（2026-05-13，P3-10-D 補強）：補 `warnings: []` 陣列、`mode` 欄位、`retrievedAt` 對齊；non-HTML 跳過 regex 解析；non-2xx 仍寫檔但帶 warning；G / H / I 三段新增到本檔。collector 行為仍向後相容 example JSON，腳本 `COLLECTOR_VERSION` 仍為 `web_resource_collect.mjs@v0.1`（屬補強、非破壞性升級）。
 - **v1**（2026-05-13）：第一版——P3-10-B 規劃文件 + `scripts/web_resource_collect.mjs` 最小 CLI 原型；支援 index-only / full-text；候選偵測為簡單 regex；無依賴新增（Node 內建 fetch + regex）。
