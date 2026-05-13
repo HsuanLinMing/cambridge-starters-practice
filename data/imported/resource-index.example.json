@@ -1,0 +1,44 @@
+[
+  {
+    "id": "res-001",
+    "url": "https://www.cambridgeenglish.org/exams-and-tests/starters/",
+    "title": "Cambridge English Pre A1 Starters — official page",
+    "sourceDomain": "cambridgeenglish.org",
+    "sourceType": "official",
+    "resourceType": "info_page",
+    "level": "Pre A1 Starters",
+    "detectedExamParts": ["L1", "L2", "L3", "L4", "RW1", "RW2", "RW3", "RW4", "RW5", "SP1", "SP2", "SP3", "SP4"],
+    "language": "en",
+    "summary": "Cambridge English 官方 Pre A1 Starters 入口頁；提供考試結構、handbook 連結、sample paper 入口。僅人工瀏覽參考，不下載 / 不複製官方題目或圖片。",
+    "retrievedAt": "2026-05-13T00:00:00.000Z",
+    "notes": "Layer 1 範例條目。實際使用時 sourceType: official 必須只作為人工參考；正式練習資料**不可**直接複製此來源的題目 / 圖片 / 音檔。"
+  },
+  {
+    "id": "res-002",
+    "url": "https://example.org/starters-vocab-list",
+    "title": "Starters vocabulary list — third party teaching site",
+    "sourceDomain": "example.org",
+    "sourceType": "third_party",
+    "resourceType": "vocabulary_list",
+    "level": "Pre A1 Starters",
+    "detectedExamParts": [],
+    "language": "en",
+    "summary": "第三方教學網站整理的 Starters 單字表；屬人工參考來源，正式 practice data 仍須對齊自家 vocabulary.json 並 normalize。",
+    "retrievedAt": "2026-05-13T00:00:00.000Z",
+    "notes": "Layer 1 範例。使用前需確認來源授權；reviewStatus 流程預設 imported_raw。"
+  },
+  {
+    "id": "res-003",
+    "url": "https://example.com/user-provided-worksheet",
+    "title": "User-provided RW3 spelling worksheet",
+    "sourceDomain": "example.com",
+    "sourceType": "user_provided",
+    "resourceType": "worksheet",
+    "level": "Pre A1 Starters",
+    "detectedExamParts": ["RW3"],
+    "language": "en",
+    "summary": "使用者自行提供的 worksheet，內含看圖拼字練習；屬 user_provided。匯入後仍需 normalize + 人工審核 + 標 source。",
+    "retrievedAt": "2026-05-13T00:00:00.000Z",
+    "notes": "Layer 1 範例。使用者已驗證來源可用、自行承擔使用責任。"
+  }
+]

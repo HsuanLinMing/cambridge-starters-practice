@@ -1,0 +1,82 @@
+[
+  {
+    "id": "q-sp-imp-001",
+    "type": "spelling",
+    "prompt": "Look at the picture. Write the word.",
+    "image": "/images/apple.svg",
+    "answer": "apple",
+    "explanation": "圖片是蘋果，所以正確單字是 apple。",
+    "spellingHint": "a _ _ l e",
+    "letterScramble": "p p a l e",
+    "starterSection": "reading-writing",
+    "starterPart": "RW3",
+    "skillFocus": ["spelling", "vocabulary"],
+    "expectedAnswerType": "text",
+    "source": "user_provided",
+    "sourceUrl": "https://example.com/user-provided-worksheet",
+    "sourceName": "User-provided RW3 worksheet",
+    "sourceType": "user_provided",
+    "provenance": {
+      "resourceId": "res-003",
+      "sourceDocumentId": "doc-002",
+      "normalizerVersion": "v0.1-draft",
+      "originalText": "Look at the picture. Write the word. (apple image) ____",
+      "candidateConfidence": 0.8,
+      "notes": "normalize 範例：取 worksheet 第 1 題（apple）改用自家 apple.svg、補 spellingHint / letterScramble、對齊 RW3 metadata。"
+    },
+    "importedAt": "2026-05-13T00:00:00.000Z",
+    "reviewStatus": "human_review_required"
+  },
+  {
+    "id": "q-tf-imp-001",
+    "type": "true-false",
+    "prompt": "It is a bird.",
+    "image": "/images/cat.svg",
+    "answer": "no",
+    "explanation": "圖片是貓，不是鳥，所以這句話不對，答 No。",
+    "starterSection": "reading-writing",
+    "starterPart": "RW1",
+    "skillFocus": ["reading", "vocabulary"],
+    "expectedAnswerType": "choice",
+    "source": "ai_generated",
+    "sourceUrl": null,
+    "sourceName": "AI normalizer draft (no real source URL)",
+    "sourceType": "ai_generated",
+    "provenance": {
+      "resourceId": null,
+      "sourceDocumentId": null,
+      "normalizerVersion": "v0.1-draft",
+      "originalText": null,
+      "candidateConfidence": null,
+      "notes": "normalize 範例：純 AI 草稿題、未對應任何 imported source；仍須走 human_review_required → approved_for_practice 才能進正式 quiz。"
+    },
+    "importedAt": "2026-05-13T00:00:00.000Z",
+    "reviewStatus": "ai_normalized"
+  },
+  {
+    "id": "q-mc-imp-001",
+    "type": "multiple-choice",
+    "prompt": "Which one is a color?",
+    "options": ["apple", "red", "cat", "two"],
+    "answer": "red",
+    "explanation": "red 是顏色；apple 是水果、cat 是動物、two 是數字。",
+    "starterSection": "reading-writing",
+    "starterPart": "RW4",
+    "skillFocus": ["reading", "vocabulary"],
+    "expectedAnswerType": "choice",
+    "source": "custom",
+    "sourceUrl": null,
+    "sourceName": "Handmade by maintainer",
+    "sourceType": "custom",
+    "provenance": {
+      "resourceId": null,
+      "sourceDocumentId": null,
+      "normalizerVersion": "v0.1-draft",
+      "originalText": null,
+      "candidateConfidence": null,
+      "notes": "normalize 範例：手寫題、source 標 custom；reviewStatus 預設 imported_raw，需經人工確認後升級。"
+    },
+    "importedAt": "2026-05-13T00:00:00.000Z",
+    "reviewStatus": "imported_raw"
+  }
+]

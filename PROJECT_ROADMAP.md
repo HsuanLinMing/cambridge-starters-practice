@@ -449,9 +449,34 @@
 - ⬜ 未來 RW3 review 區獨立練習模式（不交卷的拼字練習；屬 P2-4C-2B-2 範圍）
 - ⬜ 未來 RW3 看答案 / 再試一次按鈕（與 retry mode 整合）
 - ⬜ 未來更精準對齊正式 Starters RW3 格式（嚴格 spelling must be correct 開關 / 寬鬆模式切換）
+- ⬜ P3-9-C / P5 前：小朋友實機使用觀察與提示策略調整（依 [`docs/USER_TEST_NOTES.md`](./docs/USER_TEST_NOTES.md) v1 整理 2026-05-13 收斂之觀察清單與後續決策方向，待小朋友實際試玩後收集回饋；可能影響 RW3 提示策略 / 結果頁 No ✗ 視覺 / 互動進階 / review 區獨立練習 / 多題庫擴張等後續刀數的優先順序）
 - ⬜ RW4 多空格短文 + 字詞 bank 拖拉
 - ⬜ RW5 多圖序列 + one-word 輸入
 - ⬜ `getStarterPartInfo()` 升級為從 `question.starterPart` 讀（取代依 `question.type` 推導）
+
+## P3-10 正式練習資料補齊與 web resource collector（🟡 部分進行中）
+
+> 目標：把 `/quiz` 從「題型功能驗證版」逐步補成「真正可給小朋友完整練習的資料包」。
+> 三層架構（resource index / imported source dataset / formal practice data）+ 7 種 `sourceType` + 5 種 `reviewStatus`。
+> 完整規劃見 [`docs/PRACTICE_DATA_PLAN.md`](./docs/PRACTICE_DATA_PLAN.md)（umbrella）+ 三份子計畫文件。
+> **硬邊界**：crawler / collector 不爬蟲式批次抓、不繞 robots.txt、不下載官方音檔 / 圖片到 `public/`；任何匯入題目必須走 `reviewStatus: approved_for_practice` 才能進 `/quiz`。
+
+### 子分區與本輪完成
+
+- ✅ **P3-10-A**：正式資料匯入流程與來源欄位規劃（2026-05-13）—— 新增 [`docs/PRACTICE_DATA_IMPORT_PLAN.md`](./docs/PRACTICE_DATA_IMPORT_PLAN.md)（7 種 `sourceType` 字面量：official / third_party / user_provided / user_verified / ai_generated / custom / handmade；三層架構 7 步流程；正式資料 16 欄位要求；最小可玩資料包目標；後續擴充 9 項）+ [`docs/PRACTICE_DATA_PLAN.md`](./docs/PRACTICE_DATA_PLAN.md) umbrella 引用三份子計畫；example JSON 已 commit `data/imported/resource-index.example.json` / `source-document.example.json` / `normalized-questions.example.json`（共 3 + 2 + 3 筆範例）；`.gitignore` 加 `*.generated.json` / `research_cache/` / `tmp_crawl/` / `.local_research/` 排除 generated artifacts；README 文件索引補 4 條 + 加「目前 /quiz 仍是題型功能驗證版」說明指向 P3-10 規劃。
+- ✅ **P3-10-B**：Web resource collector 規劃與最小 CLI 原型（2026-05-13）—— 新增 [`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`](./docs/WEB_RESOURCE_COLLECTOR_PLAN.md)（三種模式：index-only / full-text / asset-aware；硬邊界 6 條；CLI flag 7 個；candidate 偵測 7 種 candidateType）+ `scripts/web_resource_collect.mjs` v0.1 最小 CLI 原型（**無新依賴**，使用 Node 18+ 內建 fetch + regex；支援 index-only + full-text；asset-aware 屬未來範圍）；輸出 `data/imported/resource-index.generated.json` / `source-document.generated.json`（已 gitignore）。
+- ✅ **P3-10-C**：Question import normalization 規劃（2026-05-13）—— 新增 [`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`](./docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md)（對齊 8 種題型 / reviewStatus 5 狀態機：imported_raw → ai_normalized → human_review_required → approved_for_practice / rejected / id 規則 / 必填 vs 選填 / 與既有文件分工）；normalizer 實作屬 P3-10-E、本輪未實作。
+
+### 後續待辦
+
+- ⬜ **P3-10-D**：collector 實測與第一批來源匯入（含 asset-aware 模式實作、多 URL 批次模式）
+- ⬜ **P3-10-E**：AI normalizer 原型（需 OpenAI API；產 `data/imported/normalized-questions.generated.json`）
+- ⬜ **P3-10-F**：匯入題目人工審核流程（含 review dashboard 草稿、批次 approve / reject）
+- ⬜ **P3-10-G**：Vocabulary 圖片 / SVG 補齊第一批（往 20+ 張推進；對齊「最小可玩資料包」vocabulary review 目標）
+- ⬜ **P3-10-H**：RW3 spelling 題庫擴充到最小可玩數量（至少 8 題；目前 4 題）
+- ⬜ **P3-10-I**：RW1 yes/no 題庫擴充（至少 4 題；目前 2 題）
+- ⬜ **P3-10-J**：L3 listening 多題補齊（至少 3 題配新 OpenAI v2 音檔；目前 1 題）
+- ⬜ **P3-10-K**：first practice paper 組裝與驗收（`approved_for_practice` 篩選邏輯落地 + 最小可玩 paper 上線 + Codex 驗收）
 
 ## P4 Speaking Examiner Agent 模擬考官系統（⬜ 未開始）
 

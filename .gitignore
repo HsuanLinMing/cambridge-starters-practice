@@ -42,3 +42,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .claude/settings.local.json
+
+# P3-10-A：crawler / collector / normalizer generated artifacts（.example 版本仍 commit）
+data/imported/resource-index.generated.json
+data/imported/source-document.generated.json
+data/imported/normalized-questions.generated.json
+research_cache/
+tmp_crawl/
+.local_research/

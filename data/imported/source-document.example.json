@@ -1,0 +1,93 @@
+[
+  {
+    "id": "doc-001",
+    "resourceId": "res-002",
+    "sourceUrl": "https://example.org/starters-vocab-list",
+    "sourceName": "example.org Starters vocab list",
+    "sourceType": "third_party",
+    "importedAt": "2026-05-13T00:00:00.000Z",
+    "contentType": "text/html",
+    "title": "Pre A1 Starters Word List — Example.org",
+    "description": "List of common Starters words grouped by theme (animals, colors, numbers, family).",
+    "headings": [
+      { "level": 1, "text": "Pre A1 Starters Word List" },
+      { "level": 2, "text": "Animals" },
+      { "level": 2, "text": "Colors" }
+    ],
+    "cleanedText": "Pre A1 Starters Word List. Animals: cat, dog, bird, fish. Colors: red, blue, green, yellow.",
+    "links": [
+      { "href": "https://example.org/about", "text": "About" }
+    ],
+    "assets": [
+      { "type": "image", "url": "https://example.org/img/cat.png", "alt": "cat" }
+    ],
+    "extractedCandidates": [
+      {
+        "candidateType": "vocabulary",
+        "text": "cat, dog, bird, fish",
+        "likelyQuestionType": null,
+        "likelyStarterPart": "RW3",
+        "confidence": 0.6,
+        "notes": "可作為 RW3 看圖拼字題目來源；需對齊自家 vocabulary.json 與既有 SVG。"
+      },
+      {
+        "candidateType": "vocabulary",
+        "text": "red, blue, green, yellow",
+        "likelyQuestionType": null,
+        "likelyStarterPart": "RW3",
+        "confidence": 0.6,
+        "notes": "colors 主題；目前自家 SVG 已有 red.svg / blue.svg。"
+      }
+    ],
+    "provenance": {
+      "collectorVersion": "web_resource_collect.mjs@v0.1",
+      "collectorMode": "full-text",
+      "fetcherUserAgent": "cambridge-starters-practice-collector/0.1"
+    },
+    "reviewStatus": "imported_raw"
+  },
+  {
+    "id": "doc-002",
+    "resourceId": "res-003",
+    "sourceUrl": "https://example.com/user-provided-worksheet",
+    "sourceName": "User-provided RW3 worksheet",
+    "sourceType": "user_provided",
+    "importedAt": "2026-05-13T00:00:00.000Z",
+    "contentType": "text/html",
+    "title": "Look at the picture. Write the word.",
+    "description": "RW3 spelling worksheet with 5 picture prompts.",
+    "headings": [
+      { "level": 1, "text": "Look at the picture. Write the word." }
+    ],
+    "cleanedText": "Look at the picture. Write the word. 1. (apple image) ____ 2. (cat image) ____ 3. (dog image) ____",
+    "links": [],
+    "assets": [
+      { "type": "image", "url": "https://example.com/img/apple.png", "alt": "apple" },
+      { "type": "image", "url": "https://example.com/img/cat.png", "alt": "cat" }
+    ],
+    "extractedCandidates": [
+      {
+        "candidateType": "question",
+        "text": "Look at the picture. Write the word. (apple image)",
+        "likelyQuestionType": "spelling",
+        "likelyStarterPart": "RW3",
+        "confidence": 0.8,
+        "notes": "提示語對齊 q-sp-001；本專案 normalizer 可直接套 spelling type。圖片 asset 需自製 SVG，**不**直接使用外部 PNG。"
+      },
+      {
+        "candidateType": "instruction",
+        "text": "Look at the picture. Write the word.",
+        "likelyQuestionType": null,
+        "likelyStarterPart": "RW3",
+        "confidence": 0.95,
+        "notes": "RW3 標準提示語"
+      }
+    ],
+    "provenance": {
+      "collectorVersion": "web_resource_collect.mjs@v0.1",
+      "collectorMode": "full-text",
+      "fetcherUserAgent": "cambridge-starters-practice-collector/0.1"
+    },
+    "reviewStatus": "imported_raw"
+  }
+]
