@@ -1,411 +1,436 @@
-# Claude Code 回報 · P3-10-D-3：Discovery → Collector 自動 pipe（部分完成）
+# Claude Code 回報 · P3-10-F：匯入題目人工審核流程第一版（部分完成）
 
 任務日期：2026-05-13
-任務性質：**discovery output 接 collector 的批次 pipe CLI 第一版**——讀 `discovered-resources.generated.json` 內 `shouldCollect=true` 條目，依 `collectorMode` 分流到 collector helper（full-text / index-only / asset HEAD-only），產出 batch 結構 `source-documents.batch.generated.json`。本輪硬邊界全遵守：未做 AI normalizer；未呼叫 OpenAI；未把 source document 轉正式題庫（`data/p3-example-questions.json` / `data/exam-papers.example.json` 完全不動）；未新增正式題目；未下載 PDF / image / audio binary（PDF asset 只 HEAD 抓 metadata、body 完全沒拉）；未解析 PDF；未產生 TTS；未改 UI / quiz / review / schema；未接後端 / DB / 登入；未處理 npm audit；未部署；未 commit `.env.local`；未 commit `.generated.json`（已 `git check-ignore` 確認）；未 commit `.claude/settings.local.json`；未紀錄真實 API key。
+任務性質：**Review workflow CLI 第一版**——新增 `scripts/review_normalized_questions.mjs` v0.1，支援 `prepare-review`（normalizer draft → reviewer 工作介面）與 `validate-reviewed`（驗證人工編輯後條目）兩個 mode；定義「normalized draft → reviewerFields template → 人工填欄 → validation passed → 可進 P3-10-K」的完整流程。本輪硬邊界全遵守：未呼叫 OpenAI；未實作 openai mode；未下載 PDF / image / audio；未解析 PDF；未修改 `data/p3-example-questions.json` / `data/exam-papers.example.json`；未新增正式題目；未讓 `/quiz` 使用 imported 題庫；未產 TTS；未改 UI / quiz / review / schema；未接後端 / DB / 登入；未處理 npm audit；未部署；未 commit `.env.local`；未 commit `.generated.json`（5 個 `.generated.json` 全 gitignore）；未 commit `.claude/settings.local.json`；未紀錄真實 API key（本 CLI 不需任何 env）。
 
 ## 【本輪修改摘要】
 
-新增 `scripts/collect_discovered_resources.mjs` v0.1（discovery → collector pipe CLI）+ 對 `scripts/web_resource_collect.mjs` 做最小、非破壞性 refactor，讓 pipe 能透過 `import` 重用 collector helper：
+新增 `scripts/review_normalized_questions.mjs` v0.1 + 同步 4 份文件 / Roadmap：
 
-1. **新增 pipe CLI `scripts/collect_discovered_resources.mjs` v0.1**——~370 行；分 5 段（常數 / CLI parsing / helpers / HEAD-only fetch / 單筆 entry 處理 / main）；支援 6 個 flag：`--input`（預設 `data/imported/discovered-resources.generated.json`） / `--out`（預設 `data/imported/source-documents.batch.generated.json`） / `--limit`（預設 5、防呆） / `--only-should-collect`（預設 yes） / `--dry-run`（預設 no） / `--help`。
-2. **三種處理策略分流**：
-   - **HTML + collectorMode=full-text** → 重用 collector `buildSourceDocumentEntry`（產出 source-document 含 cleanedText / headings / links / assets / extractedCandidates）；`document.kind = "source_document"`。
-   - **HTML + collectorMode=index-only** → 重用 collector `buildResourceIndexEntry`（產出 resource-index entry）；`document.kind = "resource_index"`。
-   - **resourceType ∈ { pdf, image, audio, video }** → 只發 HEAD、不下載 body；產 `document.kind = "asset_metadata"` 含 `httpStatus` / `contentType` / `contentLength` / `method: "HEAD"`；warnings 含 `asset_collection_not_implemented`（pdf 多一筆 `pdf_parser_not_implemented`）。
-3. **三種 skip 路徑**：
-   - `skipped_not_should_collect`（shouldCollect=false 且 --only-should-collect=yes）
-   - `skipped_missing_url`（entry 缺 url）
-   - `skip_due_to_limit`（超過 --limit 上限的 eligible 條目）
-4. **Rate limit / safety**：每 fetch 之間 `sleep(500)`；HTTP timeout 沿用 collector `DEFAULT_TIMEOUT_MS=15000`；單筆 fetch / parse 失敗時記 error + `status=failed` 並繼續下一筆、整批不中斷。
-5. **`scripts/web_resource_collect.mjs` 最小 refactor**（CLI 行為完全不變）——把 `main()` 包進 `import.meta.url === pathToFileURL(process.argv[1]).href` 判斷 + 新增 `export { COLLECTOR_VERSION, COLLECTOR_USER_AGENT, DEFAULT_TIMEOUT_MS, fetchUrl, buildResourceIndexEntry, buildSourceDocumentEntry, buildWarnings }`。原 CLI（`node scripts/web_resource_collect.mjs --mode ... --url ...`）仍照舊跑 main；只有透過 `import` 時不會觸發 CLI flow。
-6. **Output 統一 batch 結構**：`{ batchId, createdAt, source, input, dryRun, summary, items[] }`，每 item 保留 discovery provenance（`sourceQueryId` / `sourceQuery` / `score` / `reasons` / `reviewStatus` / `discoveryProvenance`）+ 處理結果（`status` / `warnings` / `error` / `collectedAt` / `document`）。
-7. **`.gitignore` 加** `data/imported/source-documents.batch.generated.json`（與 discovery / search-results / source-document / normalized-questions 等既有 generated 檔案一起）；段落標題更新為「P3-10-A / P3-10-D-2 / P3-10-D-2B / P3-10-D-3」。
-8. **文件同步**——`docs/DISCOVERY_CRAWLER_PLAN.md` G 段 6 階段表格擴張（加 step 2 pipe） + pipe 與 collector 分工說明 + M 段 v3 升級紀錄；`docs/WEB_RESOURCE_COLLECTOR_PLAN.md` F 段尾段補 D-3 pipe 落地說明 + v1.2 微調紀錄；`docs/PRACTICE_DATA_PLAN.md` F 段 P3-10-D-2B 子條目下加 P3-10-D-3 子條目；`PROJECT_ROADMAP.md` P3-10-D-3 條目從 ⬜ 改 🟡 + 完整本輪修改清單與測試結果摘要。
+1. **CLI 兩 mode**：
+   - `prepare-review`：讀 P3-10-E `normalized-questions.generated.json` → 篩 `status=draft + reviewStatus=needs_human_review + isReadyForPractice=false + draft!=null` 條目 → 預填 reviewerFields template（`approved=false` / `approvedForPractice=false` / finalQuestion 留空 answer/options）→ 寫 `data/imported/reviewed-questions.generated.json`。
+   - `validate-reviewed`：讀 reviewer 編輯後 `reviewed-questions.generated.json` → 對 `approvedForPractice=true` 條目跑 schema + 題型 validation → 寫 `data/imported/review-validation.generated.json` + 印 console summary。**不修改 reviewed file**、**不寫正式題庫**。
+2. **6 個 CLI flag**：`--input`（必填，兩 mode 對應不同上游） / `--out`（選填、兩 mode 不同預設） / `--mode`（必填，prepare-review / validate-reviewed） / `--limit`（預設 10、防呆） / `--dry-run yes|no`（預設 no） / `--help`。
+3. **5 種 skip reason（prepare-review）**：`skipped_status_not_draft` / `skipped_review_status_not_needs_review` / `skipped_already_ready` / `skipped_draft_null` / `skip_due_to_limit`。
+4. **保守 reviewerFields template**：每筆 queued 條目預填 type / starterPart / prompt（從 draft 抓），**但 answer / options 一律留空**（與 P3-10-E rule-based 保守邊界一致），reviewer 必須手填才能進入 validate-reviewed。
+5. **題型 validation 規則**：對 `approvedForPractice=true` 條目跑：(a) 必填欄位（id / type / starterPart / prompt / answer）、(b) 字面量對齊（QuestionType 9 種 + StarterPart L1-L4 / RW1-RW5）、(c) 一致性（approved=true + reviewStatus=approved_for_practice 同步）、(d) 題型 specific：spelling answer 非空字串、true-false answer 必 yes/no（忽略大小寫）、5 種 CHOICE_TYPES（multiple-choice / word-choice / listening-image-choice / listening-choice / picture-choice）options ≥ 2 + answer 對應 options（純字串或 `{id, value}` 物件）。
+6. **`.gitignore` 加 2 行**：`reviewed-questions.generated.json` + `review-validation.generated.json`；段落標題更新為 P3-10-A / D-2 / D-2B / D-3 / **E / F**。
+7. **文件同步**——`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` 升 v3（新增 F-pre 段 7 個子段：兩 mode / prepare-review filter / reviewerFields template / reviewer 操作 4 步 / validate-reviewed 驗證規則 / output schema / v0.1 不做清單）；`docs/PRACTICE_DATA_IMPORT_PLAN.md` C 段流程 4/5/6 步重寫對齊 P3-10-E + F + K 範圍；`docs/PRACTICE_DATA_PLAN.md` + `PROJECT_ROADMAP.md` P3-10-F 條目從 ⬜ 改 🟡 + 補本輪完整實作摘要。
+8. **CLI 端到端 6 種測試全綠**：使用者本機真實 normalized output（PDF skip case） / fixture 3 種 draft 變 queued / fixture observation/failed/skipped 變 skipped / dry-run yes / validate-reviewed 6 種 reviewer 編輯情境（1 passed + 4 failed + 1 skipped）/ 邊界 exit 2（缺 --input / unsupported mode / input 不存在）。
 
-`npm run lint` / `typecheck` / `build` 全綠（88 routes 不變、**無新依賴**）。**P3-10 整體仍 🟡（A/B/C ✅ + D 🟡 + D-2 🟡 + D-2B 🟡 + D-3 🟡 + E~K ⬜）；P3-10-D / P3-10 / P3 整體仍 🟡——未把任何整體階段標完成**。
+`npm run lint` / `typecheck` / `build` 全綠（88 routes 不變、**無新依賴**）。**P3-10-F 標 🟡 部分完成；P3-10 / P3 整體仍 🟡——未把任何整體階段標完成**。
 
 ## 【修改檔案清單】
 
-新增 1 份；修改 6 份；未動既有題目 / 圖片 / 音檔 / UI / quiz / review / schema / data / 題庫：
+新增 1 份；修改 5 份；未動既有題目 / 圖片 / 音檔 / UI / quiz / review / schema / data / 題庫 / .env：
 
 新增：
-- **`scripts/collect_discovered_resources.mjs`**：v0.1 pipe CLI 共 ~370 行；分 5 段（常數 / CLI arg parsing / helpers / HEAD fetch + entry 處理 / main）；無新 npm 依賴（純 Node 內建 + 從 `web_resource_collect.mjs` import）。
+- **`scripts/review_normalized_questions.mjs`**：v0.1 review workflow CLI 約 440 行，分 6 段：(1) 常數（REVIEW_VERSION / SUPPORTED_MODES / ALLOWED_QUESTION_TYPES 9 種 + ALLOWED_STARTER_PARTS 9 種 + CHOICE_TYPES / HELP_TEXT）/ (2) CLI parsing + validateArgs / (3) JSON helpers / (4) prepare-review 邏輯（buildReviewItem 預填 reviewerFields template + buildSkippedReviewItem + classifyForReview）/ (5) validate-reviewed 邏輯（nonEmptyString + answerMatchesOptions + validateOneReviewedItem 完整題型 validation）/ (6) main + entry-script gate（沿用 P3-10-E 同模式）。**無新 npm 依賴**。
 
 修改：
-- **`scripts/web_resource_collect.mjs`**：在 `main().catch(...)` 上方加 `pathToFileURL` import + `isCliInvocation` 判斷；底下加 ES module `export { COLLECTOR_VERSION, COLLECTOR_USER_AGENT, DEFAULT_TIMEOUT_MS, fetchUrl, buildResourceIndexEntry, buildSourceDocumentEntry, buildWarnings }`；**整檔僅新增 ~17 行 / 改 0 行 / 刪 0 行**；既有 CLI 行為、輸出 JSON 結構、warnings 處理完全不變。
-- **`.gitignore`**：加一行 `data/imported/source-documents.batch.generated.json`；段落標題更新為「P3-10-A / P3-10-D-2 / P3-10-D-2B / P3-10-D-3」。
-- **`docs/DISCOVERY_CRAWLER_PLAN.md`**：G 段「與現有 collector 的關係」表格從 5 階段擴張到 6 階段（加 step 2 pipe）+ 新增 4 點「pipe 與 collector 分工」說明；M 段加 v3 升級紀錄保留 v2.1 / v2 / v1。
-- **`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`**：F 段「後續擴充」尾段補 P3-10-D-3 pipe 落地說明（5 條：直接讀 discovery output / web_resource_collect.mjs 微 refactor / asset 只 HEAD / 統一 batch 輸出 / pipe 不寫單筆 generated）；J 段「版本」加 v1.2 微調紀錄。
-- **`docs/PRACTICE_DATA_PLAN.md`**：F 段 P3-10-D-2B 子條目後新增 P3-10-D-3 子項目，標籤「🟡 部分完成」+ 完整本輪修改摘要。
-- **`PROJECT_ROADMAP.md`**：P3-10-D-3 條目從 `⬜` 改 `🟡 部分完成`，補完整本輪修改清單（pipe CLI 6 flag / 3 種處理策略 / 3 種 skip 路徑 / collector refactor 非破壞性 / .gitignore / 文件同步） + 4 種測試結果 + 未做清單。
+- **`.gitignore`**：加 2 行 `data/imported/reviewed-questions.generated.json` + `data/imported/review-validation.generated.json`；段落標題從「P3-10-A / D-2 / D-2B / D-3」改「P3-10-A / D-2 / D-2B / D-3 / **E / F**」。
+- **`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`**：新增 F-pre 段（共 7 個子段，~120 行）；G 段加 v3 升級紀錄保留 v2 / v1。
+- **`docs/PRACTICE_DATA_IMPORT_PLAN.md`**：C 段流程第 4 / 5 / 6 步重寫——4 步對齊 P3-10-E v0.1（保守 reviewStatus=needs_human_review、不自動跳 ai_normalized）/ 5 步寫 P3-10-F v0.1 完整 prepare-review + validate-reviewed 流程 / 6 步明示「轉成 formal practice data 屬 P3-10-K、本輪不做」。
+- **`docs/PRACTICE_DATA_PLAN.md`**：F 段 P3-10-F 條目從 ⬜ 改 🟡，補本輪完整實作摘要。
+- **`PROJECT_ROADMAP.md`**：P3-10-F 條目從 ⬜ 改 🟡（含 6 個 flag / 5 種 skip reason / reviewerFields template / 題型 validation 規則 / .gitignore / 文件同步 / 6 種 CLI 測試結果 / 硬邊界 13 條）。
 
-未動：`lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / 任何 `app/review/*` / `app/page.tsx` / `components/QuizPlay.tsx` / 其他 components / `data/p3-example-questions.json`（13 題完整保留）/ `data/exam-papers.example.json` / `data/vocabulary.json` / `data/quizzes.json` / `data/imported/*.example.json`（6 個範例完整保留）/ `public/images/` / `public/audio/` / `scripts/discover_resources.mjs`（v0.2 完整保留）/ `scripts/generate_openai_tts_sample.mjs` / `docs/PRACTICE_DATA_IMPORT_PLAN.md` / `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `docs/CODEX_VALIDATION_RUNBOOK.md` / `docs/TASK_ROUTER.md` / `docs/USER_TEST_NOTES.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `README.md`（本輪沒新文件入口；既有 DISCOVERY_CRAWLER_PLAN 入口仍指向同一份）/ `.env.example`（沒新 env 需求）/ `source_materials/*` / `package.json`（**無新依賴**）/ `node_modules/`。
+未動：`scripts/discover_resources.mjs`（v0.2 完整保留）/ `scripts/web_resource_collect.mjs`（v0.1 + D-3 micro-refactor 完整保留）/ `scripts/collect_discovered_resources.mjs`（v0.1 完整保留）/ `scripts/normalize_collected_sources.mjs`（v0.1 完整保留）/ `scripts/generate_openai_tts_sample.mjs` / `lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / 任何 `app/review/*` / `app/page.tsx` / `components/QuizPlay.tsx` / 其他 components / `data/p3-example-questions.json`（13 題完整保留）/ `data/exam-papers.example.json` / `data/vocabulary.json` / `data/quizzes.json` / `data/imported/*.example.json`（7 個範例完整保留）/ `public/images/` / `public/audio/` / `docs/DISCOVERY_CRAWLER_PLAN.md` / `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `docs/CODEX_VALIDATION_RUNBOOK.md` / `docs/TASK_ROUTER.md` / `docs/USER_TEST_NOTES.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `README.md`（本輪沒新文件入口）/ `.env.example`（本輪不需新 env）/ `source_materials/*` / `package.json`（無新依賴）/ `node_modules/`。
 
-## 【Pipe CLI 說明】
+## 【Review CLI 說明】
 
-### 9 段檔案結構
+### 6 段檔案結構
 
 ```
-scripts/collect_discovered_resources.mjs
-├── Section 0：常數（PIPE_VERSION / DEFAULT_LIMIT / INTER_FETCH_DELAY_MS / ASSET_RESOURCE_TYPES / HELP_TEXT 預設路徑）
-├── Section 1：CLI arg parsing
-│   ├── parseYesNo（共用 yes/no 字面量驗證）
-│   └── parseArgs（6 個 flag：--input / --out / --limit / --only-should-collect / --dry-run / --help）
-├── Section 2：helpers（sleep / readJsonFile / writeJson / makeBatchId）
-├── Section 3：HEAD-only fetch（給 pdf / image / audio / video 用，**不下載 body**）
-├── Section 4：單筆 entry 處理
-│   ├── makeBaseItem（保留 discovery provenance）
-│   ├── buildCollectorArgs（對應 collector helper 簽章）
-│   ├── processAssetEntry（HEAD only + warnings）
-│   ├── processHtmlEntry（重用 collector buildSourceDocumentEntry / buildResourceIndexEntry）
-│   └── processOne（dispatcher：dry-run / asset / html）
-└── Section 5：main
-    ├── 讀 input / 驗證 array
-    ├── 分流 eligible vs skipped（含 3 種 skip 路徑：not_should_collect / missing_url / due_to_limit）
-    ├── 跑 eligible（with delay）
-    └── 寫 batch JSON
+scripts/review_normalized_questions.mjs
+├── Section 0：常數（REVIEW_VERSION / SUPPORTED_MODES / ALLOWED_QUESTION_TYPES / ALLOWED_STARTER_PARTS / CHOICE_TYPES / HELP_TEXT）
+├── Section 1：CLI parsing（parseYesNo / parseArgs / validateArgs；mode 字面量驗證）
+├── Section 2：JSON helpers（readJsonFile / writeJson / makeBatchId）
+├── Section 3：prepare-review
+│   ├── buildReviewItem（queued/dry_run 條目 + reviewerFields template 預填）
+│   ├── buildSkippedReviewItem（5 種 skip reason）
+│   ├── classifyForReview（dispatcher）
+│   └── runPrepareReview（讀 normalized batch / 分流 eligible / 跑 limit / 寫 reviewed batch）
+├── Section 4：validate-reviewed
+│   ├── nonEmptyString / answerMatchesOptions helpers
+│   ├── validateOneReviewedItem（必填欄位 + 一致性 + 題型 specific 驗證）
+│   └── runValidateReviewed（讀 reviewed batch / 跑 validation / 寫 validation summary + console）
+└── Section 5：main + entry-script gate
 ```
 
-### CLI 介面
+### CLI flag 表
 
 | flag | 必填 | 預設 | 說明 |
 | --- | --- | --- | --- |
-| `--input` | 選填 | `data/imported/discovered-resources.generated.json` | discovery output JSON |
-| `--out` | 選填 | `data/imported/source-documents.batch.generated.json` | batch output JSON（覆寫式） |
-| `--limit` | 選填 | `5` | 最多處理 N 筆 eligible；超過的 eligible 標 `skip_due_to_limit` |
-| `--only-should-collect` | 選填 | `yes` | `yes` 時 shouldCollect ≠ true 直接 skip；`no` 時全部進 eligible |
-| `--dry-run` | 選填 | `no` | `yes` 時不 fetch URL；item.status="dry_run"；warnings 含 dry_run code |
+| `--input` | 必填（兩 mode 對應不同上游） | — | prepare-review → normalized batch / validate-reviewed → reviewed batch |
+| `--out` | 選填 | prepare-review → `data/imported/reviewed-questions.generated.json` / validate-reviewed → `data/imported/review-validation.generated.json` | output 寫檔路徑（覆寫式） |
+| `--mode` | 必填 | — | `prepare-review` / `validate-reviewed` |
+| `--limit` | 選填（僅 prepare-review 使用） | `10` | 最多處理 N 筆 eligible draft |
+| `--dry-run` | 選填（僅 prepare-review 使用） | `no` | `yes` 時所有 queued 標 dry_run + 加 `dry_run` warning |
 | `--help` | 選填 | — | 印 usage |
 
 ### exit code
 
 | 情況 | exit code |
 | --- | --- |
-| 成功 | 0 |
-| 未預期錯誤（整批 abort） | 1 |
-| CLI 參數錯 / input 檔不存在 / JSON parse 失敗 | 2 |
+| 成功（含 validate-reviewed 找出 failed 條目；不影響 exit code） | 0 |
+| 未預期錯誤 | 1 |
+| CLI 參數錯 / input 不存在 / JSON parse 失敗 / 未支援 mode | 2 |
+
+### 與 P3-10-D-3 / E / K 的關係
+
+| 階段 | 工具 | 輸入 | 輸出 | reviewStatus |
+| --- | --- | --- | --- | --- |
+| D-3 pipe | `collect_discovered_resources.mjs` | discovered-resources | source-documents.batch | discovered_candidate |
+| E normalizer | `normalize_collected_sources.mjs` | source-documents.batch | normalized-questions | needs_human_review |
+| **F-pre prepare-review**（本輪） | `review_normalized_questions.mjs --mode prepare-review` | normalized-questions | reviewed-questions（reviewerFields template） | needs_human_review |
+| **F-edit reviewer 編輯**（本輪 / 手動） | 維護者編輯 JSON | reviewed-questions | （同檔，reviewer 編輯後） | reviewer 改為 approved_for_practice |
+| **F-val validate-reviewed**（本輪） | `review_normalized_questions.mjs --mode validate-reviewed` | reviewed-questions（編輯後） | review-validation.generated.json + console | （不改 reviewed file） |
+| ⬜ K 寫入正式題庫 | 屬未來範圍 | validate-reviewed passed 條目 | `data/p3-example-questions.json` | （正式 schema） |
+
+## 【Prepare-review 測試結果】
+
+### Test A：使用者本機真實 normalized output
+
+```
+$ node scripts/review_normalized_questions.mjs \
+    --input data/imported/normalized-questions.generated.json \
+    --out data/imported/reviewed-questions.generated.json \
+    --mode prepare-review --limit 10
+[review] mode=prepare-review input=... out=... limit=10 dry-run=no
+[review] wrote reviewed batch — totalInput=1 eligible=0 queued=0 dryRun=0 skipped=1
+exit=0
+```
+
+唯一一筆來自 P3-10-E 對使用者本機 PDF batch 的處理結果（`status=skipped` + `skipped_asset_metadata`）被正確 skip：
+
+```jsonc
+{
+  "sourceItemId": "disc-gen-0001",
+  "sourceUrl": "https://www.lebusanglais.com/.../Pre-A1-Starters-Sample-Paper.pdf",
+  "sourceType": "third_party",
+  "resourceType": "pdf",
+  "status": "skipped",
+  "warnings": [{ "code": "skipped_status_not_draft", "message": "normalizer item.status=\"skipped\" 不是 \"draft\"，跳過。" }],
+  "reviewerFields": null
+}
+```
+
+✅ 證明本輪硬邊界生效：normalizer 階段已 skip 的條目（含 third-party PDF）在 prepare-review 階段不會被 promote 進 review queue。
+
+### Test B：fixture 5 種 normalizer output 條件
+
+自製 `/tmp/norm-fix.json`（已清理）含 5 種 normalizer output 條件：
+
+| input | normalizer status | normalizer draft.type | 預期 prepare-review output |
+| --- | --- | --- | --- |
+| fx-001 | draft | spelling | queued + reviewerFields template |
+| fx-002 | draft | true-false | queued + reviewerFields template |
+| fx-003 | draft | multiple-choice | queued + reviewerFields template |
+| fx-004 | observation | (none) | skipped (skipped_status_not_draft) |
+| fx-005 | skipped | (none) | skipped (skipped_status_not_draft) |
+
+實跑結果：
+
+```
+[review] wrote reviewed batch — totalInput=5 eligible=3 queued=3 dryRun=0 skipped=2
+```
+
+每筆 queued item reviewerFields 結構：
+
+```
+fx-001  status=queued
+        reviewerFields.approved=false  approvedForPractice=false
+        finalQuestion.type=spelling     starterPart=RW3   prompt="Look at the picture. Write the word."  answer=""  options=[]
+fx-002  status=queued
+        finalQuestion.type=true-false   starterPart=RW1   prompt="It is a cat."  answer=""  options=[]
+fx-003  status=queued
+        finalQuestion.type=multiple-choice  starterPart=RW4  prompt="Which one is a color?"  answer=""  options=[]
+```
+
+✅ 完整保留 source provenance（sourceItemId / sourceUrl / sourceType / resourceType / level / sourceQueryId / sourceQuery / sourceScore / sourceReasons / detectedExamParts / discoveryProvenance / originalDraft）；reviewerFields template 預填 type / starterPart / prompt **但 answer / options 一律空**；`approved=false` / `approvedForPractice=false` 確認**不自動 approve**。
 
 ## 【Dry-run 測試結果】
 
 ```
-$ node scripts/collect_discovered_resources.mjs \
-    --input data/imported/discovered-resources.generated.json \
-    --out data/imported/source-documents.batch.generated.json \
-    --limit 5 --dry-run yes
-
-[pipe] input=.../discovered-resources.generated.json out=.../source-documents.batch.generated.json limit=5 only-should-collect=yes dry-run=yes
-[pipe] [1/1] [dry-run] discoveredResourceId=disc-gen-0001 resourceType=pdf collectorMode=index-only url=https://www.lebusanglais.com/.../Pre-A1-Starters-Sample-Paper.pdf
-[pipe] wrote batch — totalInput=1 eligible=1 collected=0 dryRun=1 skipped=0 failed=0
+$ node scripts/review_normalized_questions.mjs --input /tmp/norm-fix.json --out /tmp/rev-dry.json --mode prepare-review --limit 10 --dry-run yes
+[review] wrote reviewed batch — totalInput=5 eligible=3 queued=0 dryRun=3 skipped=2
 exit=0
 ```
 
-`source-documents.batch.generated.json` 內容（節選）：
+關鍵差別：
+- **queued=0、dryRun=3**：3 筆 draft 從 queued 變 dry_run
+- 每筆 dry_run item 多一筆 `dry_run` warning：「review item 已預填 reviewerFields template，但 status 標為 dry_run；reviewer 可比對欄位結構後再實跑」
+- reviewerFields template 仍完整存在（reviewer 可比對欄位 layout 是否合理）
+
+✅ dry-run 行為符合任務單規範；對 reviewer 在「正式生 reviewed batch 前先確認 schema 是否合用」非常有幫助。
+
+## 【Validate-reviewed 測試結果】
+
+自製 `/tmp/rev-edited.json`（已清理）模擬 reviewer 編輯後 6 種情境：
+
+```
+$ node scripts/review_normalized_questions.mjs --input /tmp/rev-edited.json --out /tmp/val-out.json --mode validate-reviewed
+[review] mode=validate-reviewed input=/tmp/rev-edited.json out=/tmp/val-out.json (validation 只讀 input、不寫正式題庫)
+[review] validation summary:
+         totalInput=6
+         approvedClaimed=5
+         passedValidation=1
+         failedValidation=4
+         skippedNotApproved=1
+[review] failed items:
+         - sourceItemId=fx-002 finalQuestionId=q-tf-imp-001 type=true-false errors=true_false_answer_invalid
+         - sourceItemId=fx-003 finalQuestionId=q-mc-imp-001 type=multiple-choice errors=answer_not_in_options
+         - sourceItemId=fx-004 finalQuestionId= type=spelling errors=missing_final_id,missing_final_starter_part,missing_final_answer
+         - sourceItemId=fx-006 finalQuestionId=q-incon-001 type=spelling errors=approved_must_be_true,review_status_not_approved_for_practice
+[review] **不寫正式題庫**：data/p3-example-questions.json / data/exam-papers.example.json 未動。寫入 /tmp/val-out.json
+```
+
+逐筆驗證結果：
+
+| sourceItemId | reviewer 編輯情境 | validation 結果 | error codes |
+| --- | --- | --- | --- |
+| fx-001 | 完整 spelling：id / type / starterPart / prompt / answer 都填、approved=true、approvedForPractice=true、reviewStatus=approved_for_practice | ✅ **passed** | — |
+| fx-002 | true-false 但 answer="maybe" | ❌ failed | `true_false_answer_invalid` |
+| fx-003 | multiple-choice + options=[apple,red,cat] 但 answer="purple" | ❌ failed | `answer_not_in_options` |
+| fx-004 | spelling 但 id / starterPart / answer 都空 | ❌ failed | `missing_final_id` / `missing_final_starter_part` / `missing_final_answer` |
+| fx-005 | approvedForPractice=false（reviewer 還沒勾選） | ⏭ skipped | reason: "approvedForPractice !== true" |
+| fx-006 | 不一致：approvedForPractice=true 但 approved=false 且 reviewStatus=needs_human_review | ❌ failed | `approved_must_be_true` / `review_status_not_approved_for_practice` |
+
+✅ 6 種情境全部正確分類；summary `passedValidation=1 / failedValidation=4 / skippedNotApproved=1` 加總 = 6 = totalInput。
+
+## 【Output 格式檢查】
+
+### prepare-review 結果（使用者本機 PDF case）
+
+`data/imported/reviewed-questions.generated.json`：
 
 ```jsonc
 {
-  "batchId": "batch-2026-05-13T08-28-31-234Z",
-  "createdAt": "2026-05-13T08:28:31.234Z",
-  "source": "collect_discovered_resources.mjs@v0.1",
-  "input": "/.../discovered-resources.generated.json",
-  "dryRun": true,
-  "summary": { "totalInput": 1, "eligible": 1, "collected": 0, "dryRun": 1, "skipped": 0, "failed": 0 },
-  "items": [
-    {
-      "discoveredResourceId": "disc-gen-0001",
-      "url": "https://www.lebusanglais.com/.../Pre-A1-Starters-Sample-Paper.pdf",
-      "sourceQueryId": "dq-en-official-001",
-      "sourceQuery": "Cambridge Pre A1 Starters sample paper",
-      "sourceType": "third_party",
-      "resourceType": "pdf",
-      "level": "Pre A1 Starters",
-      "score": 8,
-      "reasons": ["keyword_starters", "keyword_pre_a1", "keyword_sample_paper"],
-      "reviewStatus": "discovered_candidate",
-      "collectorMode": "index-only",
-      "discoveryProvenance": { "discoveryVersion": "discover_resources.mjs@v0.2", "searchProvider": "brave-search", "rank": 1 },
-      "status": "dry_run",
-      "warnings": [ { "code": "dry_run", "message": "dry-run：未實際 fetch。計畫策略：HEAD only（resourceType=pdf）+ warnings: asset_collection_not_implemented + pdf_parser_not_implemented" } ],
-      "error": null,
-      "collectedAt": "...",
-      "document": null
-    }
-  ]
+  "batchId": "revbatch-2026-05-13T...",
+  "createdAt": "...",
+  "source": "review_normalized_questions.mjs@v0.1",
+  "input": "<absolute path>",
+  "mode": "prepare-review",
+  "dryRun": false,
+  "summary": { "totalInput": 1, "eligible": 0, "queued": 0, "dryRun": 0, "skipped": 1 },
+  "items": [ { ...sourceItemId=disc-gen-0001 status=skipped warnings=[skipped_status_not_draft] reviewerFields=null... } ]
 }
 ```
 
-✅ dry-run 行為正確：未實際 fetch URL；status=`dry_run`；warnings 解釋實跑時會走的策略；保留所有 discovery provenance（sourceQueryId / sourceQuery / score / reasons / reviewStatus / discoveryProvenance）。
-
-## 【Real collect 小量測試結果】
-
-### 主測試：limit=1 對使用者本機 happy path PDF
-
-```
-$ node scripts/collect_discovered_resources.mjs \
-    --input data/imported/discovered-resources.generated.json \
-    --out data/imported/source-documents.batch.generated.json \
-    --limit 1
-
-[pipe] [1/1] discoveredResourceId=disc-gen-0001 resourceType=pdf collectorMode=index-only url=https://www.lebusanglais.com/.../Pre-A1-Starters-Sample-Paper.pdf
-[pipe] wrote batch — totalInput=1 eligible=1 collected=1 dryRun=0 skipped=0 failed=0
-exit=0
-```
-
-generated `items[0].document`（節選）：
+### prepare-review fixture queued item（保留所有 source provenance + reviewerFields template）
 
 ```jsonc
 {
-  "status": "collected",
-  "warnings": [
-    { "code": "asset_collection_not_implemented", "message": "本輪 D-3 不下載 / 不解析 asset（pdf / image / audio / video）；僅以 HEAD 抓 metadata..." },
-    { "code": "pdf_parser_not_implemented", "message": "PDF parser 屬 P3-10 後續刀數（需評估 pdfjs-dist / pdf-parse 依賴）..." }
-  ],
-  "document": {
-    "kind": "asset_metadata",
-    "url": "https://www.lebusanglais.com/.../Pre-A1-Starters-Sample-Paper.pdf",
-    "httpStatus": 200,
-    "contentType": "application/pdf",
-    "contentLength": 6914257,    // 6.9MB — 注意 body 完全未下載，只 HEAD 拿到此 header
-    "method": "HEAD",
-    "retrievedAt": "2026-05-13T08:28:40.082Z",
-    "pipeVersion": "collect_discovered_resources.mjs@v0.1",
-    "collectorVersion": "web_resource_collect.mjs@v0.1",
-    "note": "asset metadata only — body 未下載、未解析"
+  "sourceItemId": "fx-001",
+  "sourceUrl": "https://www.yle.tw/download.asp",
+  "sourceType": "user_verified",
+  "resourceType": "page",
+  "level": "Pre A1 Starters",
+  "sourceQueryId": "dq-zh-002",
+  "sourceQuery": "劍橋兒童英檢 Starters 歷屆試題",
+  "sourceScore": 9,
+  "sourceReasons": ["zh_keyword_yle"],
+  "detectedExamParts": ["unknown"],
+  "discoveryProvenance": { "discoveryVersion": "fixture@v0", "searchProvider": "fixture", "rank": 1 },
+  "originalDraft": { "questionType": "spelling", "starterPart": "RW3", ... },
+  "reviewStatus": "needs_human_review",
+  "status": "queued",
+  "warnings": [],
+  "reviewerFields": {
+    "approved": false,
+    "approvedForPractice": false,
+    "reviewerNotes": "",
+    "finalQuestion": {
+      "id": "",
+      "type": "spelling",                          // 預填
+      "starterPart": "RW3",                         // 預填
+      "prompt": "Look at the picture. Write the word.",  // 預填
+      "answer": "",                                 // 保守邊界，留空
+      "options": [],                                // 保守邊界，留空
+      "explanation": "",
+      "imageSrc": "",
+      "audioSrc": ""
+    }
   }
 }
 ```
 
-✅ PDF asset 行為正確：HEAD 拿到 200 / `application/pdf` / 6914257 bytes（6.9MB），但**body 完全未下載**——這是本輪硬邊界（不下載 PDF）的關鍵驗證；warnings 明確標 `asset_collection_not_implemented` + `pdf_parser_not_implemented`，告知 reviewer 「本筆 entry 仍需 P3-10 後續刀數的 asset-aware / PDF parser 才能取出題目內容」。
-
-### 附加測試：HTML full-text 分支（自製 fixture）
-
-為驗證 HTML 分支重用 collector 邏輯，自製暫存 fixture（已清理）對 `https://www.yle.tw/download.asp` 跑 pipe：
-
-```
-[pipe] [1/1] discoveredResourceId=disc-fixture-html-001 resourceType=page collectorMode=full-text url=https://www.yle.tw/download.asp
-[pipe] wrote batch — totalInput=1 eligible=1 collected=1 dryRun=0 skipped=0 failed=0
-```
-
-result item：
-- `status: "collected"`
-- `document.kind: "source_document"`（**重用** `buildSourceDocumentEntry`）
-- `document.title: "劍橋國際英語認證 輔考資源 官方免費資源下載"`
-- `document.contentType: "text/html"`
-- `document.httpStatus: 200`
-- `document.headings.length: 4`
-- `document.links.length: 50`
-- `document.assets.length: 26`
-- `document.cleanedTextLength: 269`
-- `document.extractedCandidates.length: 0`
-- `warnings: []`（HTML 2xx case 無 warnings）
-- discovery provenance（`sourceQueryId` / `sourceQuery` / `score` / `reasons` / `reviewStatus`）全部保留
-
-✅ HTML 分支端到端通過；與 P3-10-D collector 既有行為 **zero regression**。
-
-### 附加測試：3 種 skip 路徑（自製 fixture）
-
-對 4 筆 fixture（shouldCollect=false / missing url / 2 筆 eligible，limit=1）跑 dry-run：
-
-| item | discoveredResourceId | status | warnings.code |
-| --- | --- | --- | --- |
-| [0] | disc-skip-001（shouldCollect=false） | `skipped` | `skipped_not_should_collect` |
-| [1] | disc-skip-002（無 url） | `skipped` | `skipped_missing_url` |
-| [2] | disc-skip-004（eligible 但超 limit） | `skipped` | `skip_due_to_limit` |
-| [3] | disc-skip-003（eligible 內，第 1 筆） | `dry_run` | `dry_run` |
-
-summary：`{"totalInput":4,"eligible":2,"collected":0,"dryRun":1,"skipped":3,"failed":0}`
-
-✅ 3 種 skip 路徑分類正確；eligible 計算正確（4 - 1 not_should_collect - 1 missing_url = 2）；dry-run 流程不被 skip 攔截、限制仍生效。
-
-## 【Batch output 格式檢查】
-
-`data/imported/source-documents.batch.generated.json` 結構：
+### validate-reviewed output schema
 
 ```jsonc
 {
-  "batchId": "batch-<ISO timestamp with separators>",       // 任務單建議格式
-  "createdAt": "<ISO 8601>",
-  "source": "collect_discovered_resources.mjs@v0.1",
-  "input": "<absolute input path>",
-  "dryRun": true | false,
+  "batchId": "valbatch-<ISO>",
+  "validatedAt": "...",
+  "source": "review_normalized_questions.mjs@v0.1",
+  "input": "<absolute>",
+  "mode": "validate-reviewed",
   "summary": {
-    "totalInput": <int>,
-    "eligible": <int>,
-    "collected": <int>,
-    "dryRun": <int>,
-    "skipped": <int>,
-    "failed": <int>
+    "totalInput": 6,
+    "approvedClaimed": 5,
+    "passedValidation": 1,
+    "failedValidation": 4,
+    "skippedNotApproved": 1
   },
   "items": [
     {
-      // 保留 discovery 上游 metadata
-      "discoveredResourceId": "disc-gen-XXXX",
-      "url": "https://...",
-      "sourceQueryId": "dq-...",
-      "sourceQuery": "...",
-      "sourceType": "official | third_party | user_verified | unknown",
-      "resourceType": "pdf | image | audio | video | page | worksheet | ...",
-      "level": "Pre A1 Starters | A1 Movers | A2 Flyers | unknown",
-      "detectedExamParts": ["L1" | "L2" | ... | "unknown"],
-      "score": <int>,
-      "reasons": [...],
-      "reviewStatus": "discovered_candidate",
-      "collectorMode": "full-text | index-only",
-      "discoveryProvenance": { "discoveryVersion", "searchProvider", "rank" },
-      // 本輪處理結果
-      "status": "collected | dry_run | skipped | failed",
-      "warnings": [ { "code": "...", "message": "..." } ],
-      "error": null | "...",
-      "collectedAt": "<ISO 8601>",
-      "document": null | { "kind": "source_document | resource_index | asset_metadata", ... }
+      "sourceItemId": "fx-002",
+      "sourceUrl": "https://example.com/tf-bad",
+      "finalQuestionId": "q-tf-imp-001",
+      "finalQuestionType": "true-false",
+      "approvedForPractice": true,
+      "approved": true,
+      "reviewStatusClaim": "approved_for_practice",
+      "validationStatus": "failed",
+      "reason": null,
+      "errors": [
+        { "code": "true_false_answer_invalid", "field": "finalQuestion.answer",
+          "message": "true-false 的 answer 必須是 \"yes\" 或 \"no\"（忽略大小寫；got: \"maybe\"）" }
+      ]
     }
   ]
 }
 ```
 
-### 檢查清單（任務單規範 + 自查）
+### 任務單檢查清單
 
 | 檢查項 | 結果 |
 | --- | --- |
-| output 是否存在 | ✅ `data/imported/source-documents.batch.generated.json` 已寫 |
-| summary 是否合理 | ✅ totalInput / eligible / collected / dryRun / skipped / failed 加總一致；7 種 status 嚴格遵守字面量 |
-| items 是否有 discoveredResourceId / url / status | ✅ 每筆都有；missing-url skip case 仍保留 discoveredResourceId 與 null url |
-| PDF / non-HTML 是否被當 HTML 亂解析 | ✅ **未**：asset 走 HEAD-only 分支、document.kind="asset_metadata"、無 headings / links / cleanedText 等 HTML 欄位 |
-| generated output 是否被 gitignore 排除 | ✅ `.gitignore:52` 命中 `data/imported/source-documents.batch.generated.json` |
-| 保留 discovered resource provenance | ✅ `discoveryProvenance.{discoveryVersion, searchProvider, rank}` |
-| 保留 sourceQueryId / sourceQuery | ✅ 每筆都有 |
-| 保留 score / reasons | ✅ 每筆都有 |
-| 保留 reviewStatus | ✅ `discovered_candidate` 透傳 |
-| 不寫正式題庫 | ✅ `data/p3-example-questions.json` / `data/exam-papers.example.json` 完全未動 |
+| prepare-review output 是否存在 | ✅ `data/imported/reviewed-questions.generated.json` 已寫 |
+| summary 是否合理 | ✅ totalInput / eligible / queued / dryRun / skipped 加總一致；queued + dryRun + skipped = items.length |
+| skipped / queued 是否合理 | ✅ 5 種 skip reason 字面量正確；queued 條目皆 status=queued + reviewerFields template 完整 |
+| approvedForPractice 是否預設 false | ✅ 所有 queued 條目 `reviewerFields.approvedForPractice=false`（同 `approved=false`） |
+| validate-reviewed 是否能抓出缺欄位 | ✅ missing_final_id / missing_final_type / missing_final_starter_part / missing_final_prompt / missing_final_answer 5 種 error code |
+| 不會寫正式題庫 | ✅ `data/p3-example-questions.json` / `data/exam-papers.example.json` 完全未動；本 CLI 也不引用 `lib/data.ts` |
+| generated output 是否被 gitignore 排除 | ✅ `.gitignore:53`-`:54` 命中 `reviewed-questions.generated.json` + `review-validation.generated.json` |
 
-## 【PDF / non-HTML 處理策略】
+## 【人工審核 / approved_for_practice 策略】
 
-### 觸發條件
+### Review pipeline（reviewer 操作 4 步）
 
-`resourceType ∈ { pdf, image, audio, video }` 即進入 asset 分支（無論 `collectorMode` 為何）。
+```
+1. prepare-review
+   $ node scripts/review_normalized_questions.mjs \
+       --input data/imported/normalized-questions.generated.json \
+       --out  data/imported/reviewed-questions.generated.json \
+       --mode prepare-review --limit 10
+   → 產 reviewed batch（每筆 reviewerFields template 預填 type / starterPart / prompt）
 
-### 處理流程（asset 分支）
+2. reviewer 手動編輯 reviewed-questions.generated.json
+   - 把要 approve 的條目 reviewerFields.approved 改 true
+   - reviewerFields.approvedForPractice 改 true
+   - item.reviewStatus 從 "needs_human_review" 改 "approved_for_practice"
+   - finalQuestion 內必填欄位（id / type / starterPart / prompt / answer）全部填齊
+   - 題型 specific 補：
+       * spelling   →  answer 非空字串、可選填 spellingHint / letterScramble（未來擴充）
+       * true-false → answer 必 yes/no（忽略大小寫）
+       * CHOICE_TYPES → options 至少 2 個 + answer 對應 options 之一
+   - 不滿意條目可保留 approved=false 並補 reviewerNotes 解釋
 
-1. 加 `asset_collection_not_implemented` warning，告知 reviewer「本輪不下載 / 不解析」。
-2. 若 resourceType === `pdf`，再加一筆 `pdf_parser_not_implemented` warning。
-3. 對 URL 發 `HEAD` 請求（method=HEAD、accept=*/*、UA=`cambridge-starters-practice-collector/0.1`、redirect=follow、timeout=15s）。
-4. 取 response headers：`status` / `content-type` / `content-length`。**不讀 body**（`fetch` 不會把 body 拉下來，因為我們從不 `await res.text()` / `res.arrayBuffer()`）。
-5. 若 HTTP 非 2xx，加 `non_2xx_status` warning（asset metadata 仍記）。
-6. 若 fetch 拋例外（DNS / TLS / abort / 405 HEAD not allowed），整筆 status="failed" + 記 error，繼續下一筆。
-7. document 結構：
-   ```jsonc
-   {
-     "kind": "asset_metadata",
-     "url": "...",
-     "httpStatus": 200,
-     "contentType": "application/pdf",
-     "contentLength": 6914257,
-     "method": "HEAD",
-     "retrievedAt": "...",
-     "pipeVersion": "collect_discovered_resources.mjs@v0.1",
-     "collectorVersion": "web_resource_collect.mjs@v0.1",
-     "note": "asset metadata only — body 未下載、未解析"
-   }
-   ```
+3. validate-reviewed
+   $ node scripts/review_normalized_questions.mjs \
+       --input data/imported/reviewed-questions.generated.json \
+       --mode validate-reviewed
+   → 產 review-validation.generated.json + 印 console summary
 
-### 與 HTML 分支的差異
+4. 若全 passed → 進入 P3-10-K：寫入正式 data/p3-example-questions.json（**本輪不做**）
+   - 屬獨立刀數，含 lib/data.ts 的 approved_for_practice 過濾邏輯
+   - 也需與正式 ExamQuestion schema 對齊（finalQuestion → ExamQuestion 扁平化）
+```
 
-| 面向 | HTML 分支 | Asset 分支 |
-| --- | --- | --- |
-| HTTP method | GET（collector 既有 `fetchUrl`） | HEAD only |
-| Body 處理 | `await res.text()`（讀進 HTML 解析） | **不讀 body** |
-| document.kind | `source_document` 或 `resource_index` | `asset_metadata` |
-| 額外欄位 | title / description / headings / cleanedText / links / assets / extractedCandidates / warnings | httpStatus / contentType / contentLength / method / note |
-| HTML regex 解析 | ✅ 跑 collector buildSourceDocumentEntry / buildResourceIndexEntry | ❌ 完全不跑 |
-| warnings | 沿用 collector `buildWarnings`（non-2xx / non-HTML） | pipe 自加 `asset_collection_not_implemented` + 可能 `pdf_parser_not_implemented` + 可能 `non_2xx_status` |
+### reviewStatus 5 狀態機（對齊 QUESTION_IMPORT_NORMALIZATION_PLAN D 段）
 
-### 為何選 HEAD 而非 Range GET
+```
+imported_raw ──collector──▶ ai_normalized ──normalizer──▶ needs_human_review ──reviewer──┬─▶ approved_for_practice
+                                                                                         ├─▶ human_review_required (需修)
+                                                                                         └─▶ rejected (不通過)
+```
 
-- **HEAD 最節能**：服務端不送 body，**bandwidth 與時間都最少**（6.9MB PDF 用 GET 即使我們不讀也會佔頻寬）。
-- **HEAD 失敗 fallback 留給後續刀數**：少數網站不支援 HEAD（回 405 / 501）；本輪 v0.1 設計是「HEAD 失敗 → status=failed + 記 error 繼續」；fallback 到 Range GET 屬未來範圍（如果 D-3 實測發現特定 host 不支援 HEAD 才補）。
-- **避免誤把 binary 當 HTML 解析**：HEAD 本身沒 body，從根本上避免 regex 亂跑 PDF 內容；對齊任務單「要避免把 binary 當 HTML 解析」要求。
+本輪 P3-10-F v0.1：
+- normalizer 一律輸出 `needs_human_review`（保守，不自動跳 `ai_normalized`）。
+- reviewer 升 `approved_for_practice` 是唯一進入正式題庫的路徑。
+- validate-reviewed 強制檢查「approvedForPractice=true → 必須同時 approved=true + reviewStatus=approved_for_practice」一致性，避免半 approve 狀態。
 
-### 未來路徑
+### 為何 reviewerFields 預填 type / starterPart / prompt 但不預填 answer / options
 
-- ⬜ asset-aware 下載（下 PDF / image / audio 到 `tmp_crawl/`、記 sha256 / 檔案大小驗證、不進 `public/`）—— 屬未來 P3-10 後續刀數。
-- ⬜ PDF parser（pdfjs-dist / pdf-parse）—— 屬中等規模、需評估依賴；P3-10-D / E 後續刀數。
-- ⬜ HEAD-not-supported fallback（Range GET 1 byte）—— 視實際遇到的 host 決定要不要做。
+設計取捨：
+1. **type / starterPart / prompt**：上游 normalizer 已給出 confidence > 0 的推斷，預填可大幅減少 reviewer 重複輸入；若 normalizer 推斷不準，reviewer 可改。
+2. **answer / options 不預填**：rule-based normalizer 保守不猜 answer / options（draft.answer=null / options=[]）；如果 reviewerFields 也跟著預填空值反而誤導 reviewer 以為「上游有給」。預設 finalQuestion.answer="" / options=[] 明示「reviewer 必須手填」。
+3. **explanation / imageSrc / audioSrc**：屬本專案自製素材；reviewer 須對齊 `public/images/*.svg` / 自製 TTS 才能填，normalizer 沒能力預填。
 
 ## 【測試結果】
 
-- `npm run lint`：✅ 全綠（zero issues；新 pipe CLI 與微改 collector 皆通過 ESLint）
+- `npm run lint`：✅ 全綠（zero issues；第一輪有 1 個 `DEFAULT_NORMALIZED_INPUT` unused warning，已移除）
 - `npm run typecheck`（`tsc --noEmit`）：✅ 全綠（純 `.mjs` script + 純文件、零 TypeScript 型別影響）
 - `npm run build`：✅ **88 routes** 全部 static prerendered（路由數不變、無新依賴）
-- pipe CLI 3 種主測試：
-  - ✅ Test 0 `--help` → exit 0 / 印完整 usage + Pipe 行為 + Hardcoded constraints
-  - ✅ Test 1 dry-run（happy path 1 筆 PDF） → totalInput=1 / eligible=1 / dryRun=1 / status=dry_run / warnings 含 dry_run code / 未實際 fetch
-  - ✅ Test 2 real `--limit 1`（PDF asset） → status=collected / kind=asset_metadata / HEAD / contentType=`application/pdf` / contentLength=6914257 / **body 未下載**
-- pipe CLI 附加測試（自製 fixture 已清理）：
-  - ✅ HTML full-text 分支（yle.tw）：status=collected / kind=source_document / headings=4 / links=50 / assets=26 / cleanedTextLength=269 / 重用 collector 規則 zero regression
-  - ✅ 3 種 skip 路徑：shouldCollect=false / missing url / limit 截斷皆正確分類
-- collector CLI regression：✅ `node scripts/web_resource_collect.mjs --help` 仍正常輸出 25 行 usage；`import('./scripts/web_resource_collect.mjs')` 不觸發 main()、回傳 7 個 export 名稱
-- gitignore：✅ 三個 `.generated.json` 都已 ignore（`.gitignore:50` / `:51` / `:52`）；3 個 `.example.json` 不被 ignore
+- review CLI 6 種測試全綠：
+  - ✅ Test 1 `--help` → exit 0 + 完整 usage
+  - ✅ Test 2 **prepare-review 跑使用者本機 normalized output**：totalInput=1 / eligible=0 / skipped=1（`skipped_status_not_draft`，PDF item 正確 skip）
+  - ✅ Test 3 **prepare-review fixture**（5 種 normalizer output 條件）：totalInput=5 / queued=3 / skipped=2，reviewerFields template 全部正確預填、approved=false / approvedForPractice=false
+  - ✅ Test 4 **dry-run yes**：queued=0 / dryRun=3，warning 多 `dry_run` code，reviewerFields 仍存
+  - ✅ Test 5 **validate-reviewed fixture**（6 種 reviewer 編輯情境）：passedValidation=1 / failedValidation=4 / skippedNotApproved=1；error code 涵蓋 `true_false_answer_invalid` / `answer_not_in_options` / `missing_final_*` / `approved_must_be_true` / `review_status_not_approved_for_practice`
+  - ✅ Test 6 邊界 exit 2（缺 `--input` / 缺 `--mode` / unsupported mode / input 不存在 path）
+- gitignore：✅ `.gitignore:53-54` 已 cover 兩個新檔；7 個 generated 全 ignored；7 個 example JSON + `.env.example` 不被 ignore（會 commit）
+- git status：本輪只 6 個檔案變動（1 新增 + 5 修改），無 `.generated.json` / `.env.local` / `.claude/settings.local.json` 進 diff
 
 ## 【仍未處理】
 
-依任務單範圍（P3-10-D-3 屬部分完成）：
+依任務單範圍（P3-10-F 屬部分完成）：
 
-- ⬜ **asset 下載 / asset-aware 模式**：本輪只 HEAD；下載 PDF / image / audio 到 `tmp_crawl/`（gitignored）+ 記 sha256 + mime 屬未來範圍（P3-10 後續刀數）。
-- ⬜ **PDF parser**（pdfjs-dist / pdf-parse）：屬中等規模、需評估依賴；P3-10-D 後續刀數。
-- ⬜ **multi-batch history**：本輪是「每次跑完全覆寫 `source-documents.batch.generated.json`」；無歷史。未來可加 `--append yes` 或 `data/imported/batches/<batchId>.json` 多檔保留。
-- ⬜ **discovery 重跑時 batch 增量更新**：若 discovery 重跑後新增了候選 URL，目前 pipe 仍跑全部 eligible；無「只跑新增的」邏輯。
-- ⬜ **AI normalizer**（屬 P3-10-E）：把 source-document / asset-metadata 餵 AI 出題目草稿；需 OpenAI API。
-- ⬜ **人工審核流程**（屬 P3-10-F）：reviewStatus 升 `approved_for_practice` 才能進正式題庫。
-- ⬜ **K 寫入正式題庫**（屬 P3-10-K）：本輪硬邊界不動。
-- ⬜ **HEAD 失敗 fallback to Range GET**：少數網站不支援 HEAD；本輪 v0.1 fail-fast；後續視實測情況補。
-- ⬜ **多 URL 並發**：本輪是 sequential + 500ms delay；對 50+ URL 跑批會慢；未來可加可控併發（如 3 個並發）+ per-host rate-limit。
-- ⬜ **真實 Brave Search → pipe 完整鏈路實測**：使用者本機只跑了 1 query × 1 result 的 happy path；pipe 也只對該 1 筆跑過 limit=1；未實測過「多筆 candidates 同時 pipe」的真實場景。
+- ⬜ **approved → 寫入正式題庫的 CLI**（屬 P3-10-K）：把 validate-reviewed passed 的條目轉為正式 `ExamQuestion` schema 並寫 `data/p3-example-questions.json`；需新 CLI `approve_drafts_to_practice.mjs`（或類似）；含 `lib/data.ts` 加 `approved_for_practice` 過濾邏輯。
+- ⬜ **Review UI dashboard**：本輪純 CLI + JSON workflow；reviewer 仍需手動編輯 JSON（VS Code / vim 等）；未來可考慮做一個簡單的 Next.js admin route 或獨立 Electron app。
+- ⬜ **多 reviewer 簽核流程**：目前單一 reviewer 編輯 reviewed JSON；無「審 1 / 審 2」分階段 approval。屬企業級流程、本專案家用先不做。
+- ⬜ **與 `docs/AI_QUESTION_GENERATION.md` 6 項品質檢查的自動化整合**：本輪 validation 只做 schema + 題型 specific 規則；6 項品質檢查（imagePrompt 對齊自家 SVG / ttsScript 標 examiner voice / 不含官方題目原文 / 等）目前需人工確認。
+- ⬜ **openai mode for normalizer**：P3-10-E 已預留字面量但 exit 2；本輪不在 P3-10-F 範圍。
+- ⬜ **reviewed batch 歷史**：覆寫式；不保留前一次 reviewed JSON；reviewer 若想比對「上次 review 到哪」需自己 git diff 或 `cp` 改檔名。
+- ⬜ **批次操作 helper**：reviewer 仍需逐筆編輯 JSON；未來可考慮 CLI 子命令如 `bulk-approve --ids fx-001,fx-002`（屬 reviewer ergonomics 改善）。
+- ⬜ **與 normalized-questions.example.json 既有人工示意範例的 schema 對齊**：example 是「approved 後扁平化到 ExamQuestion」目標 schema；本輪 reviewed batch 結構與 normalizer batch 結構皆為 reviewer 工作介面，刻意不同步；P3-10-K 才會做「reviewed approved item → ExamQuestion」轉換。
 
-P3-10-E / F / G / H / I / J / K 共 7 條 ⬜ 仍未動（屬未來範圍）。
+P3-10-G / H / I / J / K 共 5 條 ⬜ 仍未動（屬未來範圍）。
 
 ## 【風險點】
 
-- **collector refactor 對既有 CLI 行為的回歸：低**——僅加 `import { pathToFileURL }` + 一個 `if` 包住 `main().catch()` + 一個 `export` 區塊；CLI direct invocation 路徑完全不變。已驗證 `node scripts/web_resource_collect.mjs --help` 仍輸出原 25 行 usage、`import()` 不觸發 main。但若有人未來在 collector 加新 module-top-level side effect，import 時可能觸發；建議所有 collector module-level code 都保持 side-effect-free（目前是、未來要維持）。
-- **PDF HEAD 行為依賴 server 支援：中**——少數 web server（特別是 CDN / asset host）對 HEAD 回 405 / 501；本輪 v0.1 在這種情況下 status=failed + error 訊息，reviewer 仍能從 batch JSON 看到「URL 是哪個、為什麼失敗」。實測 `lebusanglais.com` PDF HEAD 200 ✅，但如果未來 candidates 含其他 host 可能會碰到。建議下一輪 P3-10-D-3 後續刀數補 Range GET fallback。
-- **HEAD 抓到的 contentLength 不保證是真實 body 大小：低**——某些 server 用 `Transfer-Encoding: chunked` 不回 Content-Length；本實作 fallback 為 `null`。document.contentLength=null 不算錯誤、只是「未知」。
-- **pipe 不寫單筆 generated 與 collector CLI 單 URL 模式的潛在衝突：低**——collector CLI 直接 invoke 仍寫 `resource-index.generated.json` / `source-document.generated.json`；pipe 寫 `source-documents.batch.generated.json`。三個檔案各自獨立、互不覆寫。但 reviewer 若同時用兩種模式，需自己記住哪個是哪個；建議短期內統一只用 pipe。
-- **single batch file 覆寫式：中**——pipe 每次跑覆寫整檔；若 reviewer 想保留歷史比對，需手動 `cp` 改檔名。屬已知限制、未做 history。任務單未要求 history。
-- **discovery → pipe 之間的 race：低**——若 discovery 仍在跑（brave-search 多 query），pipe 同時跑會讀到不完整的 `discovered-resources.generated.json`。本輪未做 lock；通常使用者是 sequential 跑、不會撞。建議文件層提示「先等 discovery 完成」。
-- **HTTP 5xx 整批處理時不重試：低**——目前單筆 fail-and-continue；無 retry / backoff。未來若 brave 大批量結果中有暫時性 5xx，會丟掉那筆。建議下一輪 P3-10-D-3 後續加 exponential backoff retry（屬已標的「未處理」）。
-- **third-party PDF 授權邊界：中**（與 D-2B happy path 報告同個風險點）—— `lebusanglais.com` PDF 是第三方教學網站、屬 `sourceType: third_party`，**HEAD 拿 metadata 不違反任何授權邊界**（沒下載內容）；但 future asset 下載 + PDF parse 必須先確認來源授權，這在 N-3 / `docs/PRACTICE_DATA_IMPORT_PLAN.md` B 段已明示。
-- **PIPE_VERSION 為硬編字串：低**——`"collect_discovered_resources.mjs@v0.1"`；版本升級時需手改、與 collector / discovery 一致（`COLLECTOR_VERSION` / `DISCOVERY_VERSION`）。屬目前已知模式。
-- **HEAD UA 與 collector 相同：低**——pipe 沿用 `COLLECTOR_USER_AGENT = "cambridge-starters-practice-collector/0.1"`；對外仍誠實標識為 collector，不偽裝瀏覽器。
+- **reviewer 手動編輯 JSON 容易出錯：高**——本輪沒 UI 也沒 schema 驗證的即時 feedback；reviewer 在 VS Code 編輯時可能誤打字面量（例如 `multiple_choice` 而非 `multiple-choice`）、JSON 格式錯（少逗號）、欄位漏填。validate-reviewed 會抓出絕大多數錯誤但仍是事後驗證。建議：(a) reviewer 用支援 JSON schema 的編輯器（如 VS Code）；(b) 短期內加 JSON schema 檔案到 `data/imported/` 便於 IDE 自動驗證；屬後續刀數小幅 enhancement。
+- **`approvedForPractice=true` 但欄位不全的條目仍寫進 reviewed-questions.generated.json：低**——validate-reviewed 會抓出來，但 reviewed file 本身是 source of truth、reviewer 編輯後存檔即生效。建議流程：(a) 改完先 `validate-reviewed` 跑一輪、(b) 對 failed 條目逐個修、(c) 不修也保留為 failed 紀錄，不影響其他 passed 條目進入 K 階段。
+- **answer 對應 options 的「物件」格式（`{id, value}`）vs 純字串字面量規則尚未明示：低**——validate-reviewed 接受兩種 option 格式；但 reviewer 編輯時若混用會困惑（例如 multiple-choice 的 options 有些用字串、有些用物件）。建議 reviewer 統一一種風格；未來 schema 升級時可強制單一格式。
+- **不一致性檢查 force order：低**——validate-reviewed 對「approvedForPractice=true 但 approved=false」會回 `approved_must_be_true` 錯誤；reviewer 一次修一個欄位時可能不知道兩者要同步。已在 validation message 中明示「reviewer 必須同時勾選 approved=true」。
+- **reviewed-questions.generated.json 覆寫式：中**——若 reviewer 已編輯一輪，下一次跑 `prepare-review` 會覆寫整檔，**所有 reviewer 編輯遺失**！本輪 v0.1 沒做「保留既有 reviewerFields」機制；建議 reviewer 每次跑 prepare-review 前先手動 `cp` 備份。下一輪 P3-10-F 後續刀數可加「`--merge-with <existing-reviewed>` flag」保留既有 reviewer 編輯。**這是本輪最大的可用性風險**。
+- **PDF item 永遠 skip 不會 promote：low** —— 本輪沿襲 P3-10-E 保守邊界：PDF / image / audio 從 normalizer 就 skip，prepare-review 拿到也是 skip。這是設計，但長期意義是「discovery 找到的 PDF 永遠進不了 review」——除非 P3-10-D 後續刀數做 PDF parser，否則只能等使用者自己手寫 candidates 從 `custom` sourceType 進來。
+- **CHOICE_TYPES 集合過寬：低**——包含 `listening-image-choice`（任務單規範）但 `lib/types.ts` 目前沒有此字面量；屬於「向前相容預留」。reviewer 用 listening-image-choice 寫 question 時 validate-reviewed 會放行，但 P3-10-K 寫入正式題庫時可能對應不到 schema。建議下一輪 K 動工時校正。
+- **error message 多為中文：低**——validate-reviewed error.message 為中文；console summary 也中文（與 collector / discovery / normalizer 同模式）。對英語環境 CI 友善度低，但與本專案使用者語言一致；不算 bug。
+- **未紀錄 reviewer identity：低**——`reviewerFields.reviewerNotes` 是自由欄位，沒結構欄位記 reviewer name / date / 簽核時間。本家用專案可接受，企業需求要加。
+- **validate-reviewed 寫 `review-validation.generated.json` 但 CLI 不強制要求**：低——若 reviewer 想「只看 console、不要 fail file」，可手動刪 `--out`；CLI 仍會走預設路徑寫檔。屬已知行為、不算 bug。
 
 ## 【後續建議】
 
-1. **下一步走 P3-10-E AI normalizer**——本輪已把 discovery → pipe → batch 鏈路打通；下一階段把 `source-documents.batch.generated.json` 內 HTML `kind=source_document` 條目餵 AI normalize 出題目草稿（不直接送 PDF binary、不送 third-party 全文，先以自家素材 + 自製 imageprompt / ttsScript 為主）。
-2. **PDF parser 評估**（與 1 並行）：本輪實測證明 `lebusanglais.com` Pre A1 Starters sample paper 是 6.9MB PDF；要轉成正式題庫得先解析。建議短期內評估 `pdfjs-dist`（純 JS、無 native dependency）vs `pdf-parse`（有 native dep）vs 改走 OpenAI vision / OCR；屬獨立刀數。
-3. **multi-URL pipe 實測**（使用者擴量實測時走）：建議使用者下一次跑 Brave 用 `--query-limit 3 --limit-per-query 3`（9 calls）取多筆 candidates，再用 `node scripts/collect_discovered_resources.mjs --limit 9` pipe 跑批，可實測多筆 entries 的 500ms delay、skip 邏輯、與 sequential fetch 整體耗時。
-4. **HEAD fallback to Range GET**（若實測碰到 405 Method Not Allowed）：屬已標未處理；建議遇到時再補。
-5. **`--append` 或 batch history**：若 reviewer 想長期保留 batch 紀錄（例如「2026-05-13 跑了哪些 candidate」），建議下一輪 P3-10-D-3 後續刀數加 `data/imported/batches/<batchId>.json` 多檔保留 + `manifest.json` 索引；本輪 v0.1 不做。
-6. **pipe → AI normalizer pipe 整合**（屬 P3-10-E）：把本輪 batch output 作為 AI normalizer input；reviewStatus 升級為 `ai_normalized` / `human_review_required`；不要直接 commit、由 maintainer 手動 review。
-7. **collector module 維護準則**：本輪對 collector 做了非破壞 refactor；未來任何 module-level 改動務必保持 side-effect-free，避免 import 時觸發。建議在 `web_resource_collect.mjs` 頭 docstring 加一條「module-level side-effect free」備註（非本輪範圍）。
+1. **下一步走 P3-10-K：approved → 正式題庫的轉換 CLI**——本輪已備好「validate-reviewed passed」這個 input；下一階段：
+   - 新增 `scripts/approve_drafts_to_practice.mjs`（或類似名）
+   - 讀 reviewed batch + validation summary
+   - 對 `validationStatus=passed` 條目，把 `reviewerFields.finalQuestion` 扁平化轉為 `ExamQuestion` schema（對齊 `lib/types.ts` discriminated union）
+   - **由維護者人工 commit 進 `data/p3-example-questions.json`**——不自動 commit；提供 dry-run 預覽
+   - 同時改 `lib/data.ts` 加 `approved_for_practice` 過濾邏輯（與既有 13 題並存）
+2. **加 reviewer ergonomics：`--merge-with` flag**（屬 P3-10-F 後續刀數）：prepare-review 接受既有 reviewed batch，**保留 reviewer 已填的 reviewerFields**，只 append 新 normalized drafts；避免覆寫遺失工作。**這是本輪最大的可用性風險點**，建議下一輪先補。
+3. **加 JSON schema 檔案到 `data/imported/` 供 VS Code 自動驗證**：寫 `data/imported/schemas/reviewed-questions.schema.json`（JSON Schema draft-07）；reviewer 編輯 reviewed-questions.generated.json 時 VS Code 自動 hint 必填欄位 + 字面量限制。零依賴、零成本。
+4. **同期擴量實測**：使用者下次跑 Brave + pipe + normalizer 拿到真正的 HTML draft 後，本 CLI 才有機會跑 queued path 處理真實 candidates。建議下次 Brave 實測時抓 1~2 條 HTML 教學頁面（非 PDF），跑完整鏈路：Brave → discover → pipe → normalize → prepare-review → 手填 reviewerFields → validate-reviewed → （未來）K。
+5. **與 `docs/AI_QUESTION_GENERATION.md` 6 項品質檢查的整合**（屬 P3-10-F 後續 / E openai mode 落地後）：把 6 項檢查自動化進 validate-reviewed；reviewer 編輯時若違反（例：finalQuestion.prompt 含官方題目原文關鍵字）自動 fail。
+6. **Review UI dashboard**（屬中期）：純 Next.js admin route 讀 reviewed batch JSON + 提供表單編輯介面 + 寫回 reviewed file；reviewer 不用編輯 JSON；屬可有可無的 ergonomics。
 
-**短期建議**：先讓 Codex 驗收本輪 P3-10-D-3 部分完成（驗 pipe CLI 6 flag / 3 種分流 / 3 種 skip / HEAD 不下載 body / batch output 結構 / collector refactor zero regression / lint / typecheck / build 全綠）；確認通過後再決定下一刀（建議 P3-10-E AI normalizer 或使用者擴量實測 + multi-URL pipe）。
+**短期建議**：先讓 Codex 驗收本輪 P3-10-F 部分完成（驗 CLI 6 flag / 2 mode / 5 種 prepare-review skip reason / 6 種 validate-reviewed 情境 / reviewerFields template 保守預填 / 不寫正式題庫 / lint / typecheck / build 全綠）；確認通過後決定下一刀（建議 P3-10-K 寫入正式題庫 CLI，或 P3-10-F 後續 reviewer ergonomics）。
 
 ## 【Roadmap 同步檢查】
 
-- 🟡 **P3-10-D-3**：Discovery → Collector 自動 pipe——**部分完成**（2026-05-13）—— 本輪完成
+- 🟡 **P3-10-F**：匯入題目人工審核流程（CLI + JSON workflow 第一版）——**部分完成**（2026-05-13）—— 本輪完成
+- 🟡 P3-10-E：AI normalizer 原型（rule-based / mock-ai 第一版）（仍 🟡）
+- ⬜ P3-10-E 後續：openai mode 落地（仍 ⬜）
+- 🟡 P3-10-D-3：Discovery → Collector 自動 pipe（仍 🟡 部分完成）
 - 🟡 P3-10-D-2B：Discovery crawler 接真實 Search Provider 第一版（仍 🟡 happy path verified）
 - 🟡 P3-10-D-2：Discovery crawler 自動找資料來源（仍 🟡）
-- ✅ P3-10-A：正式資料匯入流程與來源欄位規劃
-- ✅ P3-10-B：Web resource collector 規劃與最小 CLI 原型
-- ✅ P3-10-C：Question import normalization 規劃
+- ✅ P3-10-A / B / C
 - 🟡 P3-10-D：collector 實測與第一批來源匯入（仍 🟡 部分完成）
-- ⬜ P3-10-E：AI normalizer 原型
-- ⬜ P3-10-F：匯入題目人工審核流程
-- ⬜ P3-10-G：Vocabulary 圖片 / SVG 補齊第一批
-- ⬜ P3-10-H：RW3 spelling 題庫擴充
-- ⬜ P3-10-I：RW1 yes/no 題庫擴充
-- ⬜ P3-10-J：L3 listening 多題補齊
-- ⬜ P3-10-K：first practice paper 組裝與驗收
-- 🟡 P3-10 整體：本輪後仍 🟡（A/B/C ✅ + D 🟡 + D-2 🟡 + D-2B 🟡 + D-3 🟡 + E~K ⬜）—— **未把整體標完成**
+- ⬜ P3-10-G / H / I / J：vocabulary 補齊、RW3 / RW1 / L3 題庫擴充
+- ⬜ P3-10-K：first practice paper 組裝與驗收（含 approved → 正式題庫的 CLI）
+- 🟡 P3-10 整體：本輪後仍 🟡（A/B/C ✅ + D 🟡 + D-2 / D-2B / D-3 🟡 + E 🟡 + **F 🟡** + G-K ⬜）—— **未把整體標完成**
 - 🟡 P3-9-C 整體：仍 🟡（26 條 ✅）
 - 🟡 P3 整體：仍 🟡 進行中——**未把整體標完成**
 - ⬜ P4 / P5：仍未開始
 
-**特別注意**：本輪只做 Discovery → Collector pipe，**不做 AI normalizer、不轉正式題庫、不下載或解析 PDF**；`data/p3-example-questions.json` / `data/exam-papers.example.json` / `public/images/` / `public/audio/` 皆完整保留未動；P3-10-D-3 標 🟡 部分完成、未誇大為完整完成；P3-10-D / P3-10 / P3 整體仍 🟡。
+**特別注意**：本輪只做人工審核流程第一版，**不寫正式題庫，不改 `/quiz`**；`data/p3-example-questions.json` / `data/exam-papers.example.json` / `public/images/` / `public/audio/` 皆完整保留未動；P3-10-F 標 🟡 部分完成、未誇大為完整完成；P3-10-K 寫入正式題庫的 CLI 屬獨立刀數、未實作；reviewer 仍需手動編輯 JSON（無 UI），但 CLI 提供了 prepare-review 預填 + validate-reviewed 強制驗證的兩端保護。

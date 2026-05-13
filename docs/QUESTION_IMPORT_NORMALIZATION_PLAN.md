@@ -130,32 +130,290 @@ imported_raw  ──collector 直接放──>  ai_normalized  ──AI 跑完�
 
 ---
 
-## E. Normalizer 實作建議（P3-10-E 範圍、本輪不實作）
+## E. Normalizer 實作（P3-10-E 第一版：rule-based / mock-ai 原型）
 
-### Input
+> 對應 `scripts/normalize_collected_sources.mjs` v0.1（2026-05-13）。本輪先做最保守的 rule-based 原型，**不呼叫 OpenAI**；`openai` mode 屬後續刀數，CLI 已預留 mode 字面量但會 exit 2。
 
-- `data/imported/source-document.generated.json`（collector 產出）
-- 篩選條件：`extractedCandidates[].candidateType === "question"` 或 `"vocabulary"`
+### E-1. Input
 
-### 處理
+- `data/imported/source-documents.batch.generated.json`（P3-10-D-3 pipe 產出的 batch 結構，**不是** P3-10-B 既有 `source-document.generated.json`）
+- 篩選條件：`item.status === "collected"` **且** `item.document.kind === "source_document"`
 
-1. 每個 candidate 嘗試對齊 8 種 type 之一
-2. 拼出 prompt / options / answer / explanation / metadata
-3. 重用既有 SVG（從自家 `public/images/` 對齊 candidate.text 含的物件名）
-4. 不放外部 URL 到 `image` / `audioSrc`
-5. 算 candidateConfidence（最低 0.0 / 最高 1.0）
-6. 依 confidence 與結構完整度標 `reviewStatus`
+### E-2. Mode 對應
 
-### Output
+| mode | 是否本輪實作 | 行為 |
+| --- | --- | --- |
+| `rule-based`（預設） | ✅ | 把 `extractedCandidates` 直接轉 draft；無 candidates → status=observation；不硬造題 |
+| `mock-ai` | ✅ | 同 rule-based 邏輯，但每筆 draft 加 `mock_ai_response` warning + `normalizationNotes` 前綴 `mode:mock-ai`，模擬「AI 跑過但走 rule-based fallback」 |
+| `openai` | ❌（exit 2） | 屬未來範圍；需 `OPENAI_API_KEY`、prompt 設計、token / 成本管控；本輪 CLI 直接 exit 2 並印未實作訊息 |
 
-- `data/imported/normalized-questions.generated.json`：array of normalized questions
+### E-3. Skipped 分類（任務單規範）
 
-### 不在 normalizer 範圍
+對「非 source_document 或無效」的 batch item，輸出 status=skipped 並標 reason：
 
-- 不直接寫入 `data/p3-example-questions.json`
-- 不上傳官方題目 / 歷屆題給 OpenAI API
-- 不下載外部圖片 / 音檔到 `public/`
-- 不自動 approve
+| skip reason | 觸發條件 |
+| --- | --- |
+| `skipped_not_collected` | `item.status !== "collected"`（如 failed / dry_run / skipped） |
+| `skipped_asset_metadata` | `document.kind === "asset_metadata"`（pdf / image / audio / video）—— **本輪硬邊界**，不從 asset 產題 |
+| `skipped_resource_index` | `document.kind === "resource_index"`（只有 metadata 級欄位、無 cleanedText） |
+| `skipped_not_source_document` | `document.kind` 為其他值（含 null / 未知字面量） |
+| `skipped_no_cleaned_text` | `kind=source_document` 但 `cleanedText` 為空（多半是 SPA / JS 渲染頁，collector regex 抓不到內容） |
+| `skip_due_to_limit` | 超過 `--limit` 上限的 eligible source_document 條目 |
+
+### E-4. Observation 路徑
+
+當 `source_document` 有 cleanedText **但** `extractedCandidates.length === 0`：
+
+- **不硬造題**——保守邊界。
+- 輸出 status=observation + 兩條 warnings：
+  - `no_question_candidates`：說明為什麼沒 draft
+  - `observation_heading_summary`：節選前 3 個 headings 幫 reviewer 快速判斷該頁是否值得手寫候選
+
+### E-5. Draft 路徑
+
+當 `source_document` 有 `extractedCandidates`：每個 candidate **獨立**轉一筆 output item（status=draft）；保留 `sourceItemId`（discoveredResourceId） + draft 結構：
+
+```jsonc
+{
+  "questionType": "spelling" | ... | "unknown",   // 對齊 ALLOWED_QUESTION_TYPES（8 種）
+  "starterPart": "RW3" | ... | "unknown",          // 對齊 ALLOWED_STARTER_PARTS（L1-L4 + RW1-RW5）
+  "prompt": "<candidate.text>",
+  "answer": null,                                   // 保守邊界：rule-based 不猜 answer
+  "options": [],                                    // 同理
+  "confidence": 0.0 ~ 1.0,                          // 沿用 collector 的 confidence
+  "normalizationNotes": [
+    "mode:rule-based" | "mode:mock-ai",
+    "candidate_index:<n>",
+    "candidate_type:<question|vocabulary|instruction|...>",
+    "source_note:<原 candidate.notes>",
+    "rule_based_v0.1:no_answer_inferred",
+    ...
+  ]
+}
+```
+
+額外 warnings：每筆 draft 至少 `rule_based_no_answer_inferred`；low confidence 時加 `low_confidence_unknown_type_part`；mock-ai 加 `mock_ai_response`。
+
+### E-6. 一律標籤（不論 mode / 結果）
+
+所有 output items 一律：
+
+- `reviewStatus = "needs_human_review"`
+- `sourceStatus = "draft_from_collected_source"`
+- `isReadyForPractice = false`
+
+唯有 P3-10-F 人工審核後升 `approved_for_practice`（在 D 段 5 狀態機規範），才能寫入正式 `data/p3-example-questions.json`（屬 P3-10-K 範圍）。
+
+### E-7. Output（batch 結構）
+
+寫入 `data/imported/normalized-questions.generated.json`（覆寫式，已 gitignore）：
+
+```jsonc
+{
+  "batchId": "normbatch-<ISO ts>",
+  "createdAt": "<ISO>",
+  "source": "normalize_collected_sources.mjs@v0.1",
+  "input": "<absolute path>",
+  "mode": "rule-based" | "mock-ai",
+  "dryRun": true | false,
+  "summary": {
+    "totalInput": <int>,
+    "eligible": <int>,            // status=collected + kind=source_document
+    "drafts": <int>,               // status="draft" 筆數
+    "observations": <int>,         // status="observation" 筆數
+    "dryRun": <int>,               // status="dry_run" 筆數
+    "skipped": <int>,              // status="skipped" 筆數（含 skip_due_to_limit）
+    "failed": <int>
+  },
+  "items": [
+    {
+      "sourceItemId": "<discoveredResourceId>",
+      "sourceUrl": "...",
+      "sourceType": "official | third_party | user_verified | unknown",
+      "resourceType": "...",
+      "level": "...",
+      "sourceQueryId": "...",
+      "sourceQuery": "...",
+      "sourceScore": <int>,
+      "sourceReasons": [...],
+      "detectedExamParts": [...],
+      "discoveryProvenance": { ... },
+      "reviewStatus": "needs_human_review",
+      "sourceStatus": "draft_from_collected_source",
+      "isReadyForPractice": false,
+      "status": "draft | observation | dry_run | skipped | failed",
+      "warnings": [...],
+      "draft": null | { ... }
+    }
+  ]
+}
+```
+
+### E-8. 不在 normalizer v0.1 範圍
+
+- ❌ 不直接寫入 `data/p3-example-questions.json`
+- ❌ 不上傳官方題目 / 歷屆題給 OpenAI API（本輪根本不呼叫 OpenAI）
+- ❌ 不下載外部圖片 / 音檔到 `public/`
+- ❌ 不自動 approve（reviewStatus 永遠停在 needs_human_review）
+- ❌ 不從 asset_metadata / resource_index / 第三方 PDF 產題（pipe 已 skip，normalizer 再次防護）
+- ❌ 不猜 answer / options（draft.answer=null / options=[]，等 reviewer 補）
+- ⬜ openai mode（CLI 已預留，exit 2）；對齊既有 `docs/AI_QUESTION_GENERATION.md` prompt 規格，後續刀數實作
+
+---
+
+## F-pre. P3-10-F：匯入題目人工審核流程（v0.1）
+
+> 對應 `scripts/review_normalized_questions.mjs` v0.1（2026-05-13）。本輪是「人工審核流程第一版」，定義 normalized draft 如何進入 review queue、reviewer 如何升 `approved_for_practice`、以及 validate-reviewed 如何把關。**仍不寫正式題庫**——只到 `data/imported/reviewed-questions.generated.json` 為止；正式 `data/p3-example-questions.json` 寫入屬 P3-10-K 範圍。
+
+### F-pre-1. 兩個 mode
+
+| mode | 用途 | input | output |
+| --- | --- | --- | --- |
+| `prepare-review` | normalizer draft → reviewer 工作介面（預填 reviewerFields template、不自動 approve） | `data/imported/normalized-questions.generated.json`（P3-10-E 輸出） | `data/imported/reviewed-questions.generated.json` |
+| `validate-reviewed` | 驗證人工編輯後的 reviewed 條目；**不修改 reviewed file**、**不寫正式題庫** | `data/imported/reviewed-questions.generated.json`（人工編輯後） | `data/imported/review-validation.generated.json` + console summary |
+
+### F-pre-2. prepare-review filter（任務單規範）
+
+只把同時滿足下列條件的條目放入 review queue：
+
+- `status === "draft"`
+- `reviewStatus === "needs_human_review"`
+- `isReadyForPractice === false`
+- `draft !== null`
+
+不符合的條目標 `status: "skipped"` 並補 reason code 之一：
+
+| skip reason | 觸發 |
+| --- | --- |
+| `skipped_status_not_draft` | status 不是 draft（含 observation / skipped / dry_run / failed） |
+| `skipped_review_status_not_needs_review` | reviewStatus 已升級或為其他字面量 |
+| `skipped_already_ready` | isReadyForPractice 已 true（**上游污染**） |
+| `skipped_draft_null` | draft=null（即使 status=draft 也視為損壞） |
+| `skip_due_to_limit` | 超過 `--limit` 上限的 eligible 條目 |
+
+### F-pre-3. reviewerFields template（每筆 queued 預填）
+
+```jsonc
+{
+  "approved": false,                    // 預設 false，**不自動 approve**
+  "approvedForPractice": false,         // 預設 false
+  "reviewerNotes": "",                  // 留空給 reviewer 填
+  "finalQuestion": {
+    "id": "",                           // 留空；建議 q-{type-tag}-imp-{nnn}
+    "type": "<draft.questionType if in ALLOWED_QUESTION_TYPES else ''>",
+    "starterPart": "<draft.starterPart if in ALLOWED_STARTER_PARTS else ''>",
+    "prompt": "<draft.prompt>",         // **僅**預填 prompt
+    "answer": "",                       // **不亂猜**；draft.answer 即使非 null 也不繼承
+    "options": [],                      // 同理
+    "explanation": "",
+    "imageSrc": "",
+    "audioSrc": ""
+  }
+}
+```
+
+每筆 review item 同時保留：`sourceItemId` / `sourceUrl` / `sourceType` / `resourceType` / `level` / `sourceQueryId` / `sourceQuery` / `sourceScore` / `sourceReasons` / `detectedExamParts` / `discoveryProvenance` / `originalDraft`（完整 normalizer 階段 draft，便於 reviewer 比對）。
+
+### F-pre-4. 人工審核流程（reviewer 操作）
+
+1. `prepare-review` 產出 `reviewed-questions.generated.json`（已 gitignore）
+2. reviewer **手動編輯** JSON：
+   - 把要 approve 的條目 `reviewerFields.approved` 改 `true`
+   - 把該條目 `reviewerFields.approvedForPractice` 改 `true`
+   - 把該條目 `reviewStatus` 從 `needs_human_review` 改 `approved_for_practice`
+   - 填齊 `reviewerFields.finalQuestion` 內必填欄位（id / type / starterPart / prompt / answer 等）
+   - 不滿意的條目可保留 `approved=false`、不影響 batch
+3. `validate-reviewed` 跑 schema + 題型驗證；產出 `review-validation.generated.json` 與 console summary
+4. 若 validation 全 passed → reviewer 可進入 P3-10-K 把 approved items copy 進 `data/p3-example-questions.json`（**屬 P3-10-K 範圍、本輪不做**）
+
+### F-pre-5. validate-reviewed 驗證規則
+
+**只驗證 `approvedForPractice === true` 的條目**；其餘標 `validationStatus: "skipped"` + reason "approvedForPractice !== true"。
+
+對 approvedForPractice=true 條目逐筆檢查：
+
+| 檢查項 | error code |
+| --- | --- |
+| approved 不是 true | `approved_must_be_true` |
+| reviewStatus 不是 "approved_for_practice" | `review_status_not_approved_for_practice` |
+| finalQuestion.id 為空 | `missing_final_id` |
+| finalQuestion.type 為空 | `missing_final_type` |
+| finalQuestion.type 不在 QuestionType union | `invalid_final_type` |
+| finalQuestion.starterPart 為空 | `missing_final_starter_part` |
+| finalQuestion.starterPart 不在 L1-L4 / RW1-RW5 | `invalid_final_starter_part` |
+| finalQuestion.prompt 為空 | `missing_final_prompt` |
+| finalQuestion.answer 為空 | `missing_final_answer` |
+| type=true-false 且 answer 不是 yes / no（忽略大小寫） | `true_false_answer_invalid` |
+| type ∈ CHOICE_TYPES 且 options 少於 2 | `options_too_few` |
+| type ∈ CHOICE_TYPES 且 answer 不在 options 內（支援純字串 / `{ id, value }` 物件） | `answer_not_in_options` |
+
+**type-specific** spelling 僅要求 answer 非空字串；options 可空。
+
+### F-pre-6. Output schema
+
+prepare-review：
+
+```jsonc
+{
+  "batchId": "revbatch-<ISO>",
+  "createdAt": "...",
+  "source": "review_normalized_questions.mjs@v0.1",
+  "input": "<absolute>",
+  "mode": "prepare-review",
+  "dryRun": true | false,
+  "summary": { "totalInput", "eligible", "queued", "dryRun", "skipped" },
+  "items": [
+    {
+      "sourceItemId", "sourceUrl", "sourceType", "resourceType", "level",
+      "sourceQueryId", "sourceQuery", "sourceScore", "sourceReasons",
+      "detectedExamParts", "discoveryProvenance",
+      "originalDraft",
+      "reviewStatus": "needs_human_review",
+      "status": "queued | dry_run | skipped",
+      "warnings": [...],
+      "reviewerFields": null | { approved, approvedForPractice, reviewerNotes, finalQuestion: {...} }
+    }
+  ]
+}
+```
+
+validate-reviewed：
+
+```jsonc
+{
+  "batchId": "valbatch-<ISO>",
+  "validatedAt": "...",
+  "source": "review_normalized_questions.mjs@v0.1",
+  "input": "<absolute>",
+  "mode": "validate-reviewed",
+  "summary": {
+    "totalInput", "approvedClaimed", "passedValidation", "failedValidation", "skippedNotApproved"
+  },
+  "items": [
+    {
+      "sourceItemId", "sourceUrl",
+      "finalQuestionId", "finalQuestionType",
+      "approvedForPractice", "approved", "reviewStatusClaim",
+      "validationStatus": "passed | failed | skipped",
+      "reason": null | "approvedForPractice !== true ...",
+      "errors": [ { "code", "field", "message" } ]
+    }
+  ]
+}
+```
+
+### F-pre-7. 不在 P3-10-F v0.1 範圍
+
+- ❌ 不呼叫 OpenAI（與 P3-10-E 一致）
+- ❌ 不下載 PDF / image / audio；不解析 PDF
+- ❌ 不修改 `data/p3-example-questions.json` / `data/exam-papers.example.json`
+- ❌ 不讓 `/quiz` 使用 imported 題庫
+- ❌ 不自動 approve / 不猜 answer / options
+- ❌ 不修改 `reviewed-questions.generated.json`（validate-reviewed 只讀）
+- ⬜ approved → 寫入正式題庫的工具（屬 P3-10-K 範圍）
+- ⬜ Review dashboard / UI（本輪 CLI + JSON workflow，無 UI）
+- ⬜ 多 reviewer 簽核流程
+- ⬜ 與 `docs/AI_QUESTION_GENERATION.md` 6 項品質檢查的整合（人工目視，未自動化）
 
 ---
 
@@ -173,4 +431,6 @@ imported_raw  ──collector 直接放──>  ai_normalized  ──AI 跑完�
 
 ## G. 版本
 
+- **v3**（2026-05-13，P3-10-F）：新增 F-pre 段「P3-10-F：匯入題目人工審核流程（v0.1）」共 7 個子段（F-pre-1 兩個 mode / F-pre-2 prepare-review filter 與 5 種 skip reason / F-pre-3 reviewerFields template / F-pre-4 reviewer 操作流程 4 步 / F-pre-5 validate-reviewed 驗證規則表 / F-pre-6 兩種 mode 的 output schema / F-pre-7 v0.1 不做清單）；對應 `scripts/review_normalized_questions.mjs` v0.1。**仍不寫正式題庫**——正式 `data/p3-example-questions.json` 寫入屬 P3-10-K。
+- **v2**（2026-05-13，P3-10-E）：E 段完全重寫——把「Normalizer 實作建議（本輪不實作）」改為「Normalizer 實作（P3-10-E 第一版：rule-based / mock-ai 原型）」，含 E-1 input / E-2 mode 對應表（rule-based ✅ / mock-ai ✅ / openai exit 2） / E-3 6 種 skipped 分類 / E-4 observation 路徑 / E-5 draft 路徑（保守邊界：answer=null / options=[]）/ E-6 一律標 reviewStatus=needs_human_review + isReadyForPractice=false / E-7 batch output schema / E-8 v0.1 不做清單。對應 `scripts/normalize_collected_sources.mjs` v0.1。
 - **v1**（2026-05-13）：第一版——P3-10-C 規劃文件、reviewStatus 5 狀態機、normalizer 輸出格式、id 規則建議、必填 vs 選填欄位、與既有文件分工。Normalizer 實作屬 P3-10-E、本輪未實作。
