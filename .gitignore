@@ -53,6 +53,7 @@ data/imported/source-documents.batch.generated.json
 data/imported/reviewed-questions.generated.json
 data/imported/review-validation.generated.json
 data/imported/approved-questions.preview.generated.json
+data/imported/practice-paper.preview.generated.json
 research_cache/
 tmp_crawl/
 .local_research/

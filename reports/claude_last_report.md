@@ -1,364 +1,495 @@
-# Claude Code 回報 · P3-10-K 修補：同批 duplicate id + QuestionSource union 驗證（部分完成）
+# Claude Code 回報 · P3-10-K 第二刀：first practice paper 組裝 / paper-level metadata（部分完成）
 
 任務日期：2026-05-14
-任務性質：**P3-10-K Codex 有條件通過後的最小修補**——只改 `scripts/approve_reviewed_questions.mjs`（v0.1 → v0.1.1）與對應文件；補上 Codex 驗收指出的 2 個問題（High：未檢查同批 ready items 內部 dup id；Medium：未驗 `finalQuestion.source` QuestionSource union）；**未擴張 P3-10-K 範圍**（未做 first practice paper 整盤組裝 / 未動 `/quiz` / 未動 lib/types.ts）。本輪硬邊界全遵守：未做 first practice paper 組裝；未讓 `/quiz` 使用 imported 題庫；未呼叫 OpenAI；未下載 PDF / image / audio；未解析 PDF；未自動產生題目；未覆蓋既有正式題目；**`data/p3-example-questions.json` / `data/exam-papers.example.json` 整輪未被改動（git diff HEAD 一致、13 題完整保留）**；未改 UI / quiz / review；未改 schema（只 import `lib/types.ts` 既有 QuestionSource union 字面量作驗證集合，未動 type 定義）；未接後端 / DB / 登入；未處理 npm audit；未部署；未 commit `.env.local`；未 commit `.generated.json`；未 commit `.claude/settings.local.json`；未紀錄真實 API key。
+任務性質：**P3-10-K 系列第二刀**——把 P3-10-K v0.1 / v0.1.1 已落地的「單題級 approved → ExamQuestion 轉換」往上一層，做 **paper-level 組裝**：讀正式題庫 `data/p3-example-questions.json` 內 13 題 → 依 `starterSection` 分組成 `ExamPaper` → 寫 preview JSON。本輪硬邊界全遵守：未讓 `/quiz` 切到 imported 題庫；未大改 `lib/data.ts` 載入流程（**完全未動**）；未改 UI / quiz / review UI；未呼叫 OpenAI；未下載 PDF / image / audio；未解析 PDF；未自動產生題目；未改 `data/p3-example-questions.json`；未直接改 `data/exam-papers.example.json`（測試只用 /tmp target）；未覆蓋既有 paper；未新增 npm 依賴；未處理 npm audit；未部署；未 commit `.env.local`；未 commit `.generated.json`；未 commit `.claude/settings.local.json`；未紀錄真實 API key。
 
 ## 【本輪修改摘要】
 
-1. **修補 1（High）：同批 ready items 內部 duplicate id 偵測**
-   - 之前只檢查 `existingIds.has(id)`（target 既有），漏了「同批兩筆 reviewer 條目都填同 id」的 case。
-   - 修補後新增 batch 內部 id 統計 + 二維 dup 檢查：拆 `duplicate_id_in_target` 與 `duplicate_id_in_batch` 兩個 warning code。
-   - **同批 dup 兩筆都標 skipped**（不只 skip 第二筆）：reviewer 給兩筆同 id 通常代表至少一筆 id 填錯，保守起見全 skip 等 reviewer 決定。
-   - write mode 任一 dup（target 或 batch）→ **整批拒絕寫入 + exit 2**；preview JSON 仍寫（reviewer 可從 items[] 找 dup 條目）。
-   - summary 加 `duplicateIdsInTarget` / `duplicateIdsInBatch` 兩個分項；`duplicateIds` 仍記兩者聯集數量（向後相容）。
-   - 流程重組為 4 / 4.5 / 5 / 6 三段：每筆轉換暫標 ready → batch 內 id 統計 → 雙維度 dup 檢查 → limit。
+1. **新增 `scripts/assemble_practice_paper.mjs` v0.1**（~450 行，4 段結構，7 個 flag）。
+2. **3 個必填 flag**（`--questions` / `--papers` / `--paper-id`）+ 4 個選填（`--out` 預設 `data/imported/practice-paper.preview.generated.json` / `--mode preview|write` / `--write yes|no` / `--limit` 預設 20）+ `--help`。
+3. **雙開關保護**：`--mode write` 必須同時 `--write yes` 才能 append 新 paper 到 `--papers`；缺一就 exit 2。
+4. **組裝策略 v0.1 保守**：
+   - 不挑題、不重排（保留原 array 順序）
+   - 依 `starterSection` 分組到 3 個 section（listening / reading-writing / speaking），缺值依 `question.type` fallback
+   - 沒題目的 section **不出現**（避免空 section）
+   - `--limit` 限制總題數，超過的標 `skip_due_to_limit` warning
+   - sourceMix 由 `question.source` 累計 4 種 QuestionSource union 值（不在 union 標 `unknown_source_value` 不計入）
+   - 對 9 個 Cambridge Starters Parts 檢查覆蓋率，0 題標 `insufficient_questions_for_part`
+   - **不硬造題、不修改 question 內容 / id**
+5. **Duplicate paper id 全域 gate**：preview 標 warning + JSON 仍寫；write mode → exit 2 + preview 仍寫 + target 不動。
+6. **Empty questions 行為**：仍寫 preview + warning `no_questions_available`、exit 0；write mode 不寫 target。
+7. **對齊 `lib/types.ts` 實際 schema**：使用 `examPaperId`（不是 `id`，與任務單建議範例不同）；**不寫入 `level` 欄位**（schema 沒有此欄位，避免污染正式型別）。
+8. **8 種 CLI 測試全綠**：見「測試結果」段；正式 `data/p3-example-questions.json` / `data/exam-papers.example.json` 整輪未被改動。
+9. **`.gitignore` 加 1 行** `data/imported/practice-paper.preview.generated.json`。
+10. **文件同步**——`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` 升 v4.2（F-pre-8-g 新增 7 子段）；`docs/PRACTICE_DATA_IMPORT_PLAN.md` C 段加第 7 步 + 原 7 降 8；`docs/PRACTICE_DATA_PLAN.md` + `PROJECT_ROADMAP.md` 新增 P3-10-K 第二刀 🟡 條目。
 
-2. **修補 2（Medium）：QuestionSource union 驗證**
-   - 之前 `source = nonEmptyString(fq.source) ? fq.source : "custom"` → 任何非空字串都會寫入 question.source。
-   - 修補後 import 對齊 `lib/types.ts` `QuestionSource` union 4 種字面量集合：`official_sample` / `past_paper` / `ai_generated` / `custom`。
-   - 三種情況處理：
-     - 空 / 缺值 → 預設 `custom`
-     - 在 union → 使用該值
-     - **非空但不在 union** → 條目 `status="failed"` + error code `invalid_question_source`，**不** silent fallback 為 custom（避免掩蓋 reviewer 填錯來源）
-   - reviewer 想表達 `user_provided` / `third_party` 等第三方來源應保留於 `reviewerNotes` 或 discovery provenance、**不**寫入正式 `QuestionSource` union（文件已明示）。
-
-3. **HELP_TEXT 同步**：標題改 v0.1.1；補修補摘要、新 warning code、QuestionSource union 規則段。
-4. **文件同步**：`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` 升 v4.1（F-pre-8-d / F-pre-8-e 重寫）；`docs/PRACTICE_DATA_IMPORT_PLAN.md` C-6 步補修補說明；`docs/PRACTICE_DATA_PLAN.md` P3-10-K 條目補 v0.1.1 修補摘要；`PROJECT_ROADMAP.md` 在 P3-10-K 條目上方插「P3-10-K 修補」獨立條目（按時序由新到舊排列）。
-5. **7 種測試全綠**：見「測試結果」段。
-
-`npm run lint` / `typecheck` / `build` 全綠（88 routes 不變、**無新依賴**）。`data/p3-example-questions.json` / `data/exam-papers.example.json` 完整保留（git diff HEAD 一致）。**P3-10-K 整體仍 🟡 部分完成、未誇大為完整完成**。
+`npm run lint` / `typecheck` / `build` 全綠（88 routes 不變、**無新依賴**）。**P3-10-K 第二刀 🟡 部分完成；P3-10-K / P3-10 / P3 整體仍 🟡**。
 
 ## 【修改檔案清單】
 
-新增 0 份；修改 5 份；未動既有題目 / 圖片 / 音檔 / UI / quiz / review / schema / data / 題庫 / .env / .gitignore（既有規則已 cover `approved-questions.preview.generated.json`）：
+新增 1 份；修改 5 份；未動既有題目 / 圖片 / 音檔 / UI / quiz / review / schema / data / 題庫 / .env：
+
+新增：
+- **`scripts/assemble_practice_paper.mjs`**：v0.1 約 450 行，4 段（常數 / CLI parsing / Section 分組 + sourceMix 統計 + Part 覆蓋率檢查 / main）；**無新 npm 依賴**。
 
 修改：
-- **`scripts/approve_reviewed_questions.mjs`**：v0.1 → v0.1.1。改動點：(a) `APPROVE_VERSION` 字串 `@v0.1` → `@v0.1.1`；(b) 新增 `ALLOWED_QUESTION_SOURCES` set 常數；(c) HELP_TEXT 標題改 v0.1.1 + 補修補摘要、新 warning code、QuestionSource union 規則段；(d) `convertFinalQuestionToExamQuestion` 內 `source` 從「`nonEmptyString(fq.source) ? fq.source : "custom"`」改為「依 ALLOWED_QUESTION_SOURCES 三段判斷」、非 union 值返回 `{ok: false, errors: [{code:"invalid_question_source",...}]}`；(e) `main()` 流程重組 4 / 4.5 / 5 / 6 三段——4 暫標 ready、4.5 雙維度 dup 檢查、5 limit、6 統計三個 dup 計數 + 一個聯集；(f) summary 加 `duplicateIdsInTarget` / `duplicateIdsInBatch` 欄位；(g) write mode duplicate gate 改用 `duplicateIdsAll`（聯集），錯誤訊息分別印 target / batch 部分。整體新增 ~50 行 / 改 ~30 行；CLI 既有指令面**完全相容**（v0.1 既有 case 仍 work）。
-- **`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`**：F-pre-8-d 完全重寫（拆 target / batch 兩種 warning code + 兩 mode 行為表 + summary 對應欄位 + 為何 batch dup 兩筆都 skip 說明）；F-pre-8-e 補 source 規則 4 點（對齊 union / 空值預設 custom / 在 union 用該值 / 非 union 標 failed）；G 段加 v4.1 升級紀錄保留 v4 / v3.1 / v3 / v2 / v1。
-- **`docs/PRACTICE_DATA_IMPORT_PLAN.md`**：C 段第 6 步補 v0.1.1 修補說明（duplicate id 拆兩種偵測 + QuestionSource union 4 種 + 非 union 值 status=failed）。
-- **`docs/PRACTICE_DATA_PLAN.md`**：F 段 P3-10-K 條目從 v0.1 更新為 v0.1.1，補本輪 2 個修補摘要。
-- **`PROJECT_ROADMAP.md`**：在原 P3-10-K 條目上方插一個獨立的「🟡 P3-10-K 修補」條目（按時序由新到舊），含本輪完整 2 個修補描述 + 7 種測試結果 + 硬邊界 11 條。
+- **`.gitignore`**：加 1 行 `data/imported/practice-paper.preview.generated.json`。
+- **`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`**：F-pre-8 新增 F-pre-8-g（7 個子段，~85 行）；原 F-pre-8-g 更名 F-pre-8-h；G 段加 v4.2 升級紀錄。
+- **`docs/PRACTICE_DATA_IMPORT_PLAN.md`**：C 段新增第 7 步「組裝 first practice paper（P3-10-K 第二刀 v0.1）」+ 原第 7 步「quiz / review 使用」降為第 8 步。
+- **`docs/PRACTICE_DATA_PLAN.md`**：F 段新增 P3-10-K 第二刀 🟡 條目。
+- **`PROJECT_ROADMAP.md`**：在原 P3-10-K 修補條目上方插一個獨立的 🟡 P3-10-K 第二刀 條目（按時序由新到舊排列），含本輪完整描述 / 8 種 CLI 測試結果 / 硬邊界 13 條 / 未做清單。
 
-未動：`scripts/discover_resources.mjs` / `scripts/web_resource_collect.mjs` / `scripts/collect_discovered_resources.mjs` / `scripts/normalize_collected_sources.mjs` / `scripts/review_normalized_questions.mjs` / `scripts/generate_openai_tts_sample.mjs` / `lib/types.ts`（**對齊使用 QuestionSource union，但未動 type 定義**） / `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / 任何 `app/review/*` / `app/page.tsx` / `components/QuizPlay.tsx` / 其他 components / **`data/p3-example-questions.json`（13 題完整保留）** / **`data/exam-papers.example.json`** / `data/vocabulary.json` / `data/quizzes.json` / `data/imported/*.example.json`（7 個範例完整保留）/ `public/images/` / `public/audio/` / `docs/DISCOVERY_CRAWLER_PLAN.md` / `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `docs/CODEX_VALIDATION_RUNBOOK.md` / `docs/TASK_ROUTER.md` / `docs/USER_TEST_NOTES.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `README.md`（本輪沒新文件入口）/ `.env.example`（本輪不需新 env）/ `.gitignore`（既有規則已 cover）/ `source_materials/*` / `package.json`（無新依賴）/ `node_modules/`。
+未動：`scripts/discover_resources.mjs` / `scripts/web_resource_collect.mjs` / `scripts/collect_discovered_resources.mjs` / `scripts/normalize_collected_sources.mjs` / `scripts/review_normalized_questions.mjs` / `scripts/approve_reviewed_questions.mjs`（**v0.1.1 完整保留**） / `scripts/generate_openai_tts_sample.mjs` / `lib/types.ts`（對齊使用既有 schema，未動 type 定義）/ `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / 任何 `app/review/*` / `app/page.tsx` / `components/QuizPlay.tsx` / 其他 components / **`data/p3-example-questions.json`（13 題完整保留）** / **`data/exam-papers.example.json`** / `data/vocabulary.json` / `data/quizzes.json` / `data/imported/*.example.json`（7 個範例完整保留）/ `public/images/` / `public/audio/` / `docs/DISCOVERY_CRAWLER_PLAN.md` / `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `docs/CODEX_VALIDATION_RUNBOOK.md` / `docs/TASK_ROUTER.md` / `docs/USER_TEST_NOTES.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `README.md`（本輪沒新文件入口）/ `.env.example` / `source_materials/*` / `package.json`（無新依賴）/ `node_modules/`。
 
-## 【Duplicate id 修補說明】
+## 【Assemble CLI 說明】
 
-### 兩維度偵測
+### 4 段檔案結構
 
-| 偵測來源 | warning code | 觸發 |
-| --- | --- | --- |
-| target 既有 | `duplicate_id_in_target` | finalQuestion.id 已存在於 `--target` 現有正式題目（lookup 透過 `existingIds: Set`） |
-| 同批內部 | `duplicate_id_in_batch` | finalQuestion.id 在本批兩筆以上 ready items 內重複（lookup 透過 `batchIdCounts: Map`） |
+```
+scripts/assemble_practice_paper.mjs
+├── Section 0：常數
+│   ├── ASSEMBLE_VERSION / SUPPORTED_MODES / DEFAULT_LIMIT
+│   ├── ALLOWED_QUESTION_SOURCES（4 種，對齊 lib/types.ts QuestionSource union）
+│   ├── SECTION_DEFINITIONS（listening / reading-writing / speaking 3 種對應 starterSection）
+│   ├── STARTERS_PARTS（9 個 L1-L4 / RW1-RW5）
+│   └── HELP_TEXT（含使用方式 / Options / 組裝策略 / 硬邊界 / Warning code 表 / Examples）
+├── Section 1：CLI parsing（parseArgs / validateArgs；mode + 3 個必填 path 驗證）
+├── Section 2：JSON / FS helpers（readJsonFile / writeJson / fileExists / makeBatchId / nonEmptyString）
+├── Section 3：核心邏輯
+│   ├── decideSectionId（單題 → section.id：starterSection 優先 / type fallback）
+│   ├── buildSections（套 --limit / 分組到 section / 沒題目的 section 不出現）
+│   ├── computeSourceMix（4 種 QuestionSource 累計 / 非 union 值 warning）
+│   └── checkPartCoverage（9 個 Starters Parts；0 題 warning）
+└── Section 4：main（讀檔 / write guard / empty questions / build paper / 寫 preview / write target gate / append target）
+```
 
-兩種可同時觸發（同 id 既在 target 也在 batch 重複出現 ≥2 次）；該筆 item 會同時帶兩個 warning code。
+### CLI flag 表
 
-### 兩 mode 行為
+| flag | 必填 | 預設 | 說明 |
+| --- | --- | --- | --- |
+| `--questions <path>` | 必填 | — | 正式題庫路徑（建議 `data/p3-example-questions.json`） |
+| `--papers <path>` | 必填 | — | 既有 papers 集合（建議 `data/exam-papers.example.json`） |
+| `--out <path>` | 選填 | `data/imported/practice-paper.preview.generated.json` | preview JSON 寫檔路徑 |
+| `--mode <mode>` | 選填 | `preview` | `preview`（預設、絕對安全）/ `write`（需雙開關） |
+| `--write <yes\|no>` | 選填 | `no` | write mode 必須 yes 才允許 append paper；否則 exit 2 |
+| `--paper-id <id>` | 必填 | — | 新 paper 的 examPaperId；不可與 --papers 內既有 paper 重複 |
+| `--limit <n>` | 選填 | `20` | 最多納入 N 題；超過的標 `skip_due_to_limit` |
+| `--help` | 選填 | — | 印 usage |
 
-| mode | preview | write + 任一 dup |
-| --- | --- | --- |
-| 命中 item | status=`skipped` + 對應 warning；question 物件仍保留供 reviewer 檢視 | 同 preview 標記；整批 exit 2 拒絕寫入 target |
-| target | 不動 | 不動（CLI 在寫 target 前已 exit 2） |
-| preview JSON | 寫 | **仍寫**（reviewer 可從 items[].warnings 找 dup 條目） |
+### exit code
 
-### summary 欄位
-
-| 欄位 | 含義 |
+| 情況 | exit code |
 | --- | --- |
-| `duplicateIds` | target + batch 兩種 dup 的 **unique id 聯集**（向後相容） |
-| `duplicateIdsInTarget` | 只算 target 既有 dup 的 unique id 數 |
-| `duplicateIdsInBatch` | 只算 batch 內部 dup 的 unique id 數 |
+| 成功 | 0 |
+| 未預期錯誤 | 1 |
+| CLI 參數錯 / 必填檔不存在 / JSON parse 失敗 / questions 不是 array / mode=write 缺 `--write yes` / write mode + duplicate paper id | 2 |
 
-範例：target 含 q-A，batch 含兩筆 q-A + 兩筆 q-B：
-- `duplicateIdsInTarget = 1`（只 q-A）
-- `duplicateIdsInBatch = 2`（q-A 與 q-B 都在 batch 內 dup）
-- `duplicateIds = 2`（聯集 unique：q-A、q-B）
+### 與 P3-10-K v0.1.1（單題 approve）的關係
 
-### 為何「同批 dup 兩筆都 skip」
+| 階段 | 工具 | 輸入 | 輸出 | 寫正式 |
+| --- | --- | --- | --- | --- |
+| K v0.1.1（單題） | `approve_reviewed_questions.mjs` | reviewed + validation + target | preview + 追加題到 `data/p3-example-questions.json` | 雙開關 + duplicate id gate 才寫 |
+| **K 第二刀（本輪 paper）** | `assemble_practice_paper.mjs` | questions + papers + paper-id | preview + 追加 paper 到 `data/exam-papers.example.json` | 雙開關 + duplicate paper id gate 才寫 |
+| ⬜ K 第三刀（未來） | 屬獨立刀數 | imported papers + lib/data.ts filter | `/quiz` 切換新 paper | 屬獨立刀數 |
 
-reviewer 給兩筆同 id 通常代表「至少一筆 id 填錯」，CLI 無法判斷哪筆對。最保守的設計：**全部** skip 等 reviewer 自行決定哪筆改 id。reviewer 在 reviewed file 改其中一筆的 id 後重跑，即可解開。
+## 【Paper schema / sections 說明】
 
-### 流程重組（4 / 4.5 / 5 / 6 三段）
-
-之前 v0.1：在每筆 reviewed item 的轉換迴圈內，**立刻**做 duplicate check（只看 target）→ skipped or ready。
-
-v0.1.1 拆兩段：
-- **Step 4**：每筆轉換時暫標 `ready`（duplicate 檢查延後）；放進 `tentativelyReady` 陣列。
-- **Step 4.5**：用 `tentativelyReady` 統計 batch 內部 id 出現次數（`batchIdCounts`），再對每筆檢查 (a) target 既有 (b) batch 內部 dup。同 item 可被兩種 dup 同時標記。
-- **Step 5**：limit 只套用在「duplicate 檢查後仍 ready」的條目；超過 limit 的標 `skip_due_to_limit`。
-- **Step 6**：統計三個 dup 計數（target / batch / 聯集）+ ready / skipped / failed。
-
-## 【QuestionSource union 驗證說明】
-
-### 對齊 lib/types.ts
+### 對齊 lib/types.ts ExamPaper
 
 ```ts
-// lib/types.ts（**未動**，本輪只 import 字面量）
-export type QuestionSource =
-  | "official_sample"   // Cambridge 官方 sample paper
-  | "past_paper"        // 歷屆考題
-  | "ai_generated"      // AI 生成題
-  | "custom";           // 維護者自製 / 改寫
+export type ExamPaper = {
+  examPaperId: string;          // ← 必填；CLI 從 --paper-id 取
+  title: string;                 // ← 必填；CLI 自動生 "Cambridge Starters 練習卷（${paperId}）"
+  description?: string;          // ← 選填；CLI 補本輪 P3-10-K 第二刀 disclaimer
+  sections: ExamSection[];       // ← 必填；分 listening / reading-writing / speaking
+  sourceMix?: SourceMix;         // ← 選填；CLI 由 question.source 統計
+  createdAt?: string;            // ← 選填；CLI 取當下 ISO
+  updatedAt?: string;            // ← 選填；CLI 取當下 ISO（首次組裝 = createdAt）
+};
 ```
 
-CLI 內新增常數：
+**注意實際 schema 細節**：
+- 欄位是 `examPaperId`，**不是任務單範例的 `id`**——CLI 完全對齊 schema 字面量。
+- 實際 schema **沒有 `level` 欄位**（任務單範例提到 `level: "Pre A1 Starters"`）——CLI **不寫入** `level`，避免污染正式型別；題庫 level 資訊由 paper.title 自然帶出。
 
-```js
-const ALLOWED_QUESTION_SOURCES = new Set([
-  "official_sample",
-  "past_paper",
-  "ai_generated",
-  "custom",
-]);
+### ExamSection 結構
+
+```ts
+export type ExamSection = {
+  id: string;              // listening / reading-writing / speaking
+  title: string;           // Listening / Reading & Writing / Speaking
+  description?: string;    // 對應每 section 預設描述
+  questionIds: string[];   // 該 section 內題目 id（不重排，依 --questions 原順序）
+};
 ```
 
-### 三種輸入處理
+### 三個 SECTION_DEFINITIONS
 
-| `finalQuestion.source` 值 | 處理 | 結果 |
+CLI 內定義（與 lib/types.ts `StarterSection` union 完全對齊）：
+
+| section.id | title | starterSection 對應 | type fallback |
+| --- | --- | --- | --- |
+| `listening` | Listening | `"listening"` | `listening-choice` |
+| `reading-writing` | Reading & Writing | `"reading-writing"` | 其他所有 type |
+| `speaking` | Speaking | `"speaking"` | （無 fallback；P4 未實作） |
+
+**沒題目的 section 不會出現在最終 paper.sections[]**——避免 lib/data.ts 載入時 render 空 section。
+
+### 9 個 Cambridge Starters Parts 覆蓋檢查
+
+對齊 `docs/STARTERS_PART_TEMPLATES.md` 9 個 Parts，CLI 對每 part 計數 0 → 標 `insufficient_questions_for_part` warning：
+
+| Part | Section | 目前題庫狀態（13 題版本） |
 | --- | --- | --- |
-| 空字串 / 缺值（undefined） | 預設 `custom` | resolvedSource = `"custom"` |
-| 在 union（4 種字面量之一） | 使用該值 | resolvedSource = fq.source |
-| 非空但不在 union（如 `user_provided` / `third_party` / `manual` / 任何其他字串） | **errors push `invalid_question_source`** | 條目 status=`failed`，**不**寫入 question；**不** silent fallback 為 custom |
+| L1 | listening | **0 題** ⚠️ |
+| L2 | listening | **0 題** ⚠️ |
+| L3 | listening | 1 題（q-lc-001）|
+| L4 | listening | **0 題** ⚠️ |
+| RW1 | reading-writing | 3 題（q-pc-001 / q-tf-001 / q-tf-002）|
+| RW2 | reading-writing | **0 題** ⚠️ |
+| RW3 | reading-writing | 5 題（q-wc-001 / q-sp-001~004）|
+| RW4 | reading-writing | 3 題（q-mc-001 / q-fb-001 / q-fb-002）|
+| RW5 | reading-writing | 1 題（q-mt-001）|
 
-### 為何「非 union 值不 silent fallback 為 custom」
-
-任務單明示「請不要自動把非法 source fallback 成 custom，因為這可能掩蓋 reviewer 填錯來源的問題」。具體場景：
-- reviewer 從 P3-10-A 既有 `sourceType` 概念混淆（discovery 階段 sourceType 有 `user_verified` / `third_party` / `official` / `unknown`，但這些**不是** ExamQuestion 的 `QuestionSource`）。
-- 若 CLI 把 `third_party` silent fallback 為 `custom`，正式題庫會出現 source=custom 但來源實際是第三方的題目，違反「正式題庫每題保留 source / provenance 可追溯」原則。
-- 失敗 + 明確 error 訊息能讓 reviewer 立刻知道「source 填錯了、需要選正確的 union 字面量或保留至 reviewerNotes」。
-
-### 錯誤訊息範例（stderr 與 errors[0].message 內容一致）
-
-```
-source "third_party" 不在 QuestionSource union（official_sample / past_paper / ai_generated / custom）。
-非法 source 不會 fallback 為 custom（避免掩蓋 reviewer 填錯來源）；
-若 reviewer 想表示第三方來源，請保留於 reviewerNotes / discovery provenance，
-不要寫入正式 QuestionSource union。
-```
+⚠️ 4 個 part（L1 / L2 / L4 / RW2）為 0 題 → 4 個 `insufficient_questions_for_part` warnings。reviewer 可看出哪些 part 需要 P3-10-G / H / I / J 後續刀數補題。
 
 ## 【Preview 測試結果】
 
-### Test 1：current preview vs real `data/p3-example-questions.json`
+### Test 1：preview vs real data（13 題 / `--paper-id starters-practice-paper-001`）
 
 ```
-[approve] wrote preview to .../approved-questions.preview.generated.json — totalReviewed=1 validationPassed=0 readyToAppend=0 skipped=1 failed=0 duplicateIds=0(target=0,batch=0)
-[approve] mode=preview / --write=no：**未寫 target**；正式題庫 .../p3-example-questions.json 完全未動。
+$ node scripts/assemble_practice_paper.mjs \
+    --questions data/p3-example-questions.json \
+    --papers data/exam-papers.example.json \
+    --out data/imported/practice-paper.preview.generated.json \
+    --mode preview \
+    --paper-id starters-practice-paper-001 \
+    --limit 20
+[assemble] mode=preview write=no ...
+[assemble] wrote preview to .../practice-paper.preview.generated.json — totalAvailable=13 totalSelected=13 sections=2 warnings=4 duplicatePaperId=no
+[assemble] mode=preview / --write=no：**未寫 --papers**；既有 papers 完全未動。
 exit=0
 ```
 
-✅ 既有 PDF skipped case（從 P3-10-F 帶過來的 reviewed file）仍按預期 skip；新 `duplicateIds=0(target=0,batch=0)` 顯示證明兩個分項都 0；正式題庫未動。
+preview JSON 內容：
 
-## 【Write duplicate guard 測試結果】
+```jsonc
+{
+  "summary": {
+    "totalQuestionsAvailable": 13,
+    "totalQuestionsSelected": 13,
+    "sections": 2,
+    "sourceMix": { "ai_generated": 9, "custom": 4 },
+    "partBreakdown": {
+      "L1": 0, "L2": 0, "L3": 1, "L4": 0,
+      "RW1": 3, "RW2": 0, "RW3": 5, "RW4": 3, "RW5": 1
+    },
+    "warnings": 4,
+    "isDuplicatePaperId": false,
+    "existingPapersCount": 1
+  },
+  "paper": {
+    "examPaperId": "starters-practice-paper-001",
+    "title": "Cambridge Starters 練習卷（starters-practice-paper-001）",
+    "description": "P3-10-K 第二刀 first practice paper 組裝 preview...",
+    "sections": [
+      { "id": "listening", "title": "Listening", "questionIds": ["q-lc-001"] },
+      { "id": "reading-writing", "title": "Reading & Writing", "questionIds": [
+        "q-mc-001", "q-pc-001", "q-wc-001", "q-fb-001", "q-fb-002", "q-mt-001",
+        "q-tf-001", "q-sp-001", "q-sp-002", "q-sp-003", "q-sp-004", "q-tf-002"
+      ]}
+    ],
+    "sourceMix": { "ai_generated": 9, "custom": 4 },
+    "createdAt": "2026-05-14T...",
+    "updatedAt": "2026-05-14T..."
+  },
+  "warnings": [
+    { "code": "insufficient_questions_for_part", "message": "Cambridge Starters Part L1（section=listening）..." },
+    { "code": "insufficient_questions_for_part", "message": "...L2..." },
+    { "code": "insufficient_questions_for_part", "message": "...L4..." },
+    { "code": "insufficient_questions_for_part", "message": "...RW2..." }
+  ]
+}
+```
 
-### Test 2：`--mode write` 缺 `--write yes` → exit 2（既有保護未 regression）
+✅ 完全符合任務單需求：
+- totalQuestionsAvailable=13、totalQuestionsSelected=13、sections=2（listening + reading-writing）
+- sourceMix={ai_generated:9, custom:4} **與既有 example 完全一致**（驗證統計邏輯正確）
+- 4 個 `insufficient_questions_for_part` warnings 對應 L1 / L2 / L4 / RW2 缺題
+- isDuplicatePaperId=false（starters-practice-paper-001 不在既有 papers）
+- 正式 papers 未動
+
+### Test 8：`--limit 5` 限制題數
 
 ```
-Error: --mode write 必須同時搭配 --write yes 才會實際寫入正式題庫。
+[assemble] wrote preview — totalAvailable=13 totalSelected=5 sections=2 warnings=13 duplicatePaperId=no
+```
+
+✅ totalSelected=5（前 5 題），其餘 8 題標 `skip_due_to_limit`（warnings 數從 4 跳到 13 = 4 原有 + 8 skip + 1 額外 part missing 因為被截）。
+
+## 【Write guard 測試結果】
+
+### Test 2：`--mode write` 缺 `--write yes` → exit 2
+
+```
+$ node scripts/assemble_practice_paper.mjs \
+    --questions data/p3-example-questions.json \
+    --papers data/exam-papers.example.json \
+    --mode write \
+    --paper-id starters-practice-paper-001
+[assemble] mode=write write=no ...
+Error: --mode write 必須同時搭配 --write yes 才會實際寫入 --papers。
 本輪 v0.1 設計**雙開關**避免無意識寫入。若仍想寫，請完整指令：
   --mode write --write yes
 若要先檢查、不寫，請改 --mode preview。
 exit=2
 ```
 
-✅ v0.1 的雙開關保護完整保留。
+✅ 符合雙開關保護設計。
 
-### Fixture 1：同批 duplicate id preview
-
-fixture：兩筆 reviewer items（sourceItemId=`a` 與 `b`）都填 `finalQuestion.id="q-new-dup"`；target 為 `[]`（空）。
+### Test 7：write happy path vs `/tmp/target-papers.json`
 
 ```
-[approve] wrote preview to /tmp/preview-batchdup.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=2 failed=0 duplicateIds=1(target=0,batch=1)
+$ echo '[]' > /tmp/target-papers.json
+$ node scripts/assemble_practice_paper.mjs \
+    --questions data/p3-example-questions.json \
+    --papers /tmp/target-papers.json \
+    --out /tmp/preview-happy.json \
+    --mode write --write yes \
+    --paper-id starters-imported-001 --limit 20
+[assemble] **已寫入 papers**：/tmp/target-papers.json 從 0 份擴張到 1 份（追加 examPaperId="starters-imported-001"）。
+  reviewer 請手動 git diff 確認後再 commit；本輪 CLI 不自動 commit。
+  注意：/quiz 仍未切到本卷；屬 P3-10-K 後續刀數（lib/data.ts 載入邏輯）範圍。
 exit=0
 ```
 
-逐筆：
+寫入後 `/tmp/target-papers.json` 內容：
 
 ```
-summary: {"totalReviewed":2,"validationPassed":2,"readyToAppend":0,"skipped":2,"failed":0,"duplicateIds":1,"duplicateIdsInTarget":0,"duplicateIdsInBatch":1,"targetExistingCount":0}
-item[0] id=q-new-dup status=skipped warnings=duplicate_id_in_batch
-item[1] id=q-new-dup status=skipped warnings=duplicate_id_in_batch
+papers count: 1
+  examPaperId=starters-imported-001  title=Cambridge Starters 練習卷（starters-imported-001）
+    sections=2  sourceMix={"ai_generated":9,"custom":4}
+      listening: 1 題
+      reading-writing: 12 題
 ```
 
-✅ **兩筆都標 skipped**（不只第二筆）；`duplicateIdsInBatch=1`（unique id 為 1）；`duplicateIds=1`（聯集）；readyToAppend=0；target 未動（empty-target 仍 0 題）。
+✅ paper 結構完整、reviewer 看到「請手動 git diff」與「/quiz 仍未切換」提示。
 
-### Fixture 2：同批 duplicate id write mode → exit 2
+## 【Duplicate paper id 保護】
+
+### Test 3：duplicate paper id preview（`--paper-id starters-mock-001` 與既有衝突）
 
 ```
-[approve] wrote preview to /tmp/preview-batchdup-write.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=2 failed=0 duplicateIds=1(target=0,batch=1)
-Error: write mode 偵測到 1 筆 duplicate id（batch=[q-new-dup]）；為避免覆寫既有正式題目或破壞 batch id 唯一性，**整批拒絕寫入** + exit 2。
-   preview JSON 已寫至 /tmp/preview-batchdup-write.json，reviewer 可檢視 items[].warnings 找出 duplicate_id_in_target / duplicate_id_in_batch 條目。
-請於 reviewed file 改 id（建議 q-{type-tag}-imp-{nnn}），或從 target 移除既有同 id 題目後重跑。
+[assemble] wrote preview to /tmp/preview-dup.json — totalAvailable=13 totalSelected=13 sections=2 warnings=5 duplicatePaperId=yes
+[assemble] mode=preview / --write=no：**未寫 --papers**；既有 papers 完全未動。
+exit=0
+```
+
+```
+isDuplicatePaperId: true
+duplicate warnings: [ 'duplicate_paper_id' ]
+```
+
+✅ summary.isDuplicatePaperId=true；warnings 含 `duplicate_paper_id`；preview JSON 仍寫；exit 0（preview 不強制阻擋）。
+
+### Test 4：duplicate paper id write mode → exit 2 + target 不動
+
+```
+$ cp data/exam-papers.example.json /tmp/papers-real-copy.json
+$ node scripts/assemble_practice_paper.mjs \
+    --questions data/p3-example-questions.json \
+    --papers /tmp/papers-real-copy.json \
+    --out /tmp/preview-dup-write.json \
+    --mode write --write yes \
+    --paper-id starters-mock-001
+[assemble] wrote preview to /tmp/preview-dup-write.json — ... duplicatePaperId=yes
+Error: write mode 偵測到 --paper-id "starters-mock-001" 與 --papers 既有 paper 重複；為避免覆蓋既有 paper，**整批拒絕寫入** + exit 2。
+   preview JSON 已寫至 /tmp/preview-dup-write.json，reviewer 可檢視 warnings 內 duplicate_paper_id。
+請改 --paper-id 或從 --papers 移除既有同 id paper 後重跑。
 exit=2
+$ diff -q /tmp/papers-real-copy.json data/exam-papers.example.json
+（無輸出 = 完全相同）
 ```
 
-✅ exit 2；preview JSON 仍寫；empty-target 不動（仍 0 題）；錯誤訊息明確指出 `batch=[q-new-dup]`（分項顯示 dup 來自 batch 不是 target）。
+✅ exit 2；preview 仍寫；/tmp/papers-real-copy.json **完全未動**。
 
-## 【Invalid source 測試結果】
+## 【sourceMix 統計結果】
 
-### Fixture 3：兩筆 invalid source preview + write
-
-fixture：sourceItemId=`a` 填 `source="third_party"`、sourceItemId=`b` 填 `source="user_provided"`；target 為 `[]`（空）。
-
-**Preview**：
+對 13 題正式題庫的 sourceMix 統計：
 
 ```
-[approve] wrote preview to /tmp/preview-invsrc.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=0 failed=2 duplicateIds=0(target=0,batch=0)
-[approve] mode=preview / --write=no：**未寫 target**；正式題庫 /tmp/empty-target.json 完全未動。
-exit=0
+sourceMix: { "ai_generated": 9, "custom": 4 }
 ```
 
-逐筆：
+**與既有 `data/exam-papers.example.json` 內 `starters-mock-001` 的 sourceMix 完全一致**（`{ ai_generated: 9, custom: 4 }`），證明統計邏輯正確：
 
-```
-summary: {"totalReviewed":2,"validationPassed":2,"readyToAppend":0,"skipped":0,"failed":2,"duplicateIds":0,"duplicateIdsInTarget":0,"duplicateIdsInBatch":0,"targetExistingCount":0}
-item[0] id=q-sp-invsrc-001 status=failed warnings= errors=invalid_question_source
-item[1] id=q-sp-invsrc-002 status=failed warnings= errors=invalid_question_source
-```
+逐題分析（13 題）：
+- ai_generated（9 題）：q-lc-001 / q-pc-001 / q-wc-001 / q-tf-001 / q-tf-002 / q-sp-001 / q-sp-002 / q-sp-003 / q-sp-004
+- custom（4 題）：q-mc-001 / q-fb-001 / q-fb-002 / q-mt-001
+- official_sample：0 題（不出現於 sourceMix；對齊 example 緊湊格式）
+- past_paper：0 題（不出現於 sourceMix）
 
-✅ 兩筆都 status=`failed`、errors 含 `invalid_question_source`；readyToAppend=0；target 不動。
+額外驗證：若 reviewer 之前用 `approve_reviewed_questions.mjs` 加題（其 v0.1.1 已驗證 source 必須在 union），新題會帶合法 source 進到本輪 sourceMix。若有題目 source 不在 union（理論上 v0.1.1 已 block），CLI 仍能 graceful 處理：標 `unknown_source_value` warning 並不計入。
 
-**Write mode（同 fixture）**：
+## 【Output 格式檢查】
 
-```
-[approve] wrote preview to /tmp/preview-invsrc-write.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=0 failed=2 duplicateIds=0(target=0,batch=0)
-[approve] write mode 但 readyToAppend=0；不寫 target。preview JSON 已寫至 /tmp/preview-invsrc-write.json；reviewer 可檢查 skipped / failed 原因。
-exit=0
-```
+### preview / write 兩 mode 共用 schema
 
-✅ readyToAppend=0 → 不寫 target；exit 0（這不是 dup 觸發的，而是純粹「沒東西可寫」的正常分支）；target 不動。
-
-注意：invalid_question_source 條目走 `status=failed` 分支（不算 ready），所以即使是 write mode 也不會因為 invalid source 觸發 exit 2，因為 dup gate 只看 dup ids。但**這些 failed 條目不會寫入 target**，因為它們從未進入 `withinLimit` 陣列。
-
-## 【合法 source 測試結果】
-
-### Fixture 4：4 種合法 source + 空 source（預設 custom）write happy path
-
-fixture：5 筆 reviewer items：
-- `a`：source=`custom`
-- `b`：source=`ai_generated`
-- `c`：source=`official_sample`
-- `d`：source=`past_paper`
-- `e`：**未填** source 欄位（測試「空值預設 custom」）
-
-target 為 `/tmp/target-valid.json`（空 array）。
-
-```
-[approve] wrote preview to /tmp/preview-valid.json — totalReviewed=5 validationPassed=5 readyToAppend=5 skipped=0 failed=0 duplicateIds=0(target=0,batch=0)
-[approve] **已寫入 target**：/tmp/target-valid.json 從 0 題擴張到 5 題（追加 5 題）。
-  reviewer 請手動 git diff 確認後再 commit。
-exit=0
-```
-
-target 寫入後內容：
-
-```
-題目數: 5
-  q-sp-cus-001  type=spelling          source=custom            starterPart=RW3
-  q-sp-ai-001   type=spelling          source=ai_generated      starterPart=RW3
-  q-tf-os-001   type=true-false        source=official_sample   starterPart=RW1
-  q-mc-pp-001   type=multiple-choice   source=past_paper        starterPart=RW4
-  q-sp-empty-001 type=spelling         source=custom            starterPart=RW3   ← 空值預設 custom 正確
+```jsonc
+{
+  "batchId": "paperbatch-2026-05-14T...",
+  "createdAt": "...",
+  "source": "assemble_practice_paper.mjs@v0.1",
+  "mode": "preview" | "write",
+  "write": true | false,
+  "questionsInput": "<absolute path>",
+  "papersInput": "<absolute path>",
+  "summary": {
+    "totalQuestionsAvailable": <int>,           // questions 檔內題目數
+    "totalQuestionsSelected": <int>,             // 進入 paper.sections 的題目數
+    "sections": <int>,                            // paper.sections 長度
+    "sourceMix": { ... },                         // 與 paper.sourceMix 同值
+    "partBreakdown": {                            // 9 個 Cambridge Starters Parts 題數
+      "L1": N, "L2": N, ..., "RW5": N
+    },
+    "warnings": <int>,                            // warnings[] 長度
+    "isDuplicatePaperId": <bool>,                 // --paper-id 與既有 papers 重複
+    "existingPapersCount": <int>                  // --papers 內既有 paper 數
+  },
+  "paper": {
+    // 完整 ExamPaper 物件，可直接 commit 到 --papers
+    "examPaperId": "<--paper-id>",
+    "title": "...",
+    "description": "...",
+    "sections": [
+      { "id", "title", "description", "questionIds": [...] }
+    ],
+    "sourceMix": { ... },
+    "createdAt": "...",
+    "updatedAt": "..."
+  },
+  "warnings": [ { "code", "message" } ]
+}
 ```
 
-✅ 5 筆全部 ready 並寫入；4 種合法 source 各自保留；空值預設為 `custom`；無 dup（5 個 unique id）；無 failed；source 規則三段都驗證到。
+### 任務單檢查清單
+
+| 檢查項 | 結果 |
+| --- | --- |
+| preview JSON 是否存在 | ✅ `data/imported/practice-paper.preview.generated.json` 已寫 |
+| summary 是否合理 | ✅ 8 個欄位含 `isDuplicatePaperId` / `partBreakdown` 額外 metadata |
+| paper.id 是否符合 schema | ✅ 使用 `examPaperId`（不是 `id`），對齊 lib/types.ts |
+| sourceMix 由 question.source 統計 | ✅ 13 題 → ai_generated=9 / custom=4，與既有 example 一致 |
+| sections 依 starterPart / starterSection 分組 | ✅ 依 starterSection 分組到 listening / reading-writing 兩 section |
+| 題目不足某 part 有 warning | ✅ L1 / L2 / L4 / RW2 共 4 個 `insufficient_questions_for_part` |
+| preview 不改 papers target | ✅ `data/exam-papers.example.json` git diff HEAD 一致 |
+| paper id duplicate write mode exit 2 | ✅ Test 4 驗證；preview 仍寫；target 未動 |
+| generated output 被 gitignore 排除 | ✅ `.gitignore:56` 命中 |
 
 ## 【文件同步內容】
 
-### `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` v4.1
+### `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` v4.2
 
-- **F-pre-8-d 重寫**：拆 `duplicate_id_in_target` / `duplicate_id_in_batch` 兩個 warning code + 兩 mode 行為表 + summary `duplicateIds` / `duplicateIdsInTarget` / `duplicateIdsInBatch` 對應 + 為何 batch dup 兩筆都 skip 的設計取捨說明。
-- **F-pre-8-e 補 source 規則 4 點**：對齊 QuestionSource union 4 種字面量 / 空值預設 custom / 在 union 用該值 / **非空但不在 union → failed + invalid_question_source（不 silent fallback）** / reviewer 第三方來源應保留於 reviewerNotes。
-- **G 段加 v4.1 升級紀錄**保留 v4 / v3.1 / v3 / v2 / v1。
+F-pre-8 新增 **F-pre-8-g 段「P3-10-K 第二刀」** 共 7 個子段：
+- 兩個 mode + 雙開關
+- 組裝策略 v0.1 保守
+- sourceMix 統計規則
+- Part 覆蓋率檢查
+- Duplicate paper id 保護
+- Output schema
+- Warning code 表 + v0.1 不做清單
+
+原 F-pre-8-g「不在 v0.1 範圍」更名 F-pre-8-h。G 段加 v4.2 升級紀錄保留 v4.1 / v4 / v3.1 / v3 / v2 / v1。
 
 ### `docs/PRACTICE_DATA_IMPORT_PLAN.md`
 
-C 段第 6 步補修補摘要：duplicate id 拆兩種偵測 + QuestionSource union 4 種 + 非 union 值 status=failed + reviewer 第三方來源處理建議。
+C 段流程新增第 7 步「組裝 first practice paper（P3-10-K 第二刀 v0.1）」+ 原第 7 步「quiz / review 使用」降為第 8 步。
 
 ### `docs/PRACTICE_DATA_PLAN.md`
 
-F 段 P3-10-K 條目從 v0.1 更新為 v0.1.1，補本輪 2 個修補摘要。
+F 段新增 P3-10-K 第二刀 🟡 條目 + 本輪實作摘要。
 
 ### `PROJECT_ROADMAP.md`
 
-在原 P3-10-K 條目上方插一個獨立的「🟡 P3-10-K 修補」條目（按時序由新到舊排列），含本輪完整描述：2 個修補理由與行為 / mergeKey 規則 / 7 種測試結果 / 4 種 fixture 場景結果 / 硬邊界 11 條。
+在原 P3-10-K 修補條目上方插一個獨立的 🟡 P3-10-K 第二刀 條目（按時序由新到舊排列），含本輪完整描述：7 個 flag / 組裝策略 v0.1 / 4 段檔案結構 / 8 種 CLI 測試結果 / 硬邊界 13 條 / 未做清單。
 
 ### `README.md`
 
-**未動**——文件索引已涵蓋；F-pre-8 修補為 QUESTION_IMPORT_NORMALIZATION_PLAN 內部章節擴張，無新文件入口。
+**未動**——文件索引已涵蓋；F-pre-8-g 為 QUESTION_IMPORT_NORMALIZATION_PLAN 內部章節擴張，無新文件入口。
 
 ## 【測試結果】
 
 - `npm run lint`：✅ 全綠（zero issues）
 - `npm run typecheck`（`tsc --noEmit`）：✅ 全綠（純 `.mjs` script + 純文件、零 TypeScript 型別影響）
 - `npm run build`：✅ **88 routes** 全部 static prerendered（路由數不變、無新依賴）
-- approve CLI 7 種測試全綠：
-  - ✅ Test 0 `--help` → exit 0；HELP 標題顯示 v0.1.1 + 修補摘要 + 新 warning code + QuestionSource union 規則
-  - ✅ Test 1 **preview vs 既有 PDF skipped case**：totalReviewed=1 / readyToAppend=0 / `duplicateIds=0(target=0,batch=0)`；正式題庫未動
-  - ✅ Test 2 **write 缺 `--write yes`** → exit 2（既有保護未 regression）
-  - ✅ **Fixture 1 同批 dup preview**：兩筆同 id `q-new-dup` 都 status=skipped + warning `duplicate_id_in_batch`；summary `duplicateIdsInBatch=1` / `duplicateIds=1`；empty-target 不動
-  - ✅ **Fixture 2 同批 dup write mode** → exit 2 + preview JSON 仍寫（含 `duplicate_id_in_batch` warnings）+ empty-target 不動
-  - ✅ **Fixture 3 invalid source preview + write**：兩筆 `third_party` / `user_provided` → status=failed + error `invalid_question_source`；preview write mode 都不寫 target
-  - ✅ **Fixture 4 合法 source happy path**：5 筆（custom / ai_generated / official_sample / past_paper / 空值預設 custom）→ readyToAppend=5；target 從 0 → 5 題；source 分配正確
-- gitignore：✅ `.gitignore:55` 已 cover `approved-questions.preview.generated.json`（本輪未動）
-- git status：本輪只 5 個檔案變動（0 新增 + 5 修改）；無 `.generated.json` / `.env.local` / `.claude/settings.local.json` 進 diff
-- **正式題庫保護**：`diff data/p3-example-questions.json HEAD:data/p3-example-questions.json` → 完全相同（13 題未動）；`data/exam-papers.example.json` 同理
+- assemble CLI 8 種測試全綠：
+  - ✅ Test 1 **preview vs real data**：13 題 → 2 sections / sourceMix={ai_generated:9, custom:4}（與既有 example 一致）/ 4 個 part-missing warnings / isDuplicatePaperId=false / 正式 papers 未動
+  - ✅ Test 2 **`--mode write` 缺 `--write yes`** → exit 2 + 印 3 條對策
+  - ✅ Test 3 **duplicate paper id preview**（`starters-mock-001`）→ isDuplicatePaperId=true / warning `duplicate_paper_id` / exit 0
+  - ✅ Test 4 **duplicate paper id write mode** → exit 2 / preview 仍寫 / /tmp/papers-real-copy.json 完全未動
+  - ✅ Test 5 **empty questions preview**（`[]`）→ sections=0 / 11 warnings 含 `no_questions_available` + 9 個 `insufficient_questions_for_part` + 1 個 `paper_has_zero_sections` / exit 0
+  - ✅ Test 6 **empty questions write mode** → preview 仍寫 / target 不寫 / exit 0 + stderr 訊息
+  - ✅ Test 7 **write happy path vs `/tmp/target-papers.json`** → 空 target → 1 paper 寫入 examPaperId=`starters-imported-001` / 2 sections / reviewer git diff 提示
+  - ✅ Test 8 **`--limit 5`** → totalSelected=5 / 8 個 `skip_due_to_limit` warnings
+- gitignore：✅ `.gitignore:56` cover `practice-paper.preview.generated.json`
+- git status：本輪只 6 個檔案（1 新增 + 5 修改）；無 `.generated.json` / `.env.local` 進 diff
+- **正式檔保護**：`diff data/p3-example-questions.json HEAD` 完全相同（13 題未動）；`diff data/exam-papers.example.json HEAD` 完全相同（1 paper 未動）
 
 ## 【仍未處理】
 
-依任務單範圍（本輪只做最小修補，P3-10-K 整體仍 🟡）：
+依任務單範圍（P3-10-K 第二刀屬部分完成）：
 
-- ⬜ **first practice paper 整盤組裝**（屬 P3-10-K 主任務未完部分）：paper-level metadata（`ExamPaper.sourceMix` / `sections` / `questionOrder`）的組裝。
-- ⬜ **`lib/data.ts` 加 `approved_for_practice` 過濾邏輯**：目前 quiz 載入是整 `data/p3-example-questions.json`；若未來想做「approved-only quiz」需加 filter。
-- ⬜ **`first practice paper` Codex 驗收**：需要先 (a) reviewer 跑 write 把幾題 approved 寫進正式題庫 (b) 整盤 paper 組裝 (c) 上線 `/quiz` (d) Codex 驗 quiz 流程仍正常。
-- ⬜ **`--allow-partial yes` flag**：write mode 遇 dup 時允許 reviewer 明確同意「忽略 dup 條目、寫其他條目」；屬未來 reviewer ergonomics（風險：reviewer 可能漏掉 dup 條目）。
-- ⬜ **matching template 擴張 + 寫入支援**。
-- ⬜ **`--rollback` flag**：自動把上一輪 write 的條目從 target 移除；目前 reviewer 用 `git checkout` 解決。
-- ⬜ **Review UI dashboard**：純 CLI workflow；reviewer 仍需自己用編輯器看 JSON。
-- ⬜ **自動補選填欄位**（spellingHint / letterScramble / topic / promptVersion / skillFocus）。
-- ⬜ **多 target 支援**：目前只接受單一 `--target`。
-- ⬜ **使用者擴量實測**：本輪 fixture 已涵蓋 7 種題型中的 spelling / true-false / multiple-choice + invalid type；其他 4 種（picture-choice / word-choice / fill-blank / listening-choice）的轉換邏輯仍只靠 unit-level reading 確認；建議下一輪 reviewer 真實 approve 各題型時補實測。
+- ⬜ **lib/data.ts 載入 imported papers**：本輪只寫 paper 到 `data/exam-papers.example.json`，但 `/quiz` 仍從既有 paper 載入；未來需 lib/data.ts 加邏輯讀新 paper、或設定 paper picker UI（屬 P3-10-K 第三刀）。
+- ⬜ **Section 內題目自動排序**：目前保留 `--questions` array 原順序；未來可依 starterPart 排序（L1→L4 / RW1→RW5），讓 paper 更接近 Starters 官方順序。
+- ⬜ **Speaking section 內容**：屬 P4 Speaking Examiner Agent 範圍；本輪空 section 直接不出現。
+- ⬜ **Cambridge Starters 官方題量對齊**：Listening 4 parts × 5 Q = 20Q；R&W 5 parts × 5 Q = 25Q；總 45Q。本輪 13 題遠少於目標；reviewer 需先補題（P3-10-G / H / I / J）。
+- ⬜ **真實 reviewer commit 流程實測**：reviewer 須先跑 `approve_reviewed_questions.mjs` 累積足夠題目進 `data/p3-example-questions.json`，再跑本 CLI 組 paper；目前 13 題已足以驗證 CLI 邏輯，但無新 reviewer-approved 題目實測。
+- ⬜ **`--rollback` flag / paper 移除**：reviewer 寫入後想復原須用 git checkout；屬未來 ergonomics enhancement。
+- ⬜ **Paper validation**：本輪只組裝，不驗證 paper 內每題 id 是否真的在 questions 內、不驗 sourceMix 加總是否等於 totalSelected。屬未來保險 layer。
+- ⬜ **第一份完整 first practice paper Codex 驗收**：屬 P3-10-K 收尾、需要 (a) reviewer approve 足夠題目 (b) 跑本 CLI 寫入 paper (c) lib/data.ts 整合 (d) /quiz 載入 (e) Codex 驗證完整流程。
 
-P3-10-G / H / I / J 共 4 條仍未動。
+P3-10-G / H / I / J 共 4 條題庫擴充未動；P3-10 / P3 / P4 / P5 仍 🟡 / ⬜。
 
 ## 【風險點】
 
-- **batch dup 兩筆都 skip 對某些 reviewer 不直覺：低**——reviewer 可能預期「保留 first、skip second」。本輪選擇全 skip 是因為 CLI 無法判斷哪筆對；已在 warning message + F-pre-8-d 文件明示。reviewer 自己改其中一筆 id 重跑即可解開。
-- **invalid_question_source 條目走 status=failed 而非 skipped：低**——與 P3-10-K v0.1 既有設計一致（unsupported_question_type → skipped；其他 conversion errors → failed）；reviewer 看 errors[0].code 就能定位問題。
-- **invalid source 條目 write mode 不會觸發 exit 2：低**——只有 dup ids 會觸發整批 exit 2。invalid source 條目本身就 status=failed、不會進入 `withinLimit` 寫入，所以 write mode 仍安全（target 不會被寫入），但 reviewer 若不檢查 preview JSON 可能不知道有 failed 條目。建議短期內 reviewer 跑完 write 後檢視 console summary 內的 `failed` 計數。
-- **target 真實寫入仍依賴 reviewer git diff + commit：低 by design**——CLI 不自動 commit，所以 reviewer 必須自己 `git diff data/p3-example-questions.json` 確認後 commit。屬訓練問題、非 bug。
-- **APPROVE_VERSION 字串硬編：低**——版本升級時需手改；與既有 CLI 同模式。
-- **fixture 沒覆蓋「同時 target dup + batch dup 同 item」混合 case：低**——理論上一個 id 既在 target 也在 batch dup 出現，該 item 應同時帶兩個 warning code。本輪沒專門 fixture 驗證，但邏輯上 step 4.5 內兩個 `if` 是平行檢查、可同時觸發。建議下一輪補 e2e fixture。
-- **fixture 沒覆蓋 7 題型中的 picture-choice / word-choice / fill-blank / listening-choice 轉換**：見「仍未處理」段。
-- **invalid source check 在 type-specific validation 之前跑**：意味即使 reviewer 填了無效 source + 無效 type，errors 內只會有 invalid_question_source（先 return）。reviewer 修完 source 後重跑才會看到 type 問題。屬已知模式、不算 bug。
+- **paper.title 自動生成過於泛用：低**——目前 CLI 自動產 `"Cambridge Starters 練習卷（${paperId}）"`；reviewer 可能想要更具體的 title（如「Starters Mock 2026-05-14」）。建議下一輪加 `--paper-title` flag，缺值才 fallback 自動。
+- **不寫入 `level` 欄位 vs 任務單範例不一致：低**——任務單範例 paper 結構含 `level: "Pre A1 Starters"`，但 `lib/types.ts` 實際 schema 沒此欄位。CLI 選擇對齊**實際 schema** 不寫 `level`；reviewer 若期望 level 在 paper 內，須先擴 schema（屬獨立 PR）。已在報告與 F-pre-8-g 文件明示。
+- **section 內題目順序保留 array 原順序：中**——`data/p3-example-questions.json` 內順序是 q-mc-001 → q-pc-001 → q-wc-001 → q-lc-001 → q-fb-001 → q-fb-002 → q-mt-001 → q-tf-001 → q-sp-001 → q-sp-002 → q-sp-003 → q-sp-004 → q-tf-002（混雜各 starterPart）。組裝後 reading-writing section 內題目順序為 q-mc-001 → q-pc-001 → q-wc-001 → q-fb-001 → q-fb-002 → q-mt-001 → q-tf-001 → q-sp-001~004 → q-tf-002（**不依 starterPart 排序**）；對齊 Cambridge Starters 官方順序（RW1 → RW2 → ... → RW5）會更貼近真實考試體驗。建議下一輪加自動排序。
+- **沒驗 paper 內 questionId 是否真的在 questions 內：低**——CLI 假設 reviewer 給的 `--questions` 檔內所有題目 id 有效；若 questions 檔被外部修改、id 缺失，paper.sections[].questionIds 仍會引用「不存在的 id」。實務上不太會發生（reviewer 只在本 repo 修改），但建議下一輪加 self-check。
+- **/quiz 仍未切換：中（by design）**——本輪僅產 paper、不改 lib/data.ts，所以 `/quiz` 還是用既有 `starters-mock-001`。reviewer 若不知道，可能誤以為「跑完 CLI 後 /quiz 就有新 paper」。已在 CLI stderr + paper.description + 文件多處明示。
+- **partBreakdown 沒對齊 Cambridge Starters 官方 5Q/part 目標**：低——目前只標 0 題為 warning，沒比較 vs 官方 5Q 目標。Reviewer 可能誤以為「L3 有 1 題就 OK」（其實官方 L3 = 5 題）。屬未來 enhancement，可加 partTargetCount + percentComplete metadata。
+- **write 後不自動 commit**：低 by design——與 approve CLI 一致；reviewer 自己 git diff + commit。
+- **ASSEMBLE_VERSION 硬編字串：低**——與既有 CLI 同模式。
 - **error message 純中文**：與既有 CLI 一致。
 
 ## 【後續建議】
 
-1. **下一步走 P3-10-K 第二刀：first practice paper 整盤組裝**——本輪修補後單題級別轉換鏈更加穩固；可開始把 reviewer 真實 approve 的題目組裝為完整 `ExamPaper`（需 `data/exam-papers.example.json` 結構整合 / `lib/data.ts` 載入邏輯）。
-2. **加 fixture 覆蓋剩餘 4 種題型 + 混合 dup case**：picture-choice / word-choice / fill-blank / listening-choice 的轉換邏輯目前只靠 unit-level reading 確認；建議下一輪補 e2e fixture（屬測試覆蓋率 enhancement）。
-3. **加 `--allow-partial yes` flag**：reviewer 明確同意「寫入非 dup 條目、忽略 dup 條目」；風險：reviewer 可能漏掉 dup 條目。
-4. **加 file-exists 檢查 imageSrc / audioSrc**：approve 階段對 `--target` 所在 repo 的 `public/` 內檔案做 stat；不存在標 warning `asset_path_not_found`。
-5. **prepare-review template 補 source 欄位 + sourceWarning**：reviewer template 目前沒 `source` 欄位（reviewer 填寫時可能不知道有此欄位）；建議下一輪 prepare-review template 補 + sourceWarning（third-party 時提示需改寫）。
-6. **使用者擴量實測**：建議 reviewer 下次真實 approve 跨 2~3 種題型 + 設計同批 dup case + 設計 invalid source case，端到端驗證本輪修補。
+1. **下一步走 P3-10-K 第三刀：lib/data.ts 整合 imported paper**——本輪打通 paper 寫入鏈；下一步把 imported paper 載入 `/quiz`。涉及：(a) lib/data.ts 加 paper picker / filter / 標 `approved_for_practice` 過濾 / (b) UI 顯示 paper title 與來源 metadata / (c) reviewer 切換 paper UX。
+2. **加 `--paper-title` flag**（屬 v0.1.1 小幅 enhancement）：reviewer 可指定 title；缺值才 fallback 自動。
+3. **加 section 內 starterPart 自動排序**：依 Cambridge Starters 官方順序（L1→L2→L3→L4；RW1→RW2→...→RW5）。
+4. **加 partTargetCount + percentComplete**（屬 v0.1.2 enhancement）：對齊 Cambridge Starters 官方 5Q/part 目標，summary 顯示 `{ L3: { count: 1, target: 5, percent: 20 } }`，reviewer 進度視覺化。
+5. **加 paper validation self-check**：(a) 確認所有 questionIds 真的在 --questions 內 / (b) 確認 sourceMix 加總 == totalSelected / (c) 確認 sections 內無重複題 id。
+6. **真實 reviewer 流程實測**：reviewer 先跑 approve_reviewed_questions.mjs 加幾題 → 跑本 CLI 組 paper → reviewer git diff → commit；驗證雙 CLI 端到端。
+7. **Cambridge Starters 完整 paper 目標**：reviewer 補題到 45 題（4 L + 5 RW × 5 each）後，再走 P3-10-K Codex 驗收 first practice paper 上線。
 
-**短期建議**：先讓 Codex 驗收本輪 P3-10-K 修補（驗 2 個修補 / 7 種測試結果 / 5 個檔案變動 / 正式題庫 13 題完整保留 / lint / typecheck / build 全綠）；確認通過後決定下一刀（建議 first practice paper 整盤組裝 + lib/data.ts approved 過濾，或 P3-10-G/H/I/J 題庫擴充先行）。
+**短期建議**：先讓 Codex 驗收本輪 P3-10-K 第二刀部分完成（驗 7 flag / 雙開關 / 4 段結構 / 8 種測試結果 / 4 個 warning code / sourceMix 統計一致性 / 正式檔 13 題 + 1 paper 完整保留 / lint / typecheck / build 全綠）；確認通過後決定下一刀（建議 K 第三刀 lib/data.ts 整合，或 G/H/I/J 題庫擴充先行）。
 
 ## 【Roadmap 同步檢查】
 
-- 🟡 **P3-10-K 修補**：同批 duplicate id + QuestionSource union 驗證——**部分完成**（2026-05-14）—— 本輪完成
-- 🟡 P3-10-K：first practice paper 組裝與驗收 / approved → 正式題庫轉換 CLI（仍 🟡 部分完成，paper 整盤組裝仍 ⬜）
-- 🟡 P3-10-F 後續：reviewed output 覆寫保護 / merge-with（仍 🟡 部分完成）
+- 🟡 **P3-10-K 第二刀**：first practice paper 組裝 / paper-level metadata——**部分完成**（2026-05-14）—— 本輪完成
+- 🟡 P3-10-K 修補：Codex 有條件通過後最小修補（仍 🟡）
+- 🟡 P3-10-K：first practice paper 組裝與驗收 / approved → 正式題庫轉換 CLI（仍 🟡 部分完成，paper 整盤組裝 + Codex 驗收 first practice paper 仍 ⬜）
+- 🟡 P3-10-F 後續：reviewed output 覆寫保護 / merge-with（仍 🟡）
 - 🟡 P3-10-F：匯入題目人工審核流程（仍 🟡）
-- 🟡 P3-10-E：AI normalizer 原型（rule-based / mock-ai 第一版）（仍 🟡）
+- 🟡 P3-10-E：AI normalizer 原型（仍 🟡）
 - ⬜ P3-10-E 後續：openai mode 落地
-- 🟡 P3-10-D-3：Discovery → Collector 自動 pipe（仍 🟡 部分完成）
-- 🟡 P3-10-D-2B：Discovery crawler 接真實 Search Provider 第一版（仍 🟡 happy path verified）
-- 🟡 P3-10-D-2：Discovery crawler 自動找資料來源（仍 🟡）
+- 🟡 P3-10-D-3 / D-2B / D-2：discovery / pipe（仍 🟡）
 - ✅ P3-10-A / B / C
-- 🟡 P3-10-D：collector 實測與第一批來源匯入（仍 🟡）
+- 🟡 P3-10-D：collector 實測（仍 🟡）
 - ⬜ P3-10-G / H / I / J：vocabulary 補齊、RW3 / RW1 / L3 題庫擴充
-- 🟡 P3-10 整體：本輪後仍 🟡（A/B/C ✅ + D 🟡 + D-2 / D-2B / D-3 🟡 + E 🟡 + F 🟡 + F 後續 🟡 + **K 🟡 + K 修補 🟡** + G-J ⬜）—— **未把整體標完成**
+- 🟡 P3-10 整體：本輪後仍 🟡（A/B/C ✅ + D 🟡 + D-2 / D-2B / D-3 🟡 + E 🟡 + F 🟡 + F 後續 🟡 + **K 🟡 + K 修補 🟡 + K 第二刀 🟡** + G-J ⬜）—— **未把整體標完成**
 - 🟡 P3-9-C 整體：仍 🟡（26 條 ✅）
 - 🟡 P3 整體：仍 🟡 進行中——**未把整體標完成**
 - ⬜ P4 / P5：仍未開始
 
-**特別注意**：本輪是 P3-10-K Codex 有條件通過後的最小修補，**只做 2 個修補（同批 dup id + QuestionSource union）**；未做 first practice paper 整盤組裝；未改 `/quiz`；未動 `lib/types.ts` schema 定義（只 import union 字面量作驗證集合）；`data/p3-example-questions.json` / `data/exam-papers.example.json` 整輪未被改動（git diff HEAD 確認一致）；P3-10-K 整體仍 🟡 部分完成、未誇大為完整完成。
+**特別注意**：本輪只做 first practice paper 組裝 preview，**不代表 `/quiz` 已經使用 imported 題庫**；`lib/data.ts` 載入流程完全未動；`data/p3-example-questions.json` / `data/exam-papers.example.json` 整輪未被改動（git diff HEAD 確認一致）；`/quiz` 仍使用既有 `starters-mock-001`；P3-10-K 第二刀標 🟡 部分完成、未誇大為完整完成；reviewer 須先跑 `approve_reviewed_questions.mjs` 累積題目，再跑本 CLI，再走 lib/data.ts 整合（屬 P3-10-K 第三刀），才會真正讓 `/quiz` 換 paper。

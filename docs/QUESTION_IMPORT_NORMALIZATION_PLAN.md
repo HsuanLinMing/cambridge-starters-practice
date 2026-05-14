@@ -571,7 +571,110 @@ summary 對應欄位：
 }
 ```
 
-#### F-pre-8-g. 不在 P3-10-K v0.1 範圍
+#### F-pre-8-g. P3-10-K 第二刀：first practice paper 組裝 / paper-level metadata（2026-05-14）
+
+> 對應 `scripts/assemble_practice_paper.mjs` v0.1（2026-05-14）。本輪是 P3-10-K 系列第二刀——把正式題庫（`data/p3-example-questions.json`）內已 commit 的 ExamQuestion 組裝成完整 `ExamPaper`（paper-level metadata），但**仍不切換 `/quiz` 載入來源**（lib/data.ts 完全未動）。
+
+##### 兩個 mode + 雙開關
+
+| mode | 用途 | 寫 preview JSON | 寫 `--papers` target |
+| --- | --- | --- | --- |
+| `preview`（預設） | 看會組成什麼 paper、缺哪些 part | ✅ | ❌ |
+| `write` + `--write yes` | 真正 append 新 paper 到 `--papers`（必須 paper id 不重複） | ✅ | ✅ |
+| `write` + `--write no/missing` | — | ❌ | **exit 2** |
+
+##### 組裝策略（v0.1 保守）
+
+- **不挑題、不重排**：保留 `--questions` array 原順序。
+- **依 starterSection 分組**：listening / reading-writing / speaking 三個 section；缺值時依 `question.type` fallback（`listening-choice` → listening；其他 → reading-writing）。
+- **沒題目的 section 不出現**（避免空 section）。
+- **--limit 限制總題數**；超過的標 `skip_due_to_limit` warning（前 N 題進 paper）。
+- **不硬造題**：題目不足某 part 只標 warning `insufficient_questions_for_part`，CLI 不偽造資料。
+- **不修改 question 內容 / id**：只引用 questionIds。
+
+##### sourceMix 統計規則
+
+- 對 4 種 `QuestionSource` union 字面量（official_sample / past_paper / ai_generated / custom）逐一累計 question.source。
+- 對齊現有 example `sourceMix` 結構：只列有題目的 source（為 0 的 key 不出現）。
+- 若 question.source 不在 union（如 reviewer 之前誤寫的 third_party / user_provided）→ 不計入 sourceMix，並標 warning `unknown_source_value`。
+
+##### Part 覆蓋率檢查
+
+對 9 個 Cambridge Starters Parts（L1-L4 / RW1-RW5）逐一檢查：
+
+- partBreakdown 紀錄每 part 的題數（含 0）。
+- 任一 part 為 0 題 → 標 warning `insufficient_questions_for_part`。
+- 不會 crash；reviewer 可看出哪些 part 還缺題目（屬 P3-10-G / H / I / J 後續題庫擴充範圍）。
+
+##### Duplicate paper id 保護
+
+| 觸發 | preview mode | write mode |
+| --- | --- | --- |
+| `--paper-id` 已存在於 `--papers` 既有 papers | 標 warning `duplicate_paper_id`；preview JSON 仍寫；target 不動 | **整批 exit 2**；preview JSON 仍寫；target 不動；reviewer 須改 `--paper-id` 或從 papers 移除既有同 id paper |
+
+##### Output schema
+
+preview / write 兩 mode 共用：
+
+```jsonc
+{
+  "batchId": "paperbatch-<ISO>",
+  "createdAt": "...",
+  "source": "assemble_practice_paper.mjs@v0.1",
+  "mode": "preview" | "write",
+  "write": true | false,
+  "questionsInput": "<absolute path>",
+  "papersInput": "<absolute path>",
+  "summary": {
+    "totalQuestionsAvailable": <int>,
+    "totalQuestionsSelected": <int>,
+    "sections": <int>,
+    "sourceMix": { "ai_generated": N, "custom": N, ... },
+    "partBreakdown": { "L1": N, "L2": N, ..., "RW5": N },
+    "warnings": <int>,
+    "isDuplicatePaperId": <bool>,
+    "existingPapersCount": <int>
+  },
+  "paper": {
+    "examPaperId": "<--paper-id>",
+    "title": "...",
+    "description": "...",
+    "sections": [ ExamSection ],
+    "sourceMix": { ... },
+    "createdAt": "...",
+    "updatedAt": "..."
+  },
+  "warnings": [ { "code", "message" } ]
+}
+```
+
+##### Warning code
+
+| code | 觸發 |
+| --- | --- |
+| `no_questions_available` | --questions 是空 array（CLI 仍寫 preview、exit 0；write mode 不寫 target） |
+| `unknown_starter_section_fallback` | question.starterSection 不在 listening/reading-writing/speaking |
+| `unknown_source_value` | question.source 不在 QuestionSource union |
+| `insufficient_questions_for_part` | 9 個 Starters parts 中某 part 觀察到 0 題 |
+| `skip_due_to_limit` | 超過 --limit 的題目（不進 paper） |
+| `duplicate_paper_id` | --paper-id 與 --papers 內既有 examPaperId 重複 |
+| `paper_has_zero_sections` | 組完後 paper.sections 為空（仍寫 preview、不寫 target） |
+
+##### 不在 P3-10-K 第二刀 v0.1 範圍
+
+- ❌ 不切換 `/quiz` 載入來源（lib/data.ts 完全未動）
+- ❌ 不挑題、不重排既有題目順序
+- ❌ 不自動補題（題目不足 part 只 warning）
+- ❌ 不修改正式題庫（`data/p3-example-questions.json` 唯讀）
+- ❌ 不覆蓋既有 paper（duplicate paper id 全域 exit 2）
+- ⬜ Section 內題目順序自動排序（依 starterPart L1→L4 / RW1→RW5）
+- ⬜ Speaking section 內容（屬 P4 範圍）
+- ⬜ `lib/data.ts` 加 paper id 過濾或 imported papers 整合（屬 P3-10-K 第三刀）
+- ⬜ Cambridge Starters 官方題量對齊（Listening 20Q / R&W 25Q）
+
+---
+
+#### F-pre-8-h. 不在 P3-10-K v0.1 範圍
 
 - ❌ 不自動產生題目；不呼叫 OpenAI；不下載 PDF / image / audio；不解析 PDF
 - ❌ 不讓非 approved_for_practice 條目進正式題庫
@@ -614,6 +717,7 @@ summary 對應欄位：
 
 ## G. 版本
 
+- **v4.2**（2026-05-14，P3-10-K 第二刀：first practice paper 組裝 / paper-level metadata）：F-pre-8 新增 F-pre-8-g 段共 7 個子段（兩 mode + 雙開關 / 組裝策略 / sourceMix 統計 / Part 覆蓋率檢查 / Duplicate paper id 保護 / Output schema / Warning code 表 / v0.1 不做清單）；原 F-pre-8-g「不在 v0.1 範圍」更名 F-pre-8-h。對應 `scripts/assemble_practice_paper.mjs` v0.1：預設 preview、雙開關（`--mode write` + `--write yes`）；duplicate paper id 全域 exit 2；不挑題不重排；不切換 `/quiz` 載入來源（lib/data.ts 未動）。
 - **v4.1**（2026-05-14，P3-10-K 修補：Codex 有條件通過後）：F-pre-8-d 改寫拆 `duplicate_id_in_target` / `duplicate_id_in_batch` 兩個 warning code + 對應 summary 欄位 `duplicateIdsInTarget` / `duplicateIdsInBatch`（`duplicateIds` 仍記聯集數量）；F-pre-8-e 補 `source` 規則對齊 `QuestionSource` union 4 種字面量、非 union 值不 silent fallback。對應 `scripts/approve_reviewed_questions.mjs` v0.1.1。
 - **v4**（2026-05-14，P3-10-K）：F-pre 段新增 F-pre-8 段「P3-10-K：approved reviewed item → 正式 ExamQuestion」含 7 個子段（兩 mode / 5-AND 篩選 / 題型支援表 9 種 / duplicate id 保護兩 mode 行為 / ExamQuestion 轉換規則 v0.1 保守 / preview output schema / v0.1 不做清單）；原 F-pre-8 更名 F-pre-9。對應 `scripts/approve_reviewed_questions.mjs` v0.1：preview 預設、絕對不動正式題庫；write 需雙開關（`--mode write` + `--write yes`）；duplicate id 全域 gate。**仍不自動 commit 正式題庫**——reviewer 跑 write 後自行 git diff 確認後 commit。
 - **v3.1**（2026-05-13，P3-10-F 後續：reviewed output 覆寫保護 / merge-with）：F-pre 段新增 F-pre-7 覆寫保護段（含 F-pre-7-a 三種寫檔模式表、F-pre-7-b mergeKey 規則、F-pre-7-c merge 行為、F-pre-7-d summary 新欄位 `merged` / `orphaned` / `overwritten`、F-pre-7-e batchWarnings 4 個 code）；F-pre-7「不在 v0.1 範圍」更名為 F-pre-8。對應 `scripts/review_normalized_questions.mjs` v0.2：`--out` 已存在且未指定 `--overwrite` / `--merge-with` 時 **exit 2**；`--merge-with` 合併 reviewerFields + reviewStatus、source provenance 以最新 input 為準；orphaned 條目保留於 output 並標 `status: orphaned_existing_review`。
