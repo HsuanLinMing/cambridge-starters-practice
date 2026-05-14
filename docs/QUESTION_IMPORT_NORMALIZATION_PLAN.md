@@ -402,7 +402,190 @@ validate-reviewed：
 }
 ```
 
-### F-pre-7. 不在 P3-10-F v0.1 範圍
+### F-pre-7. 覆寫保護 / merge-with（v0.2，P3-10-F 後續，2026-05-13）
+
+P3-10-F v0.1 的 prepare-review 是「覆寫式」——若 `--out` 既有檔存在，會無聲覆蓋 reviewer 已填內容。v0.2 補上覆寫保護：
+
+#### F-pre-7-a. 三種寫檔模式
+
+| 情境 | 行為 |
+| --- | --- |
+| `--out` 不存在 | 正常建立；`summary.overwritten = false` |
+| `--out` 已存在 + 未指定 `--overwrite` / `--merge-with` | **exit 2**；印錯誤訊息 + 3 條對策（a/b/c）；**不寫任何檔案** |
+| `--out` 已存在 + `--overwrite yes` | 覆寫；`summary.overwritten = true`；batchWarnings 加 `overwrite_enabled` |
+| `--out` 已存在 + `--merge-with <path>` | 讀 existing reviewed batch、依 mergeKey 合併；`summary.overwritten = true`；batchWarnings 加 `merged_from_existing_review`（若有 merge）/ `orphaned_existing_review`（若有 orphan） |
+| `--out` 不存在 + `--merge-with <path>` | 仍跑 merge（讀 existing 來源並合併到新 batch），但 `summary.overwritten = false` |
+| `--overwrite yes` + `--merge-with X` 同時指定 | 合法；以 merge 為主（reviewer edits 保留）；overwrite_enabled 仍會記錄 |
+
+#### F-pre-7-b. mergeKey 規則
+
+優先：`sourceItemId + 從 originalDraft.normalizationNotes 取出的 candidate_index:<n>`
+fallback：`sourceItemId + draft.prompt + draft.questionType + draft.starterPart`
+
+兩種來源都能命中：normalizer 條目（draft 在 `item.draft`）與 reviewed 條目（draft 在 `item.originalDraft`）。
+
+#### F-pre-7-c. merge 行為
+
+- **命中現有 reviewer 條目**（new input mergeKey 對應 existing reviewed 條目）：
+  - 保留 `reviewerFields`（reviewer 已填內容）+ `reviewStatus`（reviewer 已升的狀態）
+  - source provenance（`sourceUrl` / `sourceType` / `resourceType` / `level` / `sourceScore` / `sourceReasons` / `discoveryProvenance`）以**最新 input** 為準（理由：reviewer 驗的是題目本身、上游 metadata 可能因 discovery 重跑而更新、應以最新為準）
+  - 加 warning `merged_from_existing_review`
+  - status = `queued`（或 `dry_run` 若 `--dry-run yes`）
+- **未命中**（fresh draft）：正常 buildReviewItem 預填 reviewerFields template
+- **orphaned**（existing 有但新 input 無對應）：
+  - 整筆條目保留於 output（reviewer 已填內容不遺失）
+  - `status = "orphaned_existing_review"`
+  - warning `orphaned_existing_review`
+  - reviewer 可決定（a）忽略 / 維持 orphaned 狀態，或（b）若仍想用，手動 rebuild input 或改用 `custom` sourceType 重新匯入
+
+#### F-pre-7-d. summary 新欄位
+
+| 欄位 | 含義 |
+| --- | --- |
+| `merged` | 從 `--merge-with` 命中既有 reviewer 條目並合併的筆數（subset of `queued` + `dryRun`） |
+| `orphaned` | existing 有但新 input 無對應的條目數（保留於 items[]） |
+| `overwritten` | 是否實際覆寫了既有 out 檔（boolean） |
+
+#### F-pre-7-e. batchWarnings（top-level 與 items[] 並列）
+
+新增 4 個 code：
+
+| code | 觸發 |
+| --- | --- |
+| `output_exists_requires_overwrite_or_merge` | exit 2 case 印於 stderr；目前**不寫進 JSON**（exit 2 不寫檔），純錯誤訊息呈現 |
+| `overwrite_enabled` | `--overwrite yes` + outExisted=true 觸發 |
+| `merged_from_existing_review` | 至少 1 筆 item 從 merge-with 命中時記一筆（per-item warning 也會出現） |
+| `orphaned_existing_review` | 至少 1 筆 orphaned 時記一筆（per-item warning 也會出現） |
+
+### F-pre-8. P3-10-K：approved reviewed item → 正式 ExamQuestion（2026-05-14）
+
+> 對應 `scripts/approve_reviewed_questions.mjs` v0.1（2026-05-14）。本輪是 P3-10 系列**最終一步**——把 validate-reviewed passed 的條目扁平化為正式 ExamQuestion 並（明確同意下）寫進 `data/p3-example-questions.json`。**預設 preview，不動正式題庫；雙開關才會寫**。
+
+#### F-pre-8-a. 兩個 mode
+
+| mode | 用途 | 寫 preview JSON | 寫 target |
+| --- | --- | --- | --- |
+| `preview`（預設） | 看會被轉換成什麼、誰會被 skip | ✅ | ❌（**絕對不動**） |
+| `write` + `--write yes` | 真正 append approved items 到 `--target` | ✅ | ✅（追加；無 duplicate 才寫） |
+| `write` + `--write no/missing` | — | ❌ | **exit 2**（雙開關保護） |
+
+#### F-pre-8-b. 篩選條件（5 個 AND）
+
+只有同時滿足下列條件才嘗試轉換：
+
+1. validate-reviewed `validationStatus === "passed"`（且 `finalQuestionId` 一致）
+2. reviewed `reviewStatus === "approved_for_practice"`
+3. `reviewerFields.approved === true`
+4. `reviewerFields.approvedForPractice === true`
+5. `reviewerFields.finalQuestion` 存在
+
+任一不符 → 標 `status: "skipped"` + 對應 reason code（`skipped_not_in_validation_passed` / `skipped_review_status_not_approved` / `skipped_approved_false` / `skipped_approved_for_practice_false` / `skipped_no_final_question`）。
+
+#### F-pre-8-c. 題型支援（v0.1）
+
+| type | 支援 | 備註 |
+| --- | --- | --- |
+| `spelling` | ✅ | image 從 imageSrc；不亂補 spellingHint / letterScramble |
+| `true-false` | ✅ | answer 強制 yes/no（忽略大小寫） |
+| `multiple-choice` | ✅ | options 正規化為 string[]；answer 必須在 options |
+| `picture-choice` | ✅ | image 必填（imageSrc）；options string[] |
+| `word-choice` | ✅ | options 必須是 `{value, image}` 物件陣列；answer match value |
+| `listening-choice` | ✅ | audioSrc 必填；audio legacy field 用 audioSrc 同值；options 自動偵測 text/image |
+| `fill-blank` | ✅ | options 選填；有時須 answer 在 options |
+| `matching` | ❌ `unsupported_question_type` | template 沒 pairs[] 結構；未來擴 template 後支援 |
+| `listening-image-choice` | ❌ `unsupported_question_type` | 不在 QuestionType union（lib/types.ts） |
+
+#### F-pre-8-d. 重複 id 保護（v0.1.1 修補：拆 target / batch 兩種）
+
+duplicate id 偵測同時涵蓋兩個維度：
+
+| 偵測來源 | warning code | 觸發 |
+| --- | --- | --- |
+| **target 既有** | `duplicate_id_in_target` | finalQuestion.id 已存在於 `--target` 現有正式題目 |
+| **同批內部** | `duplicate_id_in_batch` | finalQuestion.id 在本批兩筆以上 ready items 內重複（reviewer 自己同 batch 給了兩筆同 id） |
+
+兩個 mode 行為：
+
+| mode | 行為 |
+| --- | --- |
+| preview | 命中任一 dup 的 item 標 `status="skipped"` + 對應 warning code；preview JSON 仍寫；target 不動 |
+| write + 任一 dup（target 或 batch 任一） | **整批拒絕寫入** + exit 2；但 **preview JSON 仍會寫**（reviewer 可從 items[] 找 dup 條目）；reviewer 須改 id 或從 target 移除既有題目重跑 |
+
+**為何 batch dup 兩筆都 skip**（不是只 skip 第二筆）：reviewer 給了兩筆同 id 通常代表「at least 一筆 id 填錯」，CLI 無法判斷哪筆對；保守起見**全部** skip 等 reviewer 自行決定。
+
+summary 對應欄位：
+
+| 欄位 | 含義 |
+| --- | --- |
+| `duplicateIds` | target + batch 兩種 dup id 的**聯集數量**（去重） |
+| `duplicateIdsInTarget` | 只算 target 既有 dup 的 unique id 數 |
+| `duplicateIdsInBatch` | 只算 batch 內部 dup 的 unique id 數 |
+
+#### F-pre-8-e. ExamQuestion 轉換規則（v0.1.1 保守）
+
+- `source`：依 QuestionSource union 規則（v0.1.1 補；見 F-pre-8-e-1）
+  - 對齊 `lib/types.ts` `QuestionSource` union 4 種：`official_sample` / `past_paper` / `ai_generated` / `custom`
+  - finalQuestion.source 為空或缺值 → 預設 `custom`
+  - finalQuestion.source 在 union → 使用該值
+  - finalQuestion.source **非空但不在 union** → 條目 `status="failed"` + error `invalid_question_source`，**不** silent fallback 為 custom
+  - reviewer 若想表達第三方來源（`user_provided` / `third_party` / 等），請保留於 `reviewerNotes` 或 discovery provenance；**不**寫入正式 `QuestionSource` union
+- `starterPart`：使用 finalQuestion.starterPart；缺值時依 type fallback（spelling→RW3、true-false→RW1、picture-choice→RW1、word-choice→RW3、multiple-choice→RW4、fill-blank→RW4、listening-choice→L3）
+- `starterSection`：listening-* → `listening`；其餘 → `reading-writing`
+- `image`：從 finalQuestion.imageSrc 抓；只在非空時填
+- `audioSrc`：listening-choice 才透傳；同時設 `audio` 為相同值（schema legacy 必填）
+- `explanation`：只在非空時填
+- **不自動補**：spellingHint / letterScramble / topic / promptVersion / skillFocus / expectedAnswerType / difficulty 等選填欄位（reviewer 想加可在 finalQuestion 設）
+
+#### F-pre-8-f. Preview output schema
+
+```jsonc
+{
+  "batchId": "approvebatch-<ISO>",
+  "createdAt": "...",
+  "source": "approve_reviewed_questions.mjs@v0.1",
+  "mode": "preview" | "write",
+  "write": true | false,
+  "reviewedInput": "<absolute path>",
+  "validationInput": "<absolute path>",
+  "target": "<absolute path>",
+  "summary": {
+    "totalReviewed": <int>,
+    "validationPassed": <int>,
+    "readyToAppend": <int>,
+    "skipped": <int>,
+    "failed": <int>,
+    "duplicateIds": <int>,
+    "targetExistingCount": <int>
+  },
+  "items": [
+    {
+      "sourceItemId", "sourceUrl", "sourceType",
+      "finalQuestionId", "finalQuestionType",
+      "reviewStatusClaim",
+      "status": "ready | skipped | failed",
+      "warnings": [...],
+      "errors": [...],
+      "question": null | { ExamQuestion schema }
+    }
+  ]
+}
+```
+
+#### F-pre-8-g. 不在 P3-10-K v0.1 範圍
+
+- ❌ 不自動產生題目；不呼叫 OpenAI；不下載 PDF / image / audio；不解析 PDF
+- ❌ 不讓非 approved_for_practice 條目進正式題庫
+- ❌ 不覆蓋既有正式題目（duplicate id 全域 exit 2）
+- ❌ 不支援 matching / listening-image-choice 寫入正式題庫（reviewerFields template 不足）
+- ❌ 不自動 commit（reviewer 跑 write 後自行 git diff + commit）
+- ⬜ 自動補 `spellingHint` / `letterScramble` 等選填欄位（屬未來 enhancement）
+- ⬜ matching template 擴張 + 寫入支援
+- ⬜ Review UI dashboard 顯示 preview JSON 內容
+- ⬜ `--rollback` flag（讓 reviewer 復原寫入）
+
+---
+
+### F-pre-9. 不在 P3-10-F v0.1 範圍
 
 - ❌ 不呼叫 OpenAI（與 P3-10-E 一致）
 - ❌ 不下載 PDF / image / audio；不解析 PDF
@@ -431,6 +614,9 @@ validate-reviewed：
 
 ## G. 版本
 
+- **v4.1**（2026-05-14，P3-10-K 修補：Codex 有條件通過後）：F-pre-8-d 改寫拆 `duplicate_id_in_target` / `duplicate_id_in_batch` 兩個 warning code + 對應 summary 欄位 `duplicateIdsInTarget` / `duplicateIdsInBatch`（`duplicateIds` 仍記聯集數量）；F-pre-8-e 補 `source` 規則對齊 `QuestionSource` union 4 種字面量、非 union 值不 silent fallback。對應 `scripts/approve_reviewed_questions.mjs` v0.1.1。
+- **v4**（2026-05-14，P3-10-K）：F-pre 段新增 F-pre-8 段「P3-10-K：approved reviewed item → 正式 ExamQuestion」含 7 個子段（兩 mode / 5-AND 篩選 / 題型支援表 9 種 / duplicate id 保護兩 mode 行為 / ExamQuestion 轉換規則 v0.1 保守 / preview output schema / v0.1 不做清單）；原 F-pre-8 更名 F-pre-9。對應 `scripts/approve_reviewed_questions.mjs` v0.1：preview 預設、絕對不動正式題庫；write 需雙開關（`--mode write` + `--write yes`）；duplicate id 全域 gate。**仍不自動 commit 正式題庫**——reviewer 跑 write 後自行 git diff 確認後 commit。
+- **v3.1**（2026-05-13，P3-10-F 後續：reviewed output 覆寫保護 / merge-with）：F-pre 段新增 F-pre-7 覆寫保護段（含 F-pre-7-a 三種寫檔模式表、F-pre-7-b mergeKey 規則、F-pre-7-c merge 行為、F-pre-7-d summary 新欄位 `merged` / `orphaned` / `overwritten`、F-pre-7-e batchWarnings 4 個 code）；F-pre-7「不在 v0.1 範圍」更名為 F-pre-8。對應 `scripts/review_normalized_questions.mjs` v0.2：`--out` 已存在且未指定 `--overwrite` / `--merge-with` 時 **exit 2**；`--merge-with` 合併 reviewerFields + reviewStatus、source provenance 以最新 input 為準；orphaned 條目保留於 output 並標 `status: orphaned_existing_review`。
 - **v3**（2026-05-13，P3-10-F）：新增 F-pre 段「P3-10-F：匯入題目人工審核流程（v0.1）」共 7 個子段（F-pre-1 兩個 mode / F-pre-2 prepare-review filter 與 5 種 skip reason / F-pre-3 reviewerFields template / F-pre-4 reviewer 操作流程 4 步 / F-pre-5 validate-reviewed 驗證規則表 / F-pre-6 兩種 mode 的 output schema / F-pre-7 v0.1 不做清單）；對應 `scripts/review_normalized_questions.mjs` v0.1。**仍不寫正式題庫**——正式 `data/p3-example-questions.json` 寫入屬 P3-10-K。
 - **v2**（2026-05-13，P3-10-E）：E 段完全重寫——把「Normalizer 實作建議（本輪不實作）」改為「Normalizer 實作（P3-10-E 第一版：rule-based / mock-ai 原型）」，含 E-1 input / E-2 mode 對應表（rule-based ✅ / mock-ai ✅ / openai exit 2） / E-3 6 種 skipped 分類 / E-4 observation 路徑 / E-5 draft 路徑（保守邊界：answer=null / options=[]）/ E-6 一律標 reviewStatus=needs_human_review + isReadyForPractice=false / E-7 batch output schema / E-8 v0.1 不做清單。對應 `scripts/normalize_collected_sources.mjs` v0.1。
 - **v1**（2026-05-13）：第一版——P3-10-C 規劃文件、reviewStatus 5 狀態機、normalizer 輸出格式、id 規則建議、必填 vs 選填欄位、與既有文件分工。Normalizer 實作屬 P3-10-E、本輪未實作。

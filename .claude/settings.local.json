@@ -181,7 +181,9 @@
       "Bash(echo \"---exit=$?---\")",
       "Bash(unset BRAVE_SEARCH_API_KEY)",
       "Bash(echo \"exit_check=$?\")",
-      "Bash(echo \"exit_examples=$? \\(預期 1 = 沒命中、沒被忽略\\)\")"
+      "Bash(echo \"exit_examples=$? \\(預期 1 = 沒命中、沒被忽略\\)\")",
+      "Bash(echo \"real exit=$?\")",
+      "Bash(echo \"help exit=$?\")"
     ]
   }
 }

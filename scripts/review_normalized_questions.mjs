@@ -2,9 +2,19 @@
 /**
  * scripts/review_normalized_questions.mjs
  *
- * P3-10-F：匯入題目人工審核流程 CLI 第一版（v0.1）。
+ * P3-10-F：匯入題目人工審核流程 CLI（v0.2，2026-05-13 P3-10-F 後續：reviewed output 覆寫保護 / merge-with）。
  *
  * 對應 docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md / docs/PRACTICE_DATA_IMPORT_PLAN.md。
+ *
+ * 版本歷史：
+ *   v0.1（P3-10-F）：prepare-review + validate-reviewed 兩 mode；reviewer 工作介面 / schema + 題型驗證。
+ *   v0.2（P3-10-F 後續，本輪）：reviewed output 覆寫保護——
+ *     - 預設拒絕無聲覆寫；新增 --overwrite yes|no 與 --merge-with <existing-reviewed-json> 兩個 flag。
+ *     - --overwrite yes：明確覆寫既有 out 檔。
+ *     - --merge-with <path>：讀 existing reviewed batch，依 mergeKey 保留 reviewer 已填的 reviewerFields。
+ *     - 不指定兩者且 out 已存在 → exit 2 + warning code output_exists_requires_overwrite_or_merge。
+ *     - 新增 batchWarnings 區塊與 summary.merged / orphaned / overwritten 三個欄位。
+ *     - orphaned existing item（新 input 中找不到對應）保留並標 status=orphaned_existing_review。
  *
  * 用途：
  *   - mode=prepare-review：讀 P3-10-E normalizer output → 篩出 draft items
@@ -47,7 +57,7 @@
  *   2  CLI 參數錯 / input 不存在 / JSON parse 失敗 / 未支援 mode
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -55,7 +65,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 0. 常數
 // ===========================================================================
 
-const REVIEW_VERSION = "review_normalized_questions.mjs@v0.1";
+const REVIEW_VERSION = "review_normalized_questions.mjs@v0.2";
 const SUPPORTED_MODES = new Set(["prepare-review", "validate-reviewed"]);
 const DEFAULT_LIMIT = 10;
 
@@ -109,7 +119,7 @@ const CHOICE_TYPES = new Set([
   "picture-choice",
 ]);
 
-const HELP_TEXT = `\nreview_normalized_questions.mjs — P3-10-F review workflow CLI v0.1\n
+const HELP_TEXT = `\nreview_normalized_questions.mjs — P3-10-F review workflow CLI v0.2\n
 Usage:
   prepare-review：把 normalizer 的 draft items 轉成 reviewer 工作介面（預填 reviewerFields template）
     node scripts/review_normalized_questions.mjs \\
@@ -117,20 +127,46 @@ Usage:
       --out data/imported/reviewed-questions.generated.json \\
       --mode prepare-review --limit ${DEFAULT_LIMIT}
 
+  prepare-review + 覆寫保護（v0.2 新增）：
+    若 --out 既有檔存在，**預設拒絕無聲覆寫**；請於下列三種模式擇一：
+    (a) --overwrite yes              明確允許覆寫
+    (b) --merge-with <existing-path> 保留 existing reviewed file 內的 reviewer edits
+    (c) （兩者皆不給）若 --out 不存在則正常建立；存在則 exit 2
+
   validate-reviewed：驗證人工編輯後 reviewed-questions.generated.json，**不寫正式題庫**
     node scripts/review_normalized_questions.mjs \\
       --input data/imported/reviewed-questions.generated.json \\
       --mode validate-reviewed
 
 Options:
-  --input <path>     必填；prepare-review → normalized batch / validate-reviewed → reviewed batch
-  --out <path>       選填；
-                     prepare-review 預設 data/imported/reviewed-questions.generated.json
-                     validate-reviewed 預設 data/imported/review-validation.generated.json
-  --mode <mode>      必填；prepare-review / validate-reviewed
-  --limit <n>        選填；prepare-review 最多處理 N 筆 eligible draft（預設 ${DEFAULT_LIMIT}）
-  --dry-run <yes|no> 選填；預設 no；prepare-review yes 時每筆 status 標 dry_run + queued
-  --help             印此使用說明
+  --input <path>            必填；prepare-review → normalized batch / validate-reviewed → reviewed batch
+  --out <path>              選填；
+                            prepare-review 預設 data/imported/reviewed-questions.generated.json
+                            validate-reviewed 預設 data/imported/review-validation.generated.json
+  --mode <mode>             必填；prepare-review / validate-reviewed
+  --limit <n>               選填；prepare-review 最多處理 N 筆 eligible draft（預設 ${DEFAULT_LIMIT}）
+  --dry-run <yes|no>        選填；預設 no；prepare-review yes 時每筆 status 標 dry_run + queued
+  --overwrite <yes|no>      **v0.2 新增**；預設 no；prepare-review 模式下，yes 時允許覆寫既有 out
+                            （若 out 不存在則 flag 無作用）
+  --merge-with <path>       **v0.2 新增**；prepare-review 模式下，讀 existing reviewed batch
+                            並依 mergeKey 保留 reviewer 已填的 reviewerFields；orphaned 條目
+                            （existing 有但新 input 無對應）會被保留並標 status=orphaned_existing_review
+  --help                    印此使用說明
+
+Merge key（--merge-with）：
+  優先使用：sourceItemId + 從 originalDraft.normalizationNotes 取出的 candidate_index:<n>
+  fallback：sourceItemId + originalDraft.prompt + originalDraft.questionType + originalDraft.starterPart
+
+  Source provenance 更新策略：merged 條目以**最新 input** 的 source provenance 覆寫
+  （sourceUrl / sourceType / resourceType / level / sourceScore / sourceReasons / discoveryProvenance
+   都用新 input；只有 reviewerFields / reviewStatus 保留 existing）；理由是 reviewer 已驗的是「題目本身」，
+  上游 metadata 可能因 discovery / pipe 重跑而更新、應以最新為準。
+
+batchWarnings（top-level payload，與 items[] 並列；v0.2 新增）：
+  - output_exists_requires_overwrite_or_merge   --out 已存在但未指定 --overwrite / --merge-with（exit 2 時印）
+  - overwrite_enabled                            --overwrite yes 觸發並實際覆寫
+  - merged_from_existing_review                  每筆 merge 命中的 item 內也會加；同時 batchWarnings 也記一筆
+  - orphaned_existing_review                     existing 有但新 input 無對應（保留條目）
 
 prepare-review filter（任務單規範）：
   只把同時滿足下列條件的條目放入 review queue：
@@ -202,6 +238,8 @@ function parseArgs(argv) {
     mode: null,
     limit: null,
     dryRun: false,
+    overwrite: false,
+    mergeWith: null,
     help: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -222,6 +260,10 @@ function parseArgs(argv) {
       out.limit = n;
     } else if (arg === "--dry-run") {
       out.dryRun = parseYesNo(argv[++i], "--dry-run");
+    } else if (arg === "--overwrite") {
+      out.overwrite = parseYesNo(argv[++i], "--overwrite");
+    } else if (arg === "--merge-with") {
+      out.mergeWith = argv[++i];
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -266,9 +308,52 @@ async function writeJson(path, payload) {
   await writeFile(path, JSON.stringify(payload, null, 2) + "\n", "utf8");
 }
 
+async function fileExists(path) {
+  try {
+    const s = await stat(path);
+    return s.isFile();
+  } catch {
+    return false;
+  }
+}
+
 function makeBatchId(prefix) {
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   return `${prefix}-${ts}`;
+}
+
+// ---------------------------------------------------------------------------
+// Merge key（v0.2 P3-10-F 後續）
+// ---------------------------------------------------------------------------
+// 給 normalizer item（input）與 reviewed item（existing）共用的穩定 key。
+//   優先：sourceItemId + 從 (originalDraft||draft).normalizationNotes 取 candidate_index:<n>
+//   fallback：sourceItemId + draft.prompt + draft.questionType + draft.starterPart
+
+function getCandidateIndexFromNotes(notes) {
+  if (!Array.isArray(notes)) return null;
+  for (const n of notes) {
+    if (typeof n !== "string") continue;
+    const m = /^candidate_index:(\d+)$/.exec(n.trim());
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
+/**
+ * 從 input item 取 mergeKey。
+ * input 可能是 normalizer 條目（draft 在 item.draft）
+ * 或 reviewed 條目（draft 在 item.originalDraft）
+ */
+function makeMergeKey(item) {
+  const sid = item?.sourceItemId ?? "";
+  const draft = item?.originalDraft ?? item?.draft ?? {};
+  const candIdx = getCandidateIndexFromNotes(draft?.normalizationNotes);
+  if (candIdx !== null) return `${sid}|cidx:${candIdx}`;
+  // fallback：以 prompt + type + starterPart 補足穩定性
+  const prompt = (draft?.prompt ?? "").trim();
+  const type = draft?.questionType ?? "";
+  const part = draft?.starterPart ?? "";
+  return `${sid}|p:${prompt}|t:${type}|sp:${part}`;
 }
 
 // ===========================================================================
@@ -387,11 +472,29 @@ async function runPrepareReview(args) {
   const inputPath = resolve(args.input);
   const outPath = args.out ? resolve(args.out) : DEFAULT_REVIEWED_OUT;
   const limit = args.limit ?? DEFAULT_LIMIT;
+  const mergeWithPath = args.mergeWith ? resolve(args.mergeWith) : null;
 
   console.error(
-    `[review] mode=prepare-review input=${inputPath} out=${outPath} limit=${limit} dry-run=${args.dryRun ? "yes" : "no"}`,
+    `[review] mode=prepare-review input=${inputPath} out=${outPath} limit=${limit} ` +
+      `dry-run=${args.dryRun ? "yes" : "no"} overwrite=${args.overwrite ? "yes" : "no"} ` +
+      `merge-with=${mergeWithPath ?? "-"}`,
   );
 
+  // ---------- 1. 覆寫保護（v0.2 P3-10-F 後續） ----------
+  const outExisted = await fileExists(outPath);
+  if (outExisted && !args.overwrite && !mergeWithPath) {
+    console.error(
+      `Error: --out 目標檔已存在：${outPath}\n` +
+        "為避免無聲覆寫 reviewer 已填內容，本 CLI v0.2 預設拒絕直接寫入。請擇一：\n" +
+        "  (a) --overwrite yes              明確允許覆寫；reviewer 編輯會遺失\n" +
+        "  (b) --merge-with <existing>      讀 existing reviewed batch、保留 reviewerFields\n" +
+        "  (c) 改 --out 為其他路徑\n",
+    );
+    // 寫一個極簡 marker batch 不適當；本輪選擇純 exit 2，不寫任何檔案，避免污染。
+    process.exit(2);
+  }
+
+  // ---------- 2. 讀 input ----------
   let inputData;
   try {
     inputData = await readJsonFile(inputPath);
@@ -407,11 +510,38 @@ async function runPrepareReview(args) {
     process.exit(2);
   }
 
+  // ---------- 3. 讀 --merge-with（若有） ----------
+  /** existingByKey: Map<mergeKey, reviewedItem> */
+  const existingByKey = new Map();
+  let mergeWithLoaded = false;
+  if (mergeWithPath) {
+    let existing;
+    try {
+      existing = await readJsonFile(mergeWithPath);
+    } catch (err) {
+      console.error(`Error: 讀 --merge-with 失敗：${err.message}`);
+      process.exit(2);
+    }
+    if (!Array.isArray(existing?.items)) {
+      console.error(`Error: --merge-with JSON 必須含 items[] array：${mergeWithPath}`);
+      process.exit(2);
+    }
+    for (const ex of existing.items) {
+      const key = makeMergeKey(ex);
+      // 跳過已標 skipped / orphaned 的條目（避免把 skip 當 merge 來源）
+      if (ex?.status === "skipped" || ex?.status === "orphaned_existing_review") continue;
+      // 同 key 重複時保留第一筆（reviewer 不應該有重複 mergeKey，極端 case 採保守）
+      if (!existingByKey.has(key)) existingByKey.set(key, ex);
+    }
+    mergeWithLoaded = true;
+    console.error(`[review] --merge-with loaded ${existingByKey.size} existing reviewed items from ${mergeWithPath}`);
+  }
+
+  // ---------- 4. 分流 normalizer items：eligible vs skipped ----------
   const inputItems = inputData.items;
   const totalInput = inputItems.length;
   const outItems = [];
   const eligibleIndices = [];
-  // 第一輪：分流 eligible vs skipped（其他原因）
   for (let i = 0; i < inputItems.length; i++) {
     const it = inputItems[i];
     const cls = classifyForReview(it);
@@ -421,7 +551,7 @@ async function runPrepareReview(args) {
       outItems.push(buildSkippedReviewItem(it, cls.reasonCode, cls.reasonMessage));
     }
   }
-  // 第二輪：對 eligible 取前 limit；其餘標 skip_due_to_limit
+  // limit 切割
   const toProcess = eligibleIndices.slice(0, limit);
   const overLimit = eligibleIndices.slice(limit);
   for (const i of overLimit) {
@@ -433,13 +563,95 @@ async function runPrepareReview(args) {
       ),
     );
   }
+
+  // ---------- 5. 跑 eligible：為每筆 build review item，並嘗試 merge ----------
+  const matchedMergeKeys = new Set();
+  let mergedCount = 0;
   for (const i of toProcess) {
-    outItems.push(buildReviewItem(inputItems[i], { dryRun: args.dryRun }));
+    const normItem = inputItems[i];
+    const mergeKey = makeMergeKey(normItem);
+    const existing = existingByKey.get(mergeKey);
+    if (existing && mergeWithLoaded) {
+      // 命中既有 reviewer 條目：保留 reviewerFields / reviewStatus，source provenance 用最新
+      const merged = buildReviewItem(normItem, { dryRun: args.dryRun });
+      merged.reviewerFields = existing.reviewerFields ?? merged.reviewerFields;
+      merged.reviewStatus = existing.reviewStatus ?? merged.reviewStatus;
+      merged.warnings.push({
+        code: "merged_from_existing_review",
+        message:
+          `本條目 mergeKey="${mergeKey}" 與 --merge-with 中既有 reviewer 條目命中；` +
+          "保留 reviewerFields + reviewStatus（reviewer 已填內容不會遺失）；" +
+          "source provenance（sourceUrl / sourceType / sourceScore / discoveryProvenance 等）以最新 input 為準。",
+      });
+      matchedMergeKeys.add(mergeKey);
+      mergedCount += 1;
+      outItems.push(merged);
+    } else {
+      outItems.push(buildReviewItem(normItem, { dryRun: args.dryRun }));
+    }
   }
 
+  // ---------- 6. orphaned：existing 中有但本次 input 找不到的條目 ----------
+  let orphanedCount = 0;
+  if (mergeWithLoaded) {
+    for (const [key, ex] of existingByKey) {
+      if (matchedMergeKeys.has(key)) continue;
+      const orphan = {
+        sourceItemId: ex?.sourceItemId ?? null,
+        sourceUrl: ex?.sourceUrl ?? null,
+        sourceType: ex?.sourceType ?? "unknown",
+        resourceType: ex?.resourceType ?? "unknown",
+        level: ex?.level ?? "unknown",
+        sourceQueryId: ex?.sourceQueryId ?? null,
+        sourceQuery: ex?.sourceQuery ?? null,
+        sourceScore: typeof ex?.sourceScore === "number" ? ex.sourceScore : null,
+        sourceReasons: Array.isArray(ex?.sourceReasons) ? [...ex.sourceReasons] : [],
+        detectedExamParts: Array.isArray(ex?.detectedExamParts) ? [...ex.detectedExamParts] : [],
+        discoveryProvenance: ex?.discoveryProvenance ?? null,
+        originalDraft: ex?.originalDraft ?? null,
+        reviewStatus: ex?.reviewStatus ?? "needs_human_review",
+        status: "orphaned_existing_review",
+        warnings: [
+          {
+            code: "orphaned_existing_review",
+            message:
+              `本條目在 --merge-with 中存在（mergeKey="${key}"）但於本次 input 中找不到對應；` +
+              "為避免 reviewer 已填內容遺失而保留於 output。reviewer 可決定（a）忽略 / 維持 orphaned 狀態 " +
+              "或（b）若仍想用，請手動 rebuild input 或改用 custom sourceType 重新匯入。",
+          },
+        ],
+        reviewerFields: ex?.reviewerFields ?? null,
+      };
+      outItems.push(orphan);
+      orphanedCount += 1;
+    }
+  }
+
+  // ---------- 7. summary / batchWarnings / 寫檔 ----------
   const queued = outItems.filter((it) => it.status === "queued").length;
   const dryRunCount = outItems.filter((it) => it.status === "dry_run").length;
   const skipped = outItems.filter((it) => it.status === "skipped").length;
+  const overwritten = outExisted && (args.overwrite || mergeWithLoaded);
+
+  const batchWarnings = [];
+  if (args.overwrite && outExisted) {
+    batchWarnings.push({
+      code: "overwrite_enabled",
+      message: `--overwrite yes 觸發；既有 ${outPath} 內容已被覆寫（${mergeWithLoaded ? "但同時 --merge-with 已合併 reviewer edits" : "reviewer 任何先前編輯皆遺失"}）。`,
+    });
+  }
+  if (mergedCount > 0) {
+    batchWarnings.push({
+      code: "merged_from_existing_review",
+      message: `本 batch 從 --merge-with 合併 ${mergedCount} 筆既有 reviewer 條目；reviewerFields / reviewStatus 已保留。`,
+    });
+  }
+  if (orphanedCount > 0) {
+    batchWarnings.push({
+      code: "orphaned_existing_review",
+      message: `本 batch 含 ${orphanedCount} 筆 orphaned existing review 條目（existing 有但新 input 無對應）；已保留於 items[]。`,
+    });
+  }
 
   const payload = {
     batchId: makeBatchId("revbatch"),
@@ -448,18 +660,25 @@ async function runPrepareReview(args) {
     input: inputPath,
     mode: "prepare-review",
     dryRun: args.dryRun,
+    mergeWith: mergeWithPath,
     summary: {
       totalInput,
       eligible: eligibleIndices.length,
       queued,
+      merged: mergedCount,
+      orphaned: orphanedCount,
       dryRun: dryRunCount,
       skipped,
+      overwritten,
     },
+    batchWarnings,
     items: outItems,
   };
   await writeJson(outPath, payload);
   console.error(
-    `[review] wrote reviewed batch to ${outPath} — totalInput=${totalInput} eligible=${eligibleIndices.length} queued=${queued} dryRun=${dryRunCount} skipped=${skipped}`,
+    `[review] wrote reviewed batch to ${outPath} — totalInput=${totalInput} eligible=${eligibleIndices.length} ` +
+      `queued=${queued} merged=${mergedCount} orphaned=${orphanedCount} dryRun=${dryRunCount} ` +
+      `skipped=${skipped} overwritten=${overwritten}`,
   );
 }
 

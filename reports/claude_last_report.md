@@ -1,436 +1,364 @@
-# Claude Code 回報 · P3-10-F：匯入題目人工審核流程第一版（部分完成）
+# Claude Code 回報 · P3-10-K 修補：同批 duplicate id + QuestionSource union 驗證（部分完成）
 
-任務日期：2026-05-13
-任務性質：**Review workflow CLI 第一版**——新增 `scripts/review_normalized_questions.mjs` v0.1，支援 `prepare-review`（normalizer draft → reviewer 工作介面）與 `validate-reviewed`（驗證人工編輯後條目）兩個 mode；定義「normalized draft → reviewerFields template → 人工填欄 → validation passed → 可進 P3-10-K」的完整流程。本輪硬邊界全遵守：未呼叫 OpenAI；未實作 openai mode；未下載 PDF / image / audio；未解析 PDF；未修改 `data/p3-example-questions.json` / `data/exam-papers.example.json`；未新增正式題目；未讓 `/quiz` 使用 imported 題庫；未產 TTS；未改 UI / quiz / review / schema；未接後端 / DB / 登入；未處理 npm audit；未部署；未 commit `.env.local`；未 commit `.generated.json`（5 個 `.generated.json` 全 gitignore）；未 commit `.claude/settings.local.json`；未紀錄真實 API key（本 CLI 不需任何 env）。
+任務日期：2026-05-14
+任務性質：**P3-10-K Codex 有條件通過後的最小修補**——只改 `scripts/approve_reviewed_questions.mjs`（v0.1 → v0.1.1）與對應文件；補上 Codex 驗收指出的 2 個問題（High：未檢查同批 ready items 內部 dup id；Medium：未驗 `finalQuestion.source` QuestionSource union）；**未擴張 P3-10-K 範圍**（未做 first practice paper 整盤組裝 / 未動 `/quiz` / 未動 lib/types.ts）。本輪硬邊界全遵守：未做 first practice paper 組裝；未讓 `/quiz` 使用 imported 題庫；未呼叫 OpenAI；未下載 PDF / image / audio；未解析 PDF；未自動產生題目；未覆蓋既有正式題目；**`data/p3-example-questions.json` / `data/exam-papers.example.json` 整輪未被改動（git diff HEAD 一致、13 題完整保留）**；未改 UI / quiz / review；未改 schema（只 import `lib/types.ts` 既有 QuestionSource union 字面量作驗證集合，未動 type 定義）；未接後端 / DB / 登入；未處理 npm audit；未部署；未 commit `.env.local`；未 commit `.generated.json`；未 commit `.claude/settings.local.json`；未紀錄真實 API key。
 
 ## 【本輪修改摘要】
 
-新增 `scripts/review_normalized_questions.mjs` v0.1 + 同步 4 份文件 / Roadmap：
+1. **修補 1（High）：同批 ready items 內部 duplicate id 偵測**
+   - 之前只檢查 `existingIds.has(id)`（target 既有），漏了「同批兩筆 reviewer 條目都填同 id」的 case。
+   - 修補後新增 batch 內部 id 統計 + 二維 dup 檢查：拆 `duplicate_id_in_target` 與 `duplicate_id_in_batch` 兩個 warning code。
+   - **同批 dup 兩筆都標 skipped**（不只 skip 第二筆）：reviewer 給兩筆同 id 通常代表至少一筆 id 填錯，保守起見全 skip 等 reviewer 決定。
+   - write mode 任一 dup（target 或 batch）→ **整批拒絕寫入 + exit 2**；preview JSON 仍寫（reviewer 可從 items[] 找 dup 條目）。
+   - summary 加 `duplicateIdsInTarget` / `duplicateIdsInBatch` 兩個分項；`duplicateIds` 仍記兩者聯集數量（向後相容）。
+   - 流程重組為 4 / 4.5 / 5 / 6 三段：每筆轉換暫標 ready → batch 內 id 統計 → 雙維度 dup 檢查 → limit。
 
-1. **CLI 兩 mode**：
-   - `prepare-review`：讀 P3-10-E `normalized-questions.generated.json` → 篩 `status=draft + reviewStatus=needs_human_review + isReadyForPractice=false + draft!=null` 條目 → 預填 reviewerFields template（`approved=false` / `approvedForPractice=false` / finalQuestion 留空 answer/options）→ 寫 `data/imported/reviewed-questions.generated.json`。
-   - `validate-reviewed`：讀 reviewer 編輯後 `reviewed-questions.generated.json` → 對 `approvedForPractice=true` 條目跑 schema + 題型 validation → 寫 `data/imported/review-validation.generated.json` + 印 console summary。**不修改 reviewed file**、**不寫正式題庫**。
-2. **6 個 CLI flag**：`--input`（必填，兩 mode 對應不同上游） / `--out`（選填、兩 mode 不同預設） / `--mode`（必填，prepare-review / validate-reviewed） / `--limit`（預設 10、防呆） / `--dry-run yes|no`（預設 no） / `--help`。
-3. **5 種 skip reason（prepare-review）**：`skipped_status_not_draft` / `skipped_review_status_not_needs_review` / `skipped_already_ready` / `skipped_draft_null` / `skip_due_to_limit`。
-4. **保守 reviewerFields template**：每筆 queued 條目預填 type / starterPart / prompt（從 draft 抓），**但 answer / options 一律留空**（與 P3-10-E rule-based 保守邊界一致），reviewer 必須手填才能進入 validate-reviewed。
-5. **題型 validation 規則**：對 `approvedForPractice=true` 條目跑：(a) 必填欄位（id / type / starterPart / prompt / answer）、(b) 字面量對齊（QuestionType 9 種 + StarterPart L1-L4 / RW1-RW5）、(c) 一致性（approved=true + reviewStatus=approved_for_practice 同步）、(d) 題型 specific：spelling answer 非空字串、true-false answer 必 yes/no（忽略大小寫）、5 種 CHOICE_TYPES（multiple-choice / word-choice / listening-image-choice / listening-choice / picture-choice）options ≥ 2 + answer 對應 options（純字串或 `{id, value}` 物件）。
-6. **`.gitignore` 加 2 行**：`reviewed-questions.generated.json` + `review-validation.generated.json`；段落標題更新為 P3-10-A / D-2 / D-2B / D-3 / **E / F**。
-7. **文件同步**——`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` 升 v3（新增 F-pre 段 7 個子段：兩 mode / prepare-review filter / reviewerFields template / reviewer 操作 4 步 / validate-reviewed 驗證規則 / output schema / v0.1 不做清單）；`docs/PRACTICE_DATA_IMPORT_PLAN.md` C 段流程 4/5/6 步重寫對齊 P3-10-E + F + K 範圍；`docs/PRACTICE_DATA_PLAN.md` + `PROJECT_ROADMAP.md` P3-10-F 條目從 ⬜ 改 🟡 + 補本輪完整實作摘要。
-8. **CLI 端到端 6 種測試全綠**：使用者本機真實 normalized output（PDF skip case） / fixture 3 種 draft 變 queued / fixture observation/failed/skipped 變 skipped / dry-run yes / validate-reviewed 6 種 reviewer 編輯情境（1 passed + 4 failed + 1 skipped）/ 邊界 exit 2（缺 --input / unsupported mode / input 不存在）。
+2. **修補 2（Medium）：QuestionSource union 驗證**
+   - 之前 `source = nonEmptyString(fq.source) ? fq.source : "custom"` → 任何非空字串都會寫入 question.source。
+   - 修補後 import 對齊 `lib/types.ts` `QuestionSource` union 4 種字面量集合：`official_sample` / `past_paper` / `ai_generated` / `custom`。
+   - 三種情況處理：
+     - 空 / 缺值 → 預設 `custom`
+     - 在 union → 使用該值
+     - **非空但不在 union** → 條目 `status="failed"` + error code `invalid_question_source`，**不** silent fallback 為 custom（避免掩蓋 reviewer 填錯來源）
+   - reviewer 想表達 `user_provided` / `third_party` 等第三方來源應保留於 `reviewerNotes` 或 discovery provenance、**不**寫入正式 `QuestionSource` union（文件已明示）。
 
-`npm run lint` / `typecheck` / `build` 全綠（88 routes 不變、**無新依賴**）。**P3-10-F 標 🟡 部分完成；P3-10 / P3 整體仍 🟡——未把任何整體階段標完成**。
+3. **HELP_TEXT 同步**：標題改 v0.1.1；補修補摘要、新 warning code、QuestionSource union 規則段。
+4. **文件同步**：`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` 升 v4.1（F-pre-8-d / F-pre-8-e 重寫）；`docs/PRACTICE_DATA_IMPORT_PLAN.md` C-6 步補修補說明；`docs/PRACTICE_DATA_PLAN.md` P3-10-K 條目補 v0.1.1 修補摘要；`PROJECT_ROADMAP.md` 在 P3-10-K 條目上方插「P3-10-K 修補」獨立條目（按時序由新到舊排列）。
+5. **7 種測試全綠**：見「測試結果」段。
+
+`npm run lint` / `typecheck` / `build` 全綠（88 routes 不變、**無新依賴**）。`data/p3-example-questions.json` / `data/exam-papers.example.json` 完整保留（git diff HEAD 一致）。**P3-10-K 整體仍 🟡 部分完成、未誇大為完整完成**。
 
 ## 【修改檔案清單】
 
-新增 1 份；修改 5 份；未動既有題目 / 圖片 / 音檔 / UI / quiz / review / schema / data / 題庫 / .env：
-
-新增：
-- **`scripts/review_normalized_questions.mjs`**：v0.1 review workflow CLI 約 440 行，分 6 段：(1) 常數（REVIEW_VERSION / SUPPORTED_MODES / ALLOWED_QUESTION_TYPES 9 種 + ALLOWED_STARTER_PARTS 9 種 + CHOICE_TYPES / HELP_TEXT）/ (2) CLI parsing + validateArgs / (3) JSON helpers / (4) prepare-review 邏輯（buildReviewItem 預填 reviewerFields template + buildSkippedReviewItem + classifyForReview）/ (5) validate-reviewed 邏輯（nonEmptyString + answerMatchesOptions + validateOneReviewedItem 完整題型 validation）/ (6) main + entry-script gate（沿用 P3-10-E 同模式）。**無新 npm 依賴**。
+新增 0 份；修改 5 份；未動既有題目 / 圖片 / 音檔 / UI / quiz / review / schema / data / 題庫 / .env / .gitignore（既有規則已 cover `approved-questions.preview.generated.json`）：
 
 修改：
-- **`.gitignore`**：加 2 行 `data/imported/reviewed-questions.generated.json` + `data/imported/review-validation.generated.json`；段落標題從「P3-10-A / D-2 / D-2B / D-3」改「P3-10-A / D-2 / D-2B / D-3 / **E / F**」。
-- **`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`**：新增 F-pre 段（共 7 個子段，~120 行）；G 段加 v3 升級紀錄保留 v2 / v1。
-- **`docs/PRACTICE_DATA_IMPORT_PLAN.md`**：C 段流程第 4 / 5 / 6 步重寫——4 步對齊 P3-10-E v0.1（保守 reviewStatus=needs_human_review、不自動跳 ai_normalized）/ 5 步寫 P3-10-F v0.1 完整 prepare-review + validate-reviewed 流程 / 6 步明示「轉成 formal practice data 屬 P3-10-K、本輪不做」。
-- **`docs/PRACTICE_DATA_PLAN.md`**：F 段 P3-10-F 條目從 ⬜ 改 🟡，補本輪完整實作摘要。
-- **`PROJECT_ROADMAP.md`**：P3-10-F 條目從 ⬜ 改 🟡（含 6 個 flag / 5 種 skip reason / reviewerFields template / 題型 validation 規則 / .gitignore / 文件同步 / 6 種 CLI 測試結果 / 硬邊界 13 條）。
+- **`scripts/approve_reviewed_questions.mjs`**：v0.1 → v0.1.1。改動點：(a) `APPROVE_VERSION` 字串 `@v0.1` → `@v0.1.1`；(b) 新增 `ALLOWED_QUESTION_SOURCES` set 常數；(c) HELP_TEXT 標題改 v0.1.1 + 補修補摘要、新 warning code、QuestionSource union 規則段；(d) `convertFinalQuestionToExamQuestion` 內 `source` 從「`nonEmptyString(fq.source) ? fq.source : "custom"`」改為「依 ALLOWED_QUESTION_SOURCES 三段判斷」、非 union 值返回 `{ok: false, errors: [{code:"invalid_question_source",...}]}`；(e) `main()` 流程重組 4 / 4.5 / 5 / 6 三段——4 暫標 ready、4.5 雙維度 dup 檢查、5 limit、6 統計三個 dup 計數 + 一個聯集；(f) summary 加 `duplicateIdsInTarget` / `duplicateIdsInBatch` 欄位；(g) write mode duplicate gate 改用 `duplicateIdsAll`（聯集），錯誤訊息分別印 target / batch 部分。整體新增 ~50 行 / 改 ~30 行；CLI 既有指令面**完全相容**（v0.1 既有 case 仍 work）。
+- **`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`**：F-pre-8-d 完全重寫（拆 target / batch 兩種 warning code + 兩 mode 行為表 + summary 對應欄位 + 為何 batch dup 兩筆都 skip 說明）；F-pre-8-e 補 source 規則 4 點（對齊 union / 空值預設 custom / 在 union 用該值 / 非 union 標 failed）；G 段加 v4.1 升級紀錄保留 v4 / v3.1 / v3 / v2 / v1。
+- **`docs/PRACTICE_DATA_IMPORT_PLAN.md`**：C 段第 6 步補 v0.1.1 修補說明（duplicate id 拆兩種偵測 + QuestionSource union 4 種 + 非 union 值 status=failed）。
+- **`docs/PRACTICE_DATA_PLAN.md`**：F 段 P3-10-K 條目從 v0.1 更新為 v0.1.1，補本輪 2 個修補摘要。
+- **`PROJECT_ROADMAP.md`**：在原 P3-10-K 條目上方插一個獨立的「🟡 P3-10-K 修補」條目（按時序由新到舊），含本輪完整 2 個修補描述 + 7 種測試結果 + 硬邊界 11 條。
 
-未動：`scripts/discover_resources.mjs`（v0.2 完整保留）/ `scripts/web_resource_collect.mjs`（v0.1 + D-3 micro-refactor 完整保留）/ `scripts/collect_discovered_resources.mjs`（v0.1 完整保留）/ `scripts/normalize_collected_sources.mjs`（v0.1 完整保留）/ `scripts/generate_openai_tts_sample.mjs` / `lib/types.ts` / `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / 任何 `app/review/*` / `app/page.tsx` / `components/QuizPlay.tsx` / 其他 components / `data/p3-example-questions.json`（13 題完整保留）/ `data/exam-papers.example.json` / `data/vocabulary.json` / `data/quizzes.json` / `data/imported/*.example.json`（7 個範例完整保留）/ `public/images/` / `public/audio/` / `docs/DISCOVERY_CRAWLER_PLAN.md` / `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `docs/CODEX_VALIDATION_RUNBOOK.md` / `docs/TASK_ROUTER.md` / `docs/USER_TEST_NOTES.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `README.md`（本輪沒新文件入口）/ `.env.example`（本輪不需新 env）/ `source_materials/*` / `package.json`（無新依賴）/ `node_modules/`。
+未動：`scripts/discover_resources.mjs` / `scripts/web_resource_collect.mjs` / `scripts/collect_discovered_resources.mjs` / `scripts/normalize_collected_sources.mjs` / `scripts/review_normalized_questions.mjs` / `scripts/generate_openai_tts_sample.mjs` / `lib/types.ts`（**對齊使用 QuestionSource union，但未動 type 定義**） / `lib/data.ts` / `lib/examSessionStorage.ts` / `app/quiz/page.tsx` / 任何 `app/review/*` / `app/page.tsx` / `components/QuizPlay.tsx` / 其他 components / **`data/p3-example-questions.json`（13 題完整保留）** / **`data/exam-papers.example.json`** / `data/vocabulary.json` / `data/quizzes.json` / `data/imported/*.example.json`（7 個範例完整保留）/ `public/images/` / `public/audio/` / `docs/DISCOVERY_CRAWLER_PLAN.md` / `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` / `docs/PRODUCT_SPEC.md` / `docs/DATA_SCHEMA.md` / `docs/STARTERS_PART_TEMPLATES.md` / `docs/OFFICIAL_RESOURCES.md` / `docs/AI_QUESTION_GENERATION.md` / `docs/TTS_AUDIO_WORKFLOW.md` / `docs/CODEX_VALIDATION_RUNBOOK.md` / `docs/TASK_ROUTER.md` / `docs/USER_TEST_NOTES.md` / `AI_DEV_WORKFLOW.md` / `AGENTS.md` / `CLAUDE.md` / `README.md`（本輪沒新文件入口）/ `.env.example`（本輪不需新 env）/ `.gitignore`（既有規則已 cover）/ `source_materials/*` / `package.json`（無新依賴）/ `node_modules/`。
 
-## 【Review CLI 說明】
+## 【Duplicate id 修補說明】
 
-### 6 段檔案結構
+### 兩維度偵測
 
-```
-scripts/review_normalized_questions.mjs
-├── Section 0：常數（REVIEW_VERSION / SUPPORTED_MODES / ALLOWED_QUESTION_TYPES / ALLOWED_STARTER_PARTS / CHOICE_TYPES / HELP_TEXT）
-├── Section 1：CLI parsing（parseYesNo / parseArgs / validateArgs；mode 字面量驗證）
-├── Section 2：JSON helpers（readJsonFile / writeJson / makeBatchId）
-├── Section 3：prepare-review
-│   ├── buildReviewItem（queued/dry_run 條目 + reviewerFields template 預填）
-│   ├── buildSkippedReviewItem（5 種 skip reason）
-│   ├── classifyForReview（dispatcher）
-│   └── runPrepareReview（讀 normalized batch / 分流 eligible / 跑 limit / 寫 reviewed batch）
-├── Section 4：validate-reviewed
-│   ├── nonEmptyString / answerMatchesOptions helpers
-│   ├── validateOneReviewedItem（必填欄位 + 一致性 + 題型 specific 驗證）
-│   └── runValidateReviewed（讀 reviewed batch / 跑 validation / 寫 validation summary + console）
-└── Section 5：main + entry-script gate
-```
+| 偵測來源 | warning code | 觸發 |
+| --- | --- | --- |
+| target 既有 | `duplicate_id_in_target` | finalQuestion.id 已存在於 `--target` 現有正式題目（lookup 透過 `existingIds: Set`） |
+| 同批內部 | `duplicate_id_in_batch` | finalQuestion.id 在本批兩筆以上 ready items 內重複（lookup 透過 `batchIdCounts: Map`） |
 
-### CLI flag 表
+兩種可同時觸發（同 id 既在 target 也在 batch 重複出現 ≥2 次）；該筆 item 會同時帶兩個 warning code。
 
-| flag | 必填 | 預設 | 說明 |
-| --- | --- | --- | --- |
-| `--input` | 必填（兩 mode 對應不同上游） | — | prepare-review → normalized batch / validate-reviewed → reviewed batch |
-| `--out` | 選填 | prepare-review → `data/imported/reviewed-questions.generated.json` / validate-reviewed → `data/imported/review-validation.generated.json` | output 寫檔路徑（覆寫式） |
-| `--mode` | 必填 | — | `prepare-review` / `validate-reviewed` |
-| `--limit` | 選填（僅 prepare-review 使用） | `10` | 最多處理 N 筆 eligible draft |
-| `--dry-run` | 選填（僅 prepare-review 使用） | `no` | `yes` 時所有 queued 標 dry_run + 加 `dry_run` warning |
-| `--help` | 選填 | — | 印 usage |
+### 兩 mode 行為
 
-### exit code
+| mode | preview | write + 任一 dup |
+| --- | --- | --- |
+| 命中 item | status=`skipped` + 對應 warning；question 物件仍保留供 reviewer 檢視 | 同 preview 標記；整批 exit 2 拒絕寫入 target |
+| target | 不動 | 不動（CLI 在寫 target 前已 exit 2） |
+| preview JSON | 寫 | **仍寫**（reviewer 可從 items[].warnings 找 dup 條目） |
 
-| 情況 | exit code |
+### summary 欄位
+
+| 欄位 | 含義 |
 | --- | --- |
-| 成功（含 validate-reviewed 找出 failed 條目；不影響 exit code） | 0 |
-| 未預期錯誤 | 1 |
-| CLI 參數錯 / input 不存在 / JSON parse 失敗 / 未支援 mode | 2 |
+| `duplicateIds` | target + batch 兩種 dup 的 **unique id 聯集**（向後相容） |
+| `duplicateIdsInTarget` | 只算 target 既有 dup 的 unique id 數 |
+| `duplicateIdsInBatch` | 只算 batch 內部 dup 的 unique id 數 |
 
-### 與 P3-10-D-3 / E / K 的關係
+範例：target 含 q-A，batch 含兩筆 q-A + 兩筆 q-B：
+- `duplicateIdsInTarget = 1`（只 q-A）
+- `duplicateIdsInBatch = 2`（q-A 與 q-B 都在 batch 內 dup）
+- `duplicateIds = 2`（聯集 unique：q-A、q-B）
 
-| 階段 | 工具 | 輸入 | 輸出 | reviewStatus |
-| --- | --- | --- | --- | --- |
-| D-3 pipe | `collect_discovered_resources.mjs` | discovered-resources | source-documents.batch | discovered_candidate |
-| E normalizer | `normalize_collected_sources.mjs` | source-documents.batch | normalized-questions | needs_human_review |
-| **F-pre prepare-review**（本輪） | `review_normalized_questions.mjs --mode prepare-review` | normalized-questions | reviewed-questions（reviewerFields template） | needs_human_review |
-| **F-edit reviewer 編輯**（本輪 / 手動） | 維護者編輯 JSON | reviewed-questions | （同檔，reviewer 編輯後） | reviewer 改為 approved_for_practice |
-| **F-val validate-reviewed**（本輪） | `review_normalized_questions.mjs --mode validate-reviewed` | reviewed-questions（編輯後） | review-validation.generated.json + console | （不改 reviewed file） |
-| ⬜ K 寫入正式題庫 | 屬未來範圍 | validate-reviewed passed 條目 | `data/p3-example-questions.json` | （正式 schema） |
+### 為何「同批 dup 兩筆都 skip」
 
-## 【Prepare-review 測試結果】
+reviewer 給兩筆同 id 通常代表「至少一筆 id 填錯」，CLI 無法判斷哪筆對。最保守的設計：**全部** skip 等 reviewer 自行決定哪筆改 id。reviewer 在 reviewed file 改其中一筆的 id 後重跑，即可解開。
 
-### Test A：使用者本機真實 normalized output
+### 流程重組（4 / 4.5 / 5 / 6 三段）
+
+之前 v0.1：在每筆 reviewed item 的轉換迴圈內，**立刻**做 duplicate check（只看 target）→ skipped or ready。
+
+v0.1.1 拆兩段：
+- **Step 4**：每筆轉換時暫標 `ready`（duplicate 檢查延後）；放進 `tentativelyReady` 陣列。
+- **Step 4.5**：用 `tentativelyReady` 統計 batch 內部 id 出現次數（`batchIdCounts`），再對每筆檢查 (a) target 既有 (b) batch 內部 dup。同 item 可被兩種 dup 同時標記。
+- **Step 5**：limit 只套用在「duplicate 檢查後仍 ready」的條目；超過 limit 的標 `skip_due_to_limit`。
+- **Step 6**：統計三個 dup 計數（target / batch / 聯集）+ ready / skipped / failed。
+
+## 【QuestionSource union 驗證說明】
+
+### 對齊 lib/types.ts
+
+```ts
+// lib/types.ts（**未動**，本輪只 import 字面量）
+export type QuestionSource =
+  | "official_sample"   // Cambridge 官方 sample paper
+  | "past_paper"        // 歷屆考題
+  | "ai_generated"      // AI 生成題
+  | "custom";           // 維護者自製 / 改寫
+```
+
+CLI 內新增常數：
+
+```js
+const ALLOWED_QUESTION_SOURCES = new Set([
+  "official_sample",
+  "past_paper",
+  "ai_generated",
+  "custom",
+]);
+```
+
+### 三種輸入處理
+
+| `finalQuestion.source` 值 | 處理 | 結果 |
+| --- | --- | --- |
+| 空字串 / 缺值（undefined） | 預設 `custom` | resolvedSource = `"custom"` |
+| 在 union（4 種字面量之一） | 使用該值 | resolvedSource = fq.source |
+| 非空但不在 union（如 `user_provided` / `third_party` / `manual` / 任何其他字串） | **errors push `invalid_question_source`** | 條目 status=`failed`，**不**寫入 question；**不** silent fallback 為 custom |
+
+### 為何「非 union 值不 silent fallback 為 custom」
+
+任務單明示「請不要自動把非法 source fallback 成 custom，因為這可能掩蓋 reviewer 填錯來源的問題」。具體場景：
+- reviewer 從 P3-10-A 既有 `sourceType` 概念混淆（discovery 階段 sourceType 有 `user_verified` / `third_party` / `official` / `unknown`，但這些**不是** ExamQuestion 的 `QuestionSource`）。
+- 若 CLI 把 `third_party` silent fallback 為 `custom`，正式題庫會出現 source=custom 但來源實際是第三方的題目，違反「正式題庫每題保留 source / provenance 可追溯」原則。
+- 失敗 + 明確 error 訊息能讓 reviewer 立刻知道「source 填錯了、需要選正確的 union 字面量或保留至 reviewerNotes」。
+
+### 錯誤訊息範例（stderr 與 errors[0].message 內容一致）
 
 ```
-$ node scripts/review_normalized_questions.mjs \
-    --input data/imported/normalized-questions.generated.json \
-    --out data/imported/reviewed-questions.generated.json \
-    --mode prepare-review --limit 10
-[review] mode=prepare-review input=... out=... limit=10 dry-run=no
-[review] wrote reviewed batch — totalInput=1 eligible=0 queued=0 dryRun=0 skipped=1
+source "third_party" 不在 QuestionSource union（official_sample / past_paper / ai_generated / custom）。
+非法 source 不會 fallback 為 custom（避免掩蓋 reviewer 填錯來源）；
+若 reviewer 想表示第三方來源，請保留於 reviewerNotes / discovery provenance，
+不要寫入正式 QuestionSource union。
+```
+
+## 【Preview 測試結果】
+
+### Test 1：current preview vs real `data/p3-example-questions.json`
+
+```
+[approve] wrote preview to .../approved-questions.preview.generated.json — totalReviewed=1 validationPassed=0 readyToAppend=0 skipped=1 failed=0 duplicateIds=0(target=0,batch=0)
+[approve] mode=preview / --write=no：**未寫 target**；正式題庫 .../p3-example-questions.json 完全未動。
 exit=0
 ```
 
-唯一一筆來自 P3-10-E 對使用者本機 PDF batch 的處理結果（`status=skipped` + `skipped_asset_metadata`）被正確 skip：
+✅ 既有 PDF skipped case（從 P3-10-F 帶過來的 reviewed file）仍按預期 skip；新 `duplicateIds=0(target=0,batch=0)` 顯示證明兩個分項都 0；正式題庫未動。
 
-```jsonc
-{
-  "sourceItemId": "disc-gen-0001",
-  "sourceUrl": "https://www.lebusanglais.com/.../Pre-A1-Starters-Sample-Paper.pdf",
-  "sourceType": "third_party",
-  "resourceType": "pdf",
-  "status": "skipped",
-  "warnings": [{ "code": "skipped_status_not_draft", "message": "normalizer item.status=\"skipped\" 不是 \"draft\"，跳過。" }],
-  "reviewerFields": null
-}
-```
+## 【Write duplicate guard 測試結果】
 
-✅ 證明本輪硬邊界生效：normalizer 階段已 skip 的條目（含 third-party PDF）在 prepare-review 階段不會被 promote 進 review queue。
-
-### Test B：fixture 5 種 normalizer output 條件
-
-自製 `/tmp/norm-fix.json`（已清理）含 5 種 normalizer output 條件：
-
-| input | normalizer status | normalizer draft.type | 預期 prepare-review output |
-| --- | --- | --- | --- |
-| fx-001 | draft | spelling | queued + reviewerFields template |
-| fx-002 | draft | true-false | queued + reviewerFields template |
-| fx-003 | draft | multiple-choice | queued + reviewerFields template |
-| fx-004 | observation | (none) | skipped (skipped_status_not_draft) |
-| fx-005 | skipped | (none) | skipped (skipped_status_not_draft) |
-
-實跑結果：
+### Test 2：`--mode write` 缺 `--write yes` → exit 2（既有保護未 regression）
 
 ```
-[review] wrote reviewed batch — totalInput=5 eligible=3 queued=3 dryRun=0 skipped=2
+Error: --mode write 必須同時搭配 --write yes 才會實際寫入正式題庫。
+本輪 v0.1 設計**雙開關**避免無意識寫入。若仍想寫，請完整指令：
+  --mode write --write yes
+若要先檢查、不寫，請改 --mode preview。
+exit=2
 ```
 
-每筆 queued item reviewerFields 結構：
+✅ v0.1 的雙開關保護完整保留。
+
+### Fixture 1：同批 duplicate id preview
+
+fixture：兩筆 reviewer items（sourceItemId=`a` 與 `b`）都填 `finalQuestion.id="q-new-dup"`；target 為 `[]`（空）。
 
 ```
-fx-001  status=queued
-        reviewerFields.approved=false  approvedForPractice=false
-        finalQuestion.type=spelling     starterPart=RW3   prompt="Look at the picture. Write the word."  answer=""  options=[]
-fx-002  status=queued
-        finalQuestion.type=true-false   starterPart=RW1   prompt="It is a cat."  answer=""  options=[]
-fx-003  status=queued
-        finalQuestion.type=multiple-choice  starterPart=RW4  prompt="Which one is a color?"  answer=""  options=[]
-```
-
-✅ 完整保留 source provenance（sourceItemId / sourceUrl / sourceType / resourceType / level / sourceQueryId / sourceQuery / sourceScore / sourceReasons / detectedExamParts / discoveryProvenance / originalDraft）；reviewerFields template 預填 type / starterPart / prompt **但 answer / options 一律空**；`approved=false` / `approvedForPractice=false` 確認**不自動 approve**。
-
-## 【Dry-run 測試結果】
-
-```
-$ node scripts/review_normalized_questions.mjs --input /tmp/norm-fix.json --out /tmp/rev-dry.json --mode prepare-review --limit 10 --dry-run yes
-[review] wrote reviewed batch — totalInput=5 eligible=3 queued=0 dryRun=3 skipped=2
+[approve] wrote preview to /tmp/preview-batchdup.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=2 failed=0 duplicateIds=1(target=0,batch=1)
 exit=0
 ```
 
-關鍵差別：
-- **queued=0、dryRun=3**：3 筆 draft 從 queued 變 dry_run
-- 每筆 dry_run item 多一筆 `dry_run` warning：「review item 已預填 reviewerFields template，但 status 標為 dry_run；reviewer 可比對欄位結構後再實跑」
-- reviewerFields template 仍完整存在（reviewer 可比對欄位 layout 是否合理）
-
-✅ dry-run 行為符合任務單規範；對 reviewer 在「正式生 reviewed batch 前先確認 schema 是否合用」非常有幫助。
-
-## 【Validate-reviewed 測試結果】
-
-自製 `/tmp/rev-edited.json`（已清理）模擬 reviewer 編輯後 6 種情境：
+逐筆：
 
 ```
-$ node scripts/review_normalized_questions.mjs --input /tmp/rev-edited.json --out /tmp/val-out.json --mode validate-reviewed
-[review] mode=validate-reviewed input=/tmp/rev-edited.json out=/tmp/val-out.json (validation 只讀 input、不寫正式題庫)
-[review] validation summary:
-         totalInput=6
-         approvedClaimed=5
-         passedValidation=1
-         failedValidation=4
-         skippedNotApproved=1
-[review] failed items:
-         - sourceItemId=fx-002 finalQuestionId=q-tf-imp-001 type=true-false errors=true_false_answer_invalid
-         - sourceItemId=fx-003 finalQuestionId=q-mc-imp-001 type=multiple-choice errors=answer_not_in_options
-         - sourceItemId=fx-004 finalQuestionId= type=spelling errors=missing_final_id,missing_final_starter_part,missing_final_answer
-         - sourceItemId=fx-006 finalQuestionId=q-incon-001 type=spelling errors=approved_must_be_true,review_status_not_approved_for_practice
-[review] **不寫正式題庫**：data/p3-example-questions.json / data/exam-papers.example.json 未動。寫入 /tmp/val-out.json
+summary: {"totalReviewed":2,"validationPassed":2,"readyToAppend":0,"skipped":2,"failed":0,"duplicateIds":1,"duplicateIdsInTarget":0,"duplicateIdsInBatch":1,"targetExistingCount":0}
+item[0] id=q-new-dup status=skipped warnings=duplicate_id_in_batch
+item[1] id=q-new-dup status=skipped warnings=duplicate_id_in_batch
 ```
 
-逐筆驗證結果：
+✅ **兩筆都標 skipped**（不只第二筆）；`duplicateIdsInBatch=1`（unique id 為 1）；`duplicateIds=1`（聯集）；readyToAppend=0；target 未動（empty-target 仍 0 題）。
 
-| sourceItemId | reviewer 編輯情境 | validation 結果 | error codes |
-| --- | --- | --- | --- |
-| fx-001 | 完整 spelling：id / type / starterPart / prompt / answer 都填、approved=true、approvedForPractice=true、reviewStatus=approved_for_practice | ✅ **passed** | — |
-| fx-002 | true-false 但 answer="maybe" | ❌ failed | `true_false_answer_invalid` |
-| fx-003 | multiple-choice + options=[apple,red,cat] 但 answer="purple" | ❌ failed | `answer_not_in_options` |
-| fx-004 | spelling 但 id / starterPart / answer 都空 | ❌ failed | `missing_final_id` / `missing_final_starter_part` / `missing_final_answer` |
-| fx-005 | approvedForPractice=false（reviewer 還沒勾選） | ⏭ skipped | reason: "approvedForPractice !== true" |
-| fx-006 | 不一致：approvedForPractice=true 但 approved=false 且 reviewStatus=needs_human_review | ❌ failed | `approved_must_be_true` / `review_status_not_approved_for_practice` |
-
-✅ 6 種情境全部正確分類；summary `passedValidation=1 / failedValidation=4 / skippedNotApproved=1` 加總 = 6 = totalInput。
-
-## 【Output 格式檢查】
-
-### prepare-review 結果（使用者本機 PDF case）
-
-`data/imported/reviewed-questions.generated.json`：
-
-```jsonc
-{
-  "batchId": "revbatch-2026-05-13T...",
-  "createdAt": "...",
-  "source": "review_normalized_questions.mjs@v0.1",
-  "input": "<absolute path>",
-  "mode": "prepare-review",
-  "dryRun": false,
-  "summary": { "totalInput": 1, "eligible": 0, "queued": 0, "dryRun": 0, "skipped": 1 },
-  "items": [ { ...sourceItemId=disc-gen-0001 status=skipped warnings=[skipped_status_not_draft] reviewerFields=null... } ]
-}
-```
-
-### prepare-review fixture queued item（保留所有 source provenance + reviewerFields template）
-
-```jsonc
-{
-  "sourceItemId": "fx-001",
-  "sourceUrl": "https://www.yle.tw/download.asp",
-  "sourceType": "user_verified",
-  "resourceType": "page",
-  "level": "Pre A1 Starters",
-  "sourceQueryId": "dq-zh-002",
-  "sourceQuery": "劍橋兒童英檢 Starters 歷屆試題",
-  "sourceScore": 9,
-  "sourceReasons": ["zh_keyword_yle"],
-  "detectedExamParts": ["unknown"],
-  "discoveryProvenance": { "discoveryVersion": "fixture@v0", "searchProvider": "fixture", "rank": 1 },
-  "originalDraft": { "questionType": "spelling", "starterPart": "RW3", ... },
-  "reviewStatus": "needs_human_review",
-  "status": "queued",
-  "warnings": [],
-  "reviewerFields": {
-    "approved": false,
-    "approvedForPractice": false,
-    "reviewerNotes": "",
-    "finalQuestion": {
-      "id": "",
-      "type": "spelling",                          // 預填
-      "starterPart": "RW3",                         // 預填
-      "prompt": "Look at the picture. Write the word.",  // 預填
-      "answer": "",                                 // 保守邊界，留空
-      "options": [],                                // 保守邊界，留空
-      "explanation": "",
-      "imageSrc": "",
-      "audioSrc": ""
-    }
-  }
-}
-```
-
-### validate-reviewed output schema
-
-```jsonc
-{
-  "batchId": "valbatch-<ISO>",
-  "validatedAt": "...",
-  "source": "review_normalized_questions.mjs@v0.1",
-  "input": "<absolute>",
-  "mode": "validate-reviewed",
-  "summary": {
-    "totalInput": 6,
-    "approvedClaimed": 5,
-    "passedValidation": 1,
-    "failedValidation": 4,
-    "skippedNotApproved": 1
-  },
-  "items": [
-    {
-      "sourceItemId": "fx-002",
-      "sourceUrl": "https://example.com/tf-bad",
-      "finalQuestionId": "q-tf-imp-001",
-      "finalQuestionType": "true-false",
-      "approvedForPractice": true,
-      "approved": true,
-      "reviewStatusClaim": "approved_for_practice",
-      "validationStatus": "failed",
-      "reason": null,
-      "errors": [
-        { "code": "true_false_answer_invalid", "field": "finalQuestion.answer",
-          "message": "true-false 的 answer 必須是 \"yes\" 或 \"no\"（忽略大小寫；got: \"maybe\"）" }
-      ]
-    }
-  ]
-}
-```
-
-### 任務單檢查清單
-
-| 檢查項 | 結果 |
-| --- | --- |
-| prepare-review output 是否存在 | ✅ `data/imported/reviewed-questions.generated.json` 已寫 |
-| summary 是否合理 | ✅ totalInput / eligible / queued / dryRun / skipped 加總一致；queued + dryRun + skipped = items.length |
-| skipped / queued 是否合理 | ✅ 5 種 skip reason 字面量正確；queued 條目皆 status=queued + reviewerFields template 完整 |
-| approvedForPractice 是否預設 false | ✅ 所有 queued 條目 `reviewerFields.approvedForPractice=false`（同 `approved=false`） |
-| validate-reviewed 是否能抓出缺欄位 | ✅ missing_final_id / missing_final_type / missing_final_starter_part / missing_final_prompt / missing_final_answer 5 種 error code |
-| 不會寫正式題庫 | ✅ `data/p3-example-questions.json` / `data/exam-papers.example.json` 完全未動；本 CLI 也不引用 `lib/data.ts` |
-| generated output 是否被 gitignore 排除 | ✅ `.gitignore:53`-`:54` 命中 `reviewed-questions.generated.json` + `review-validation.generated.json` |
-
-## 【人工審核 / approved_for_practice 策略】
-
-### Review pipeline（reviewer 操作 4 步）
+### Fixture 2：同批 duplicate id write mode → exit 2
 
 ```
-1. prepare-review
-   $ node scripts/review_normalized_questions.mjs \
-       --input data/imported/normalized-questions.generated.json \
-       --out  data/imported/reviewed-questions.generated.json \
-       --mode prepare-review --limit 10
-   → 產 reviewed batch（每筆 reviewerFields template 預填 type / starterPart / prompt）
-
-2. reviewer 手動編輯 reviewed-questions.generated.json
-   - 把要 approve 的條目 reviewerFields.approved 改 true
-   - reviewerFields.approvedForPractice 改 true
-   - item.reviewStatus 從 "needs_human_review" 改 "approved_for_practice"
-   - finalQuestion 內必填欄位（id / type / starterPart / prompt / answer）全部填齊
-   - 題型 specific 補：
-       * spelling   →  answer 非空字串、可選填 spellingHint / letterScramble（未來擴充）
-       * true-false → answer 必 yes/no（忽略大小寫）
-       * CHOICE_TYPES → options 至少 2 個 + answer 對應 options 之一
-   - 不滿意條目可保留 approved=false 並補 reviewerNotes 解釋
-
-3. validate-reviewed
-   $ node scripts/review_normalized_questions.mjs \
-       --input data/imported/reviewed-questions.generated.json \
-       --mode validate-reviewed
-   → 產 review-validation.generated.json + 印 console summary
-
-4. 若全 passed → 進入 P3-10-K：寫入正式 data/p3-example-questions.json（**本輪不做**）
-   - 屬獨立刀數，含 lib/data.ts 的 approved_for_practice 過濾邏輯
-   - 也需與正式 ExamQuestion schema 對齊（finalQuestion → ExamQuestion 扁平化）
+[approve] wrote preview to /tmp/preview-batchdup-write.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=2 failed=0 duplicateIds=1(target=0,batch=1)
+Error: write mode 偵測到 1 筆 duplicate id（batch=[q-new-dup]）；為避免覆寫既有正式題目或破壞 batch id 唯一性，**整批拒絕寫入** + exit 2。
+   preview JSON 已寫至 /tmp/preview-batchdup-write.json，reviewer 可檢視 items[].warnings 找出 duplicate_id_in_target / duplicate_id_in_batch 條目。
+請於 reviewed file 改 id（建議 q-{type-tag}-imp-{nnn}），或從 target 移除既有同 id 題目後重跑。
+exit=2
 ```
 
-### reviewStatus 5 狀態機（對齊 QUESTION_IMPORT_NORMALIZATION_PLAN D 段）
+✅ exit 2；preview JSON 仍寫；empty-target 不動（仍 0 題）；錯誤訊息明確指出 `batch=[q-new-dup]`（分項顯示 dup 來自 batch 不是 target）。
+
+## 【Invalid source 測試結果】
+
+### Fixture 3：兩筆 invalid source preview + write
+
+fixture：sourceItemId=`a` 填 `source="third_party"`、sourceItemId=`b` 填 `source="user_provided"`；target 為 `[]`（空）。
+
+**Preview**：
 
 ```
-imported_raw ──collector──▶ ai_normalized ──normalizer──▶ needs_human_review ──reviewer──┬─▶ approved_for_practice
-                                                                                         ├─▶ human_review_required (需修)
-                                                                                         └─▶ rejected (不通過)
+[approve] wrote preview to /tmp/preview-invsrc.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=0 failed=2 duplicateIds=0(target=0,batch=0)
+[approve] mode=preview / --write=no：**未寫 target**；正式題庫 /tmp/empty-target.json 完全未動。
+exit=0
 ```
 
-本輪 P3-10-F v0.1：
-- normalizer 一律輸出 `needs_human_review`（保守，不自動跳 `ai_normalized`）。
-- reviewer 升 `approved_for_practice` 是唯一進入正式題庫的路徑。
-- validate-reviewed 強制檢查「approvedForPractice=true → 必須同時 approved=true + reviewStatus=approved_for_practice」一致性，避免半 approve 狀態。
+逐筆：
 
-### 為何 reviewerFields 預填 type / starterPart / prompt 但不預填 answer / options
+```
+summary: {"totalReviewed":2,"validationPassed":2,"readyToAppend":0,"skipped":0,"failed":2,"duplicateIds":0,"duplicateIdsInTarget":0,"duplicateIdsInBatch":0,"targetExistingCount":0}
+item[0] id=q-sp-invsrc-001 status=failed warnings= errors=invalid_question_source
+item[1] id=q-sp-invsrc-002 status=failed warnings= errors=invalid_question_source
+```
 
-設計取捨：
-1. **type / starterPart / prompt**：上游 normalizer 已給出 confidence > 0 的推斷，預填可大幅減少 reviewer 重複輸入；若 normalizer 推斷不準，reviewer 可改。
-2. **answer / options 不預填**：rule-based normalizer 保守不猜 answer / options（draft.answer=null / options=[]）；如果 reviewerFields 也跟著預填空值反而誤導 reviewer 以為「上游有給」。預設 finalQuestion.answer="" / options=[] 明示「reviewer 必須手填」。
-3. **explanation / imageSrc / audioSrc**：屬本專案自製素材；reviewer 須對齊 `public/images/*.svg` / 自製 TTS 才能填，normalizer 沒能力預填。
+✅ 兩筆都 status=`failed`、errors 含 `invalid_question_source`；readyToAppend=0；target 不動。
+
+**Write mode（同 fixture）**：
+
+```
+[approve] wrote preview to /tmp/preview-invsrc-write.json — totalReviewed=2 validationPassed=2 readyToAppend=0 skipped=0 failed=2 duplicateIds=0(target=0,batch=0)
+[approve] write mode 但 readyToAppend=0；不寫 target。preview JSON 已寫至 /tmp/preview-invsrc-write.json；reviewer 可檢查 skipped / failed 原因。
+exit=0
+```
+
+✅ readyToAppend=0 → 不寫 target；exit 0（這不是 dup 觸發的，而是純粹「沒東西可寫」的正常分支）；target 不動。
+
+注意：invalid_question_source 條目走 `status=failed` 分支（不算 ready），所以即使是 write mode 也不會因為 invalid source 觸發 exit 2，因為 dup gate 只看 dup ids。但**這些 failed 條目不會寫入 target**，因為它們從未進入 `withinLimit` 陣列。
+
+## 【合法 source 測試結果】
+
+### Fixture 4：4 種合法 source + 空 source（預設 custom）write happy path
+
+fixture：5 筆 reviewer items：
+- `a`：source=`custom`
+- `b`：source=`ai_generated`
+- `c`：source=`official_sample`
+- `d`：source=`past_paper`
+- `e`：**未填** source 欄位（測試「空值預設 custom」）
+
+target 為 `/tmp/target-valid.json`（空 array）。
+
+```
+[approve] wrote preview to /tmp/preview-valid.json — totalReviewed=5 validationPassed=5 readyToAppend=5 skipped=0 failed=0 duplicateIds=0(target=0,batch=0)
+[approve] **已寫入 target**：/tmp/target-valid.json 從 0 題擴張到 5 題（追加 5 題）。
+  reviewer 請手動 git diff 確認後再 commit。
+exit=0
+```
+
+target 寫入後內容：
+
+```
+題目數: 5
+  q-sp-cus-001  type=spelling          source=custom            starterPart=RW3
+  q-sp-ai-001   type=spelling          source=ai_generated      starterPart=RW3
+  q-tf-os-001   type=true-false        source=official_sample   starterPart=RW1
+  q-mc-pp-001   type=multiple-choice   source=past_paper        starterPart=RW4
+  q-sp-empty-001 type=spelling         source=custom            starterPart=RW3   ← 空值預設 custom 正確
+```
+
+✅ 5 筆全部 ready 並寫入；4 種合法 source 各自保留；空值預設為 `custom`；無 dup（5 個 unique id）；無 failed；source 規則三段都驗證到。
+
+## 【文件同步內容】
+
+### `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` v4.1
+
+- **F-pre-8-d 重寫**：拆 `duplicate_id_in_target` / `duplicate_id_in_batch` 兩個 warning code + 兩 mode 行為表 + summary `duplicateIds` / `duplicateIdsInTarget` / `duplicateIdsInBatch` 對應 + 為何 batch dup 兩筆都 skip 的設計取捨說明。
+- **F-pre-8-e 補 source 規則 4 點**：對齊 QuestionSource union 4 種字面量 / 空值預設 custom / 在 union 用該值 / **非空但不在 union → failed + invalid_question_source（不 silent fallback）** / reviewer 第三方來源應保留於 reviewerNotes。
+- **G 段加 v4.1 升級紀錄**保留 v4 / v3.1 / v3 / v2 / v1。
+
+### `docs/PRACTICE_DATA_IMPORT_PLAN.md`
+
+C 段第 6 步補修補摘要：duplicate id 拆兩種偵測 + QuestionSource union 4 種 + 非 union 值 status=failed + reviewer 第三方來源處理建議。
+
+### `docs/PRACTICE_DATA_PLAN.md`
+
+F 段 P3-10-K 條目從 v0.1 更新為 v0.1.1，補本輪 2 個修補摘要。
+
+### `PROJECT_ROADMAP.md`
+
+在原 P3-10-K 條目上方插一個獨立的「🟡 P3-10-K 修補」條目（按時序由新到舊排列），含本輪完整描述：2 個修補理由與行為 / mergeKey 規則 / 7 種測試結果 / 4 種 fixture 場景結果 / 硬邊界 11 條。
+
+### `README.md`
+
+**未動**——文件索引已涵蓋；F-pre-8 修補為 QUESTION_IMPORT_NORMALIZATION_PLAN 內部章節擴張，無新文件入口。
 
 ## 【測試結果】
 
-- `npm run lint`：✅ 全綠（zero issues；第一輪有 1 個 `DEFAULT_NORMALIZED_INPUT` unused warning，已移除）
+- `npm run lint`：✅ 全綠（zero issues）
 - `npm run typecheck`（`tsc --noEmit`）：✅ 全綠（純 `.mjs` script + 純文件、零 TypeScript 型別影響）
 - `npm run build`：✅ **88 routes** 全部 static prerendered（路由數不變、無新依賴）
-- review CLI 6 種測試全綠：
-  - ✅ Test 1 `--help` → exit 0 + 完整 usage
-  - ✅ Test 2 **prepare-review 跑使用者本機 normalized output**：totalInput=1 / eligible=0 / skipped=1（`skipped_status_not_draft`，PDF item 正確 skip）
-  - ✅ Test 3 **prepare-review fixture**（5 種 normalizer output 條件）：totalInput=5 / queued=3 / skipped=2，reviewerFields template 全部正確預填、approved=false / approvedForPractice=false
-  - ✅ Test 4 **dry-run yes**：queued=0 / dryRun=3，warning 多 `dry_run` code，reviewerFields 仍存
-  - ✅ Test 5 **validate-reviewed fixture**（6 種 reviewer 編輯情境）：passedValidation=1 / failedValidation=4 / skippedNotApproved=1；error code 涵蓋 `true_false_answer_invalid` / `answer_not_in_options` / `missing_final_*` / `approved_must_be_true` / `review_status_not_approved_for_practice`
-  - ✅ Test 6 邊界 exit 2（缺 `--input` / 缺 `--mode` / unsupported mode / input 不存在 path）
-- gitignore：✅ `.gitignore:53-54` 已 cover 兩個新檔；7 個 generated 全 ignored；7 個 example JSON + `.env.example` 不被 ignore（會 commit）
-- git status：本輪只 6 個檔案變動（1 新增 + 5 修改），無 `.generated.json` / `.env.local` / `.claude/settings.local.json` 進 diff
+- approve CLI 7 種測試全綠：
+  - ✅ Test 0 `--help` → exit 0；HELP 標題顯示 v0.1.1 + 修補摘要 + 新 warning code + QuestionSource union 規則
+  - ✅ Test 1 **preview vs 既有 PDF skipped case**：totalReviewed=1 / readyToAppend=0 / `duplicateIds=0(target=0,batch=0)`；正式題庫未動
+  - ✅ Test 2 **write 缺 `--write yes`** → exit 2（既有保護未 regression）
+  - ✅ **Fixture 1 同批 dup preview**：兩筆同 id `q-new-dup` 都 status=skipped + warning `duplicate_id_in_batch`；summary `duplicateIdsInBatch=1` / `duplicateIds=1`；empty-target 不動
+  - ✅ **Fixture 2 同批 dup write mode** → exit 2 + preview JSON 仍寫（含 `duplicate_id_in_batch` warnings）+ empty-target 不動
+  - ✅ **Fixture 3 invalid source preview + write**：兩筆 `third_party` / `user_provided` → status=failed + error `invalid_question_source`；preview write mode 都不寫 target
+  - ✅ **Fixture 4 合法 source happy path**：5 筆（custom / ai_generated / official_sample / past_paper / 空值預設 custom）→ readyToAppend=5；target 從 0 → 5 題；source 分配正確
+- gitignore：✅ `.gitignore:55` 已 cover `approved-questions.preview.generated.json`（本輪未動）
+- git status：本輪只 5 個檔案變動（0 新增 + 5 修改）；無 `.generated.json` / `.env.local` / `.claude/settings.local.json` 進 diff
+- **正式題庫保護**：`diff data/p3-example-questions.json HEAD:data/p3-example-questions.json` → 完全相同（13 題未動）；`data/exam-papers.example.json` 同理
 
 ## 【仍未處理】
 
-依任務單範圍（P3-10-F 屬部分完成）：
+依任務單範圍（本輪只做最小修補，P3-10-K 整體仍 🟡）：
 
-- ⬜ **approved → 寫入正式題庫的 CLI**（屬 P3-10-K）：把 validate-reviewed passed 的條目轉為正式 `ExamQuestion` schema 並寫 `data/p3-example-questions.json`；需新 CLI `approve_drafts_to_practice.mjs`（或類似）；含 `lib/data.ts` 加 `approved_for_practice` 過濾邏輯。
-- ⬜ **Review UI dashboard**：本輪純 CLI + JSON workflow；reviewer 仍需手動編輯 JSON（VS Code / vim 等）；未來可考慮做一個簡單的 Next.js admin route 或獨立 Electron app。
-- ⬜ **多 reviewer 簽核流程**：目前單一 reviewer 編輯 reviewed JSON；無「審 1 / 審 2」分階段 approval。屬企業級流程、本專案家用先不做。
-- ⬜ **與 `docs/AI_QUESTION_GENERATION.md` 6 項品質檢查的自動化整合**：本輪 validation 只做 schema + 題型 specific 規則；6 項品質檢查（imagePrompt 對齊自家 SVG / ttsScript 標 examiner voice / 不含官方題目原文 / 等）目前需人工確認。
-- ⬜ **openai mode for normalizer**：P3-10-E 已預留字面量但 exit 2；本輪不在 P3-10-F 範圍。
-- ⬜ **reviewed batch 歷史**：覆寫式；不保留前一次 reviewed JSON；reviewer 若想比對「上次 review 到哪」需自己 git diff 或 `cp` 改檔名。
-- ⬜ **批次操作 helper**：reviewer 仍需逐筆編輯 JSON；未來可考慮 CLI 子命令如 `bulk-approve --ids fx-001,fx-002`（屬 reviewer ergonomics 改善）。
-- ⬜ **與 normalized-questions.example.json 既有人工示意範例的 schema 對齊**：example 是「approved 後扁平化到 ExamQuestion」目標 schema；本輪 reviewed batch 結構與 normalizer batch 結構皆為 reviewer 工作介面，刻意不同步；P3-10-K 才會做「reviewed approved item → ExamQuestion」轉換。
+- ⬜ **first practice paper 整盤組裝**（屬 P3-10-K 主任務未完部分）：paper-level metadata（`ExamPaper.sourceMix` / `sections` / `questionOrder`）的組裝。
+- ⬜ **`lib/data.ts` 加 `approved_for_practice` 過濾邏輯**：目前 quiz 載入是整 `data/p3-example-questions.json`；若未來想做「approved-only quiz」需加 filter。
+- ⬜ **`first practice paper` Codex 驗收**：需要先 (a) reviewer 跑 write 把幾題 approved 寫進正式題庫 (b) 整盤 paper 組裝 (c) 上線 `/quiz` (d) Codex 驗 quiz 流程仍正常。
+- ⬜ **`--allow-partial yes` flag**：write mode 遇 dup 時允許 reviewer 明確同意「忽略 dup 條目、寫其他條目」；屬未來 reviewer ergonomics（風險：reviewer 可能漏掉 dup 條目）。
+- ⬜ **matching template 擴張 + 寫入支援**。
+- ⬜ **`--rollback` flag**：自動把上一輪 write 的條目從 target 移除；目前 reviewer 用 `git checkout` 解決。
+- ⬜ **Review UI dashboard**：純 CLI workflow；reviewer 仍需自己用編輯器看 JSON。
+- ⬜ **自動補選填欄位**（spellingHint / letterScramble / topic / promptVersion / skillFocus）。
+- ⬜ **多 target 支援**：目前只接受單一 `--target`。
+- ⬜ **使用者擴量實測**：本輪 fixture 已涵蓋 7 種題型中的 spelling / true-false / multiple-choice + invalid type；其他 4 種（picture-choice / word-choice / fill-blank / listening-choice）的轉換邏輯仍只靠 unit-level reading 確認；建議下一輪 reviewer 真實 approve 各題型時補實測。
 
-P3-10-G / H / I / J / K 共 5 條 ⬜ 仍未動（屬未來範圍）。
+P3-10-G / H / I / J 共 4 條仍未動。
 
 ## 【風險點】
 
-- **reviewer 手動編輯 JSON 容易出錯：高**——本輪沒 UI 也沒 schema 驗證的即時 feedback；reviewer 在 VS Code 編輯時可能誤打字面量（例如 `multiple_choice` 而非 `multiple-choice`）、JSON 格式錯（少逗號）、欄位漏填。validate-reviewed 會抓出絕大多數錯誤但仍是事後驗證。建議：(a) reviewer 用支援 JSON schema 的編輯器（如 VS Code）；(b) 短期內加 JSON schema 檔案到 `data/imported/` 便於 IDE 自動驗證；屬後續刀數小幅 enhancement。
-- **`approvedForPractice=true` 但欄位不全的條目仍寫進 reviewed-questions.generated.json：低**——validate-reviewed 會抓出來，但 reviewed file 本身是 source of truth、reviewer 編輯後存檔即生效。建議流程：(a) 改完先 `validate-reviewed` 跑一輪、(b) 對 failed 條目逐個修、(c) 不修也保留為 failed 紀錄，不影響其他 passed 條目進入 K 階段。
-- **answer 對應 options 的「物件」格式（`{id, value}`）vs 純字串字面量規則尚未明示：低**——validate-reviewed 接受兩種 option 格式；但 reviewer 編輯時若混用會困惑（例如 multiple-choice 的 options 有些用字串、有些用物件）。建議 reviewer 統一一種風格；未來 schema 升級時可強制單一格式。
-- **不一致性檢查 force order：低**——validate-reviewed 對「approvedForPractice=true 但 approved=false」會回 `approved_must_be_true` 錯誤；reviewer 一次修一個欄位時可能不知道兩者要同步。已在 validation message 中明示「reviewer 必須同時勾選 approved=true」。
-- **reviewed-questions.generated.json 覆寫式：中**——若 reviewer 已編輯一輪，下一次跑 `prepare-review` 會覆寫整檔，**所有 reviewer 編輯遺失**！本輪 v0.1 沒做「保留既有 reviewerFields」機制；建議 reviewer 每次跑 prepare-review 前先手動 `cp` 備份。下一輪 P3-10-F 後續刀數可加「`--merge-with <existing-reviewed>` flag」保留既有 reviewer 編輯。**這是本輪最大的可用性風險**。
-- **PDF item 永遠 skip 不會 promote：low** —— 本輪沿襲 P3-10-E 保守邊界：PDF / image / audio 從 normalizer 就 skip，prepare-review 拿到也是 skip。這是設計，但長期意義是「discovery 找到的 PDF 永遠進不了 review」——除非 P3-10-D 後續刀數做 PDF parser，否則只能等使用者自己手寫 candidates 從 `custom` sourceType 進來。
-- **CHOICE_TYPES 集合過寬：低**——包含 `listening-image-choice`（任務單規範）但 `lib/types.ts` 目前沒有此字面量；屬於「向前相容預留」。reviewer 用 listening-image-choice 寫 question 時 validate-reviewed 會放行，但 P3-10-K 寫入正式題庫時可能對應不到 schema。建議下一輪 K 動工時校正。
-- **error message 多為中文：低**——validate-reviewed error.message 為中文；console summary 也中文（與 collector / discovery / normalizer 同模式）。對英語環境 CI 友善度低，但與本專案使用者語言一致；不算 bug。
-- **未紀錄 reviewer identity：低**——`reviewerFields.reviewerNotes` 是自由欄位，沒結構欄位記 reviewer name / date / 簽核時間。本家用專案可接受，企業需求要加。
-- **validate-reviewed 寫 `review-validation.generated.json` 但 CLI 不強制要求**：低——若 reviewer 想「只看 console、不要 fail file」，可手動刪 `--out`；CLI 仍會走預設路徑寫檔。屬已知行為、不算 bug。
+- **batch dup 兩筆都 skip 對某些 reviewer 不直覺：低**——reviewer 可能預期「保留 first、skip second」。本輪選擇全 skip 是因為 CLI 無法判斷哪筆對；已在 warning message + F-pre-8-d 文件明示。reviewer 自己改其中一筆 id 重跑即可解開。
+- **invalid_question_source 條目走 status=failed 而非 skipped：低**——與 P3-10-K v0.1 既有設計一致（unsupported_question_type → skipped；其他 conversion errors → failed）；reviewer 看 errors[0].code 就能定位問題。
+- **invalid source 條目 write mode 不會觸發 exit 2：低**——只有 dup ids 會觸發整批 exit 2。invalid source 條目本身就 status=failed、不會進入 `withinLimit` 寫入，所以 write mode 仍安全（target 不會被寫入），但 reviewer 若不檢查 preview JSON 可能不知道有 failed 條目。建議短期內 reviewer 跑完 write 後檢視 console summary 內的 `failed` 計數。
+- **target 真實寫入仍依賴 reviewer git diff + commit：低 by design**——CLI 不自動 commit，所以 reviewer 必須自己 `git diff data/p3-example-questions.json` 確認後 commit。屬訓練問題、非 bug。
+- **APPROVE_VERSION 字串硬編：低**——版本升級時需手改；與既有 CLI 同模式。
+- **fixture 沒覆蓋「同時 target dup + batch dup 同 item」混合 case：低**——理論上一個 id 既在 target 也在 batch dup 出現，該 item 應同時帶兩個 warning code。本輪沒專門 fixture 驗證，但邏輯上 step 4.5 內兩個 `if` 是平行檢查、可同時觸發。建議下一輪補 e2e fixture。
+- **fixture 沒覆蓋 7 題型中的 picture-choice / word-choice / fill-blank / listening-choice 轉換**：見「仍未處理」段。
+- **invalid source check 在 type-specific validation 之前跑**：意味即使 reviewer 填了無效 source + 無效 type，errors 內只會有 invalid_question_source（先 return）。reviewer 修完 source 後重跑才會看到 type 問題。屬已知模式、不算 bug。
+- **error message 純中文**：與既有 CLI 一致。
 
 ## 【後續建議】
 
-1. **下一步走 P3-10-K：approved → 正式題庫的轉換 CLI**——本輪已備好「validate-reviewed passed」這個 input；下一階段：
-   - 新增 `scripts/approve_drafts_to_practice.mjs`（或類似名）
-   - 讀 reviewed batch + validation summary
-   - 對 `validationStatus=passed` 條目，把 `reviewerFields.finalQuestion` 扁平化轉為 `ExamQuestion` schema（對齊 `lib/types.ts` discriminated union）
-   - **由維護者人工 commit 進 `data/p3-example-questions.json`**——不自動 commit；提供 dry-run 預覽
-   - 同時改 `lib/data.ts` 加 `approved_for_practice` 過濾邏輯（與既有 13 題並存）
-2. **加 reviewer ergonomics：`--merge-with` flag**（屬 P3-10-F 後續刀數）：prepare-review 接受既有 reviewed batch，**保留 reviewer 已填的 reviewerFields**，只 append 新 normalized drafts；避免覆寫遺失工作。**這是本輪最大的可用性風險點**，建議下一輪先補。
-3. **加 JSON schema 檔案到 `data/imported/` 供 VS Code 自動驗證**：寫 `data/imported/schemas/reviewed-questions.schema.json`（JSON Schema draft-07）；reviewer 編輯 reviewed-questions.generated.json 時 VS Code 自動 hint 必填欄位 + 字面量限制。零依賴、零成本。
-4. **同期擴量實測**：使用者下次跑 Brave + pipe + normalizer 拿到真正的 HTML draft 後，本 CLI 才有機會跑 queued path 處理真實 candidates。建議下次 Brave 實測時抓 1~2 條 HTML 教學頁面（非 PDF），跑完整鏈路：Brave → discover → pipe → normalize → prepare-review → 手填 reviewerFields → validate-reviewed → （未來）K。
-5. **與 `docs/AI_QUESTION_GENERATION.md` 6 項品質檢查的整合**（屬 P3-10-F 後續 / E openai mode 落地後）：把 6 項檢查自動化進 validate-reviewed；reviewer 編輯時若違反（例：finalQuestion.prompt 含官方題目原文關鍵字）自動 fail。
-6. **Review UI dashboard**（屬中期）：純 Next.js admin route 讀 reviewed batch JSON + 提供表單編輯介面 + 寫回 reviewed file；reviewer 不用編輯 JSON；屬可有可無的 ergonomics。
+1. **下一步走 P3-10-K 第二刀：first practice paper 整盤組裝**——本輪修補後單題級別轉換鏈更加穩固；可開始把 reviewer 真實 approve 的題目組裝為完整 `ExamPaper`（需 `data/exam-papers.example.json` 結構整合 / `lib/data.ts` 載入邏輯）。
+2. **加 fixture 覆蓋剩餘 4 種題型 + 混合 dup case**：picture-choice / word-choice / fill-blank / listening-choice 的轉換邏輯目前只靠 unit-level reading 確認；建議下一輪補 e2e fixture（屬測試覆蓋率 enhancement）。
+3. **加 `--allow-partial yes` flag**：reviewer 明確同意「寫入非 dup 條目、忽略 dup 條目」；風險：reviewer 可能漏掉 dup 條目。
+4. **加 file-exists 檢查 imageSrc / audioSrc**：approve 階段對 `--target` 所在 repo 的 `public/` 內檔案做 stat；不存在標 warning `asset_path_not_found`。
+5. **prepare-review template 補 source 欄位 + sourceWarning**：reviewer template 目前沒 `source` 欄位（reviewer 填寫時可能不知道有此欄位）；建議下一輪 prepare-review template 補 + sourceWarning（third-party 時提示需改寫）。
+6. **使用者擴量實測**：建議 reviewer 下次真實 approve 跨 2~3 種題型 + 設計同批 dup case + 設計 invalid source case，端到端驗證本輪修補。
 
-**短期建議**：先讓 Codex 驗收本輪 P3-10-F 部分完成（驗 CLI 6 flag / 2 mode / 5 種 prepare-review skip reason / 6 種 validate-reviewed 情境 / reviewerFields template 保守預填 / 不寫正式題庫 / lint / typecheck / build 全綠）；確認通過後決定下一刀（建議 P3-10-K 寫入正式題庫 CLI，或 P3-10-F 後續 reviewer ergonomics）。
+**短期建議**：先讓 Codex 驗收本輪 P3-10-K 修補（驗 2 個修補 / 7 種測試結果 / 5 個檔案變動 / 正式題庫 13 題完整保留 / lint / typecheck / build 全綠）；確認通過後決定下一刀（建議 first practice paper 整盤組裝 + lib/data.ts approved 過濾，或 P3-10-G/H/I/J 題庫擴充先行）。
 
 ## 【Roadmap 同步檢查】
 
-- 🟡 **P3-10-F**：匯入題目人工審核流程（CLI + JSON workflow 第一版）——**部分完成**（2026-05-13）—— 本輪完成
+- 🟡 **P3-10-K 修補**：同批 duplicate id + QuestionSource union 驗證——**部分完成**（2026-05-14）—— 本輪完成
+- 🟡 P3-10-K：first practice paper 組裝與驗收 / approved → 正式題庫轉換 CLI（仍 🟡 部分完成，paper 整盤組裝仍 ⬜）
+- 🟡 P3-10-F 後續：reviewed output 覆寫保護 / merge-with（仍 🟡 部分完成）
+- 🟡 P3-10-F：匯入題目人工審核流程（仍 🟡）
 - 🟡 P3-10-E：AI normalizer 原型（rule-based / mock-ai 第一版）（仍 🟡）
-- ⬜ P3-10-E 後續：openai mode 落地（仍 ⬜）
+- ⬜ P3-10-E 後續：openai mode 落地
 - 🟡 P3-10-D-3：Discovery → Collector 自動 pipe（仍 🟡 部分完成）
 - 🟡 P3-10-D-2B：Discovery crawler 接真實 Search Provider 第一版（仍 🟡 happy path verified）
 - 🟡 P3-10-D-2：Discovery crawler 自動找資料來源（仍 🟡）
 - ✅ P3-10-A / B / C
-- 🟡 P3-10-D：collector 實測與第一批來源匯入（仍 🟡 部分完成）
+- 🟡 P3-10-D：collector 實測與第一批來源匯入（仍 🟡）
 - ⬜ P3-10-G / H / I / J：vocabulary 補齊、RW3 / RW1 / L3 題庫擴充
-- ⬜ P3-10-K：first practice paper 組裝與驗收（含 approved → 正式題庫的 CLI）
-- 🟡 P3-10 整體：本輪後仍 🟡（A/B/C ✅ + D 🟡 + D-2 / D-2B / D-3 🟡 + E 🟡 + **F 🟡** + G-K ⬜）—— **未把整體標完成**
+- 🟡 P3-10 整體：本輪後仍 🟡（A/B/C ✅ + D 🟡 + D-2 / D-2B / D-3 🟡 + E 🟡 + F 🟡 + F 後續 🟡 + **K 🟡 + K 修補 🟡** + G-J ⬜）—— **未把整體標完成**
 - 🟡 P3-9-C 整體：仍 🟡（26 條 ✅）
 - 🟡 P3 整體：仍 🟡 進行中——**未把整體標完成**
 - ⬜ P4 / P5：仍未開始
 
-**特別注意**：本輪只做人工審核流程第一版，**不寫正式題庫，不改 `/quiz`**；`data/p3-example-questions.json` / `data/exam-papers.example.json` / `public/images/` / `public/audio/` 皆完整保留未動；P3-10-F 標 🟡 部分完成、未誇大為完整完成；P3-10-K 寫入正式題庫的 CLI 屬獨立刀數、未實作；reviewer 仍需手動編輯 JSON（無 UI），但 CLI 提供了 prepare-review 預填 + validate-reviewed 強制驗證的兩端保護。
+**特別注意**：本輪是 P3-10-K Codex 有條件通過後的最小修補，**只做 2 個修補（同批 dup id + QuestionSource union）**；未做 first practice paper 整盤組裝；未改 `/quiz`；未動 `lib/types.ts` schema 定義（只 import union 字面量作驗證集合）；`data/p3-example-questions.json` / `data/exam-papers.example.json` 整輪未被改動（git diff HEAD 確認一致）；P3-10-K 整體仍 🟡 部分完成、未誇大為完整完成。
