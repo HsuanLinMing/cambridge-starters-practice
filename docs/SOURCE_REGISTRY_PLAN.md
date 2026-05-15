@@ -264,7 +264,7 @@ P3-10-M（2026-05-15）落地一個小工具串接 discovery output 與 source r
 - **dedup**：以 `normalizedUrl ?? url` 為 key；同 URL 多次出現只保留第一筆，後續標 `skipped_duplicate_url`
 - **跳過項目**：缺 URL / URL parse 失敗 → `skipped_missing_or_invalid_url`；超過 `--limit` → `skipped_due_to_limit`
 - **流程定位**：本 CLI 是 source registry **gate 的上游 helper**——把 discovery output 自動轉成 pending_review entries 給 reviewer 看；**不**繞過 D 段任何硬邊界。reviewer 仍須對每筆條目人工 review、改 `reviewStatus: approved_for_import` 才能進下游 normalizer / collector。
-- 下一刀：collector / normalizer 的 program-layer source-registry gate（讀 source-registry generated 且 reviewStatus === "approved_for_import" 才能下游處理）屬未來範圍、本輪不做。
+- 下一刀（**P3-10-N，2026-05-15 已落地**）：collector / normalizer 的 program-layer source-registry gate；詳見下方 E-bis-5 段。
 
 ### E-bis-1. CLI 用法
 
@@ -328,6 +328,54 @@ collector / normalizer  ← gate 屬未來範圍（本輪不做）
 
 本流程**不取代** discovery / collector / normalizer，**也不修改它們的程式**。本輪僅加一段 discovery → registry 的中介轉換。
 
+### E-bis-5. Collector / Normalizer source-first gate（P3-10-N，2026-05-15）
+
+P3-10-N 把 source-first 從**文件規範**升級到**程式層 gate**。共用 helper：
+
+- `scripts/source_registry_gate.mjs`：暴露 `normalizeSourceUrlForGate` / `loadSourceRegistry` / `buildApprovedUrlSet` / `classifyUrlAgainstRegistry` 四個函式，供下游 CLI 重用。
+
+下游 CLI 新增 optional `--source-registry <path>` flag：
+
+- `scripts/collect_discovered_resources.mjs` v0.2（P3-10-D-3 + P3-10-N）：discovery → collector pipe；提供 `--source-registry` 時，**在 eligible 之前**過一層 gate；未命中 approved_for_import 的 URL 一律 skipped（不 fetch、不解析、不寫 source-document）。
+- `scripts/normalize_collected_sources.mjs` v0.2（P3-10-E + P3-10-N）：source-documents → normalize；提供 `--source-registry` 時，gate 套用於 `source_document.url`；未命中 approved 的 source 一律輸出 skipped item（**不產 draft / observation**）。
+- `scripts/web_resource_collect.mjs` v0.1（P3-10-B + P3-10-N）：單一 URL collector；提供 `--source-registry` 時，gate 套用於 `--url`；未命中 approved 則**不 fetch、不寫檔**直接 exit 0 並印原因（保留與其他 CLI 一致的「gate 拒絕不算錯誤、只是不進下游」語義）。
+
+#### URL normalization 規則（v0.1，保守）
+
+對齊 `scripts/source_registry_gate.mjs` 的 `normalizeSourceUrlForGate`：
+
+1. 解析為 URL；不可解析 → null（caller 應跳過）
+2. **protocol 保留**（`http` 與 `https` 視為不同 URL）
+3. **host 轉小寫**（DNS 不分大小寫）
+4. **pathname** 結尾若為單一 `/` 保留；其他 trailing slash 移除（`https://example.com/` 保留尾斜線；`https://example.com/x/` → `https://example.com/x`）
+5. **search**（query string）**保留**（可能帶有意義如 `?id=123`）
+6. **fragment** (`#anchor`) **移除**（僅 client-side）
+
+**特別說明**：本規則**不**做 utm_* / tracking param 清除——若 reviewer 需要更激進的 normalization，需在 registry 的 sourceUrl 與 caller 上游同步處理。
+
+#### Gate 行為總覽
+
+| Caller / 情境 | 動作 |
+| --- | --- |
+| `--source-registry` 未提供 | 印 warning「source-first gate 未啟用」；行為與 P3-10-M 前相同（**legacy / dev flow**，正式匯入版**應該**始終提供） |
+| registry 命中 `approved_for_import` | 通過 gate，進下游處理 |
+| URL 不在 registry | skipped + `skipped_not_in_source_registry` |
+| URL 在 registry 但 `reviewStatus != approved_for_import` | skipped + `skipped_source_not_approved_for_import`（warning message 帶 sourceId + 實際 reviewStatus） |
+| URL 不可解析 | skipped + `skipped_invalid_url_for_gate` |
+| Registry JSON 不是 array / parse 失敗 | exit 2 + 印提示「請用 scripts/validate_source_registry.mjs 檢查」 |
+| Registry 含 duplicate sourceId | gate 仍可運作（取第一個）；印 stderr warning 提醒 reviewer 修正 |
+| **domain-only 放行**（同網域不同 path 自動通過） | **絕對不做** — 必須 exact match 後的 normalized URL |
+| Gate 通過 ≠ 題目通過 human review | gate 是「來源層」通過；題目仍須走 P3-10-E normalizer + P3-10-F human review |
+
+#### 不在 P3-10-N 範圍
+
+- ❌ Gate 不檢查 source registry 內 entries 之間的 sourceId 唯一性（已由 `validate_source_registry.mjs` v0.1.1 處理；gate 端只記 warning）
+- ❌ Gate 不做 fuzzy match / domain-level 比對
+- ❌ Gate 不修改 source registry / 不寫 metadata 回 registry
+- ❌ Gate 不取代後續 normalizer rule-based judgement / human review
+
+詳見 `reports/claude_last_report.md`（本輪報告）「Source registry gate 設計」段。
+
 ---
 
 ## G. 本輪（P3-10-L）落地範圍
@@ -355,5 +403,6 @@ collector / normalizer  ← gate 屬未來範圍（本輪不做）
 
 ## H. 版本
 
+- **v1.2**（2026-05-15，P3-10-N：Collector / Normalizer approved_for_import gate）：E-bis 段新增 E-bis-5 子段「Collector / Normalizer source-first gate」，涵蓋（a）共用 helper `scripts/source_registry_gate.mjs` 4 個函式；（b）三個下游 CLI 新增 `--source-registry` flag（`collect_discovered_resources.mjs` v0.2 / `normalize_collected_sources.mjs` v0.2 / `web_resource_collect.mjs` v0.1）；（c）URL normalization v0.1 規則 6 條；（d）Gate 行為總覽表 8 種情境；（e）不在 P3-10-N 範圍 4 條硬邊界。本檔不修改 source registry schema / 不修改 source-first 原則 / 不修改 D 段硬邊界。
 - **v1.1**（2026-05-15，P3-10-M：Source registry generated workflow）：新增 E-bis 段落「Discovery → Source Registry Generated Workflow」共 4 個子段（E-bis-1 CLI 用法 / E-bis-2 flags / E-bis-3 console summary 範例 / E-bis-4 與既有 discovery / collector 的關係）；對應 `scripts/build_source_registry.mjs` v0.1：deterministic sourceId / dedup by normalizedUrl ?? url / 保守 publisher allowlist / sourceKind 與 publisherType 一致性自動降級 / **絕不**輸出 `approved_for_import` / 預設 `pending_review`；高風險自動升 `needs_manual_check`。**本輪不改 schema / 不改 source-first 原則 / 不改 D 段硬邊界**——只是補一段 discovery → registry 的中介工具。
 - **v1**（2026-05-14）：第一版——P3-10-L 規劃文件骨架；定義 7 種 sourceKind / 5 種 publisherType / 5 種 collectionStatus / 4 種 reviewStatus；source-first 原則 6 條；匯入規則 D-1 ~ D-6 硬邊界。

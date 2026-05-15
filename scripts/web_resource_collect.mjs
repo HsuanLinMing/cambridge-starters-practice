@@ -38,9 +38,14 @@
  * 不需要安裝任何依賴——使用 Node 內建 fetch（Node 18+ 支援）。
  */
 
-import { writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  loadSourceRegistry,
+  buildApprovedUrlSet,
+  classifyUrlAgainstRegistry,
+} from "./source_registry_gate.mjs";
 
 const COLLECTOR_VERSION = "web_resource_collect.mjs@v0.1";
 const COLLECTOR_USER_AGENT = "cambridge-starters-practice-collector/0.1";
@@ -61,7 +66,7 @@ const DEFAULT_DOC_OUT = join(
   "source-document.generated.json",
 );
 
-const HELP_TEXT = `\nweb_resource_collect.mjs — P3-10-B collector CLI v0.1\n
+const HELP_TEXT = `\nweb_resource_collect.mjs — P3-10-B / P3-10-N collector CLI v0.1\n
 Usage:
   node scripts/web_resource_collect.mjs --mode <mode> --url <url> [options]
 
@@ -75,6 +80,13 @@ Options:
                            user_verified | ai_generated | custom | handmade | unknown
                            (default: unknown)
   --source-name <name>     Human-readable source name (default: <sourceDomain>)
+  --source-registry <path> Optional (P3-10-N, 2026-05-15): source registry JSON path.
+                           When provided, the single --url MUST match a registry
+                           entry with reviewStatus="approved_for_import"; otherwise
+                           the CLI exits **without fetching** (exit 0, prints reason).
+                           URL normalization rule: lowercase host, strip trailing
+                           slash (except "/"), preserve search, drop fragment.
+                           When omitted, the CLI behaves as before (legacy / dev flow).
   --out <path>             Override output path (default: data/imported/<mode>.generated.json)
   --timeout <ms>           Fetch timeout in milliseconds (default: 15000)
   --help                   Show this help
@@ -83,6 +95,10 @@ Examples:
   node scripts/web_resource_collect.mjs --mode index-only --url https://example.com
   node scripts/web_resource_collect.mjs --mode full-text --url https://example.com \\
     --source-type user_verified
+  # P3-10-N: source-first gate
+  node scripts/web_resource_collect.mjs --mode index-only \\
+    --url https://example.com/approved \\
+    --source-registry data/imported/source-registry.generated.json
 `;
 
 // ---------------------------------------------------------------------------
@@ -95,6 +111,7 @@ function parseArgs(argv) {
     url: null,
     sourceType: "unknown",
     sourceName: null,
+    sourceRegistry: null,
     out: null,
     timeout: DEFAULT_TIMEOUT_MS,
     help: false,
@@ -111,6 +128,8 @@ function parseArgs(argv) {
       out.sourceType = argv[++i];
     } else if (arg === "--source-name") {
       out.sourceName = argv[++i];
+    } else if (arg === "--source-registry") {
+      out.sourceRegistry = argv[++i];
     } else if (arg === "--out") {
       out.out = argv[++i];
     } else if (arg === "--timeout") {
@@ -543,6 +562,53 @@ async function main() {
     process.exit(2);
   }
 
+  // P3-10-N (2026-05-15): optional source-first gate.
+  // 若提供 --source-registry，必須命中 reviewStatus=approved_for_import；否則不 fetch、不寫檔。
+  if (args.sourceRegistry) {
+    const readJsonFile = async (path) => {
+      const raw = await readFile(path, "utf8");
+      try {
+        return JSON.parse(raw);
+      } catch (err) {
+        throw new Error(`JSON parse 失敗：${path}（${err.message}）`);
+      }
+    };
+    let registry;
+    try {
+      registry = await loadSourceRegistry(args.sourceRegistry, { readJsonFile });
+    } catch (err) {
+      console.error(`Error: ${err.message}`);
+      console.error(
+        "提示：source registry JSON 必須是最外層陣列；可用 scripts/validate_source_registry.mjs 檢查。",
+      );
+      process.exit(2);
+    }
+    const { approvedUrls, duplicateIds } = buildApprovedUrlSet(registry);
+    if (duplicateIds.length > 0) {
+      console.error(
+        `[collector] warning: source registry contains duplicate sourceId(s): ${duplicateIds.join(", ")}（gate 仍可運作）`,
+      );
+    }
+    const classification = classifyUrlAgainstRegistry(args.url, registry, approvedUrls);
+    if (!classification.matched) {
+      console.error(
+        `[collector] source-first gate: ${classification.reason} — url="${args.url}" ` +
+          (classification.status
+            ? `(registry sourceId=${classification.sourceId ?? "?"} reviewStatus="${classification.status}")`
+            : "(not in registry)") +
+          "；本 CLI 不 fetch、不寫檔。",
+      );
+      process.exit(0);
+    }
+    console.error(
+      `[collector] source-first gate: approved (sourceId=${classification.sourceId ?? "?"})`,
+    );
+  } else {
+    console.error(
+      "[collector] warning: --source-registry 未指定，source-first gate 未啟用；本次 run 屬 dev / legacy flow。",
+    );
+  }
+
   console.error(
     `[collector] mode=${args.mode} url=${args.url} sourceType=${args.sourceType}`,
   );
@@ -597,7 +663,7 @@ async function main() {
 // P3-10-D-3 補強（2026-05-13）：把 main() 包進「是否為直接 CLI 呼叫」的判斷，
 // 讓其他腳本（例如 scripts/collect_discovered_resources.mjs）可以 import 此檔的
 // helper 函式而不會觸發 CLI flow。CLI 行為對使用者完全不變。
-import { pathToFileURL } from "node:url";
+// P3-10-N（2026-05-15）：pathToFileURL 已搬到頂部 import；此處不再重複 import。
 const isCliInvocation = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
 if (isCliInvocation) {
   main().catch((err) => {

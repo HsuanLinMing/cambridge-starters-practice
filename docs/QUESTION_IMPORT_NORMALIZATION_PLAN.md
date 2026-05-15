@@ -18,7 +18,7 @@
 - **每題保留來源**：對應 [`docs/PRACTICE_DATA_IMPORT_PLAN.md`](./PRACTICE_DATA_IMPORT_PLAN.md) D 段欄位要求。
 - **可重跑、可回溯**：normalizer 重跑覆寫 `.generated.json`；正式 `data/*.json` 由維護者 commit、不被 normalizer 覆寫。
 - **不直接使用外部資產**：圖片 / 音檔仍改用自家 SVG / 自製 TTS；normalizer 只填邏輯欄位、不貼外部 URL 到 `image` / `audioSrc`。
-- **source-first（P3-10-L，2026-05-14）**：normalizer 只能接受**已在 source registry 中標 `approved_for_import`** 的來源；`pending_review` / `needs_manual_check` / `rejected` 一律拒絕。`ai_generated` **不得**用來補正式題庫數量。詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)。
+- **source-first（P3-10-L，2026-05-14；P3-10-N 程式層 gate 已落地，2026-05-15）**：normalizer 只能接受**已在 source registry 中標 `approved_for_import`** 的來源；`pending_review` / `needs_manual_check` / `rejected` 一律拒絕。`scripts/normalize_collected_sources.mjs` v0.2 起新增 `--source-registry <path>` flag：提供時於程式層強制 gate；未命中 approved 的 source_document 一律僅輸出 skipped item（**不產 draft / observation**），3 種 skipped reason：`skipped_not_in_source_registry` / `skipped_source_not_approved_for_import` / `skipped_invalid_url_for_gate`。`ai_generated` **不得**用來補正式題庫數量。詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) E-bis-5 段。
 
 ---
 
@@ -719,6 +719,7 @@ preview / write 兩 mode 共用：
 
 ## G. 版本
 
+- **v4.4**（2026-05-15，P3-10-N：Collector / Normalizer approved_for_import gate）：A 段「關鍵原則」source-first 條補「P3-10-N 程式層 gate 已落地」說明——`scripts/normalize_collected_sources.mjs` v0.2 新增 `--source-registry <path>` flag，gate 強制套用於 `source_document.url`；未命中 approved 的 source 一律只輸出 skipped item（不產 draft / observation），三種 skipped reason：`skipped_not_in_source_registry` / `skipped_source_not_approved_for_import` / `skipped_invalid_url_for_gate`。本檔不修改 normalizer 5 種 reviewStatus 狀態機 / 不修改 D 段流程；屬上游 gate 補強。
 - **v4.3**（2026-05-14，P3-10-L：正式來源優先匯入規則 + Source Registry）：A 段「關鍵原則」補 source-first 條（normalizer 只能接受 source registry `approved_for_import` 來源、ai_generated 不得補正式題庫數量）；F 段「與既有文件的關係」加 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) 對齊重點。本檔仍屬規劃層，**不修改** schema / 不修改正式題庫 / 不修改 normalizer 實作；後續刀數可在 normalizer 內補 source registry gate 檢查（屬未來範圍，本輪不做）。
 - **v4.2**（2026-05-14，P3-10-K 第二刀：first practice paper 組裝 / paper-level metadata）：F-pre-8 新增 F-pre-8-g 段共 7 個子段（兩 mode + 雙開關 / 組裝策略 / sourceMix 統計 / Part 覆蓋率檢查 / Duplicate paper id 保護 / Output schema / Warning code 表 / v0.1 不做清單）；原 F-pre-8-g「不在 v0.1 範圍」更名 F-pre-8-h。對應 `scripts/assemble_practice_paper.mjs` v0.1：預設 preview、雙開關（`--mode write` + `--write yes`）；duplicate paper id 全域 exit 2；不挑題不重排；不切換 `/quiz` 載入來源（lib/data.ts 未動）。
 - **v4.1**（2026-05-14，P3-10-K 修補：Codex 有條件通過後）：F-pre-8-d 改寫拆 `duplicate_id_in_target` / `duplicate_id_in_batch` 兩個 warning code + 對應 summary 欄位 `duplicateIdsInTarget` / `duplicateIdsInBatch`（`duplicateIds` 仍記聯集數量）；F-pre-8-e 補 `source` 規則對齊 `QuestionSource` union 4 種字面量、非 union 值不 silent fallback。對應 `scripts/approve_reviewed_questions.mjs` v0.1.1。

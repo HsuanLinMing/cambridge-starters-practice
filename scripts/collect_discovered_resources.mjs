@@ -55,12 +55,17 @@ import {
   buildResourceIndexEntry,
   buildSourceDocumentEntry,
 } from "./web_resource_collect.mjs";
+import {
+  loadSourceRegistry,
+  buildApprovedUrlSet,
+  classifyUrlAgainstRegistry,
+} from "./source_registry_gate.mjs";
 
 // ===========================================================================
 // 0. 常數
 // ===========================================================================
 
-const PIPE_VERSION = "collect_discovered_resources.mjs@v0.1";
+const PIPE_VERSION = "collect_discovered_resources.mjs@v0.2";
 const DEFAULT_LIMIT = 5;
 const INTER_FETCH_DELAY_MS = 500;
 const ASSET_RESOURCE_TYPES = new Set(["pdf", "image", "audio", "video"]);
@@ -80,11 +85,12 @@ const DEFAULT_OUT = resolve(
   "source-documents.batch.generated.json",
 );
 
-const HELP_TEXT = `\ncollect_discovered_resources.mjs — P3-10-D-3 Discovery → Collector pipe v0.1\n
+const HELP_TEXT = `\ncollect_discovered_resources.mjs — P3-10-D-3 / P3-10-N Discovery → Collector pipe v0.2\n
 Usage:
   node scripts/collect_discovered_resources.mjs \\
     --input <discovered-resources.generated.json> \\
     --out <source-documents.batch.generated.json> \\
+    [--source-registry <source-registry.generated.json>] \\
     [--limit ${DEFAULT_LIMIT}] \\
     [--only-should-collect yes|no] \\
     [--dry-run yes|no]
@@ -92,6 +98,10 @@ Usage:
 Options:
   --input <path>                 選填；discovery output JSON（預設 data/imported/discovered-resources.generated.json）
   --out <path>                   選填；batch output JSON（預設 data/imported/source-documents.batch.generated.json）
+  --source-registry <path>       選填；source registry JSON（P3-10-N，2026-05-15）
+                                 提供時啟用 source-first gate：只有 reviewStatus="approved_for_import"
+                                 的 source URL 才會被處理；其他狀態的 URL 一律 skip
+                                 （詳見 docs/SOURCE_REGISTRY_PLAN.md 的 D-1 規則與本檔 P3-10-N 段）
   --limit <n>                    選填；最多處理 N 筆 eligible（預設 ${DEFAULT_LIMIT}）；防呆避免一次抓太多
   --only-should-collect <yes|no> 選填；預設 yes；no 時連 shouldCollect=false 也會跑（仍記 reason）
   --dry-run <yes|no>             選填；預設 no；yes 時不 fetch URL，只列出會處理哪些 resource，每筆 status="dry_run"
@@ -99,6 +109,15 @@ Options:
 
 Pipe 行為：
   - shouldCollect=true（且 --only-should-collect=yes）的條目進入 eligible 清單
+  - 若提供 --source-registry：在 eligible 之前再過一道 source-first gate
+      * approved_for_import → 通過
+      * pending_review / needs_manual_check / rejected → skipped_source_not_approved_for_import
+      * URL 不在 registry → skipped_not_in_source_registry
+      * URL 不可解析 → skipped_invalid_url_for_gate
+      * URL normalization 規則：lowercase host / strip trailing slash（pathname=/ 除外）/
+        保留 search / 移除 fragment（詳見 scripts/source_registry_gate.mjs）
+  - 若未提供 --source-registry：印 warning（不阻斷），dev / legacy flow 可繼續跑；
+    正式匯入版**應該**始終提供 --source-registry
   - 依 limit 取前 N 筆 eligible，其餘標 skipped + skip_due_to_limit
   - resourceType ∈ { pdf, image, audio, video }：HEAD 抓 metadata（contentType / contentLength / httpStatus），warnings 含 asset_collection_not_implemented（pdf 多一筆 pdf_parser_not_implemented），**不下載 binary / 不解析**
   - 其他 resourceType + collectorMode=full-text：重用 collector buildSourceDocumentEntry（含 cleanedText / headings / links / assets / extractedCandidates）
@@ -138,6 +157,7 @@ function parseArgs(argv) {
   const out = {
     input: null,
     out: null,
+    sourceRegistry: null,
     limit: null,
     onlyShouldCollect: true,
     dryRun: false,
@@ -151,6 +171,8 @@ function parseArgs(argv) {
       out.input = argv[++i];
     } else if (arg === "--out") {
       out.out = argv[++i];
+    } else if (arg === "--source-registry") {
+      out.sourceRegistry = argv[++i];
     } else if (arg === "--limit") {
       const n = Number(argv[++i]);
       if (!Number.isInteger(n) || n <= 0) {
@@ -380,10 +402,14 @@ async function main() {
 
   const inputPath = args.input ? resolve(args.input) : DEFAULT_INPUT;
   const outPath = args.out ? resolve(args.out) : DEFAULT_OUT;
+  const sourceRegistryPath = args.sourceRegistry ? resolve(args.sourceRegistry) : null;
   const limit = args.limit ?? DEFAULT_LIMIT;
 
   console.error(
-    `[pipe] input=${inputPath} out=${outPath} limit=${limit} only-should-collect=${args.onlyShouldCollect ? "yes" : "no"} dry-run=${args.dryRun ? "yes" : "no"}`,
+    `[pipe] input=${inputPath} out=${outPath} limit=${limit} ` +
+      `source-registry=${sourceRegistryPath ?? "(none — source-first gate disabled)"} ` +
+      `only-should-collect=${args.onlyShouldCollect ? "yes" : "no"} ` +
+      `dry-run=${args.dryRun ? "yes" : "no"}`,
   );
 
   let inputData;
@@ -402,9 +428,44 @@ async function main() {
     process.exit(2);
   }
 
+  // P3-10-N：載入 source registry（若有 --source-registry）
+  let sourceRegistry = null;
+  let approvedUrls = null;
+  let duplicateSourceIds = [];
+  if (sourceRegistryPath) {
+    try {
+      sourceRegistry = await loadSourceRegistry(sourceRegistryPath, { readJsonFile });
+    } catch (err) {
+      console.error(`Error: ${err.message}`);
+      console.error(
+        "提示：source registry JSON 必須是最外層陣列，且每筆條目應符合 scripts/validate_source_registry.mjs 的 schema。",
+      );
+      process.exit(2);
+    }
+    const built = buildApprovedUrlSet(sourceRegistry);
+    approvedUrls = built.approvedUrls;
+    duplicateSourceIds = built.duplicateIds;
+    if (duplicateSourceIds.length > 0) {
+      console.error(
+        `[pipe] warning: source registry contains duplicate sourceId(s): ${duplicateSourceIds.join(", ")}（gate 仍可運作；建議跑 scripts/validate_source_registry.mjs 修正後重試）`,
+      );
+    }
+    console.error(
+      `[pipe] source-first gate enabled: registry=${sourceRegistry.length} entries, approvedSources=${approvedUrls.size}`,
+    );
+  } else {
+    console.error(
+      "[pipe] warning: --source-registry 未指定，source-first gate 未啟用；本次 run 屬 dev / legacy flow，正式匯入版**應該**始終提供 --source-registry。",
+    );
+  }
+
   // 分流：eligible（shouldCollect=true 或 --only-should-collect=no）vs skipped
   const items = [];
   const eligible = [];
+  let skippedNotInSourceRegistry = 0;
+  let skippedSourceNotApprovedForImport = 0;
+  let skippedInvalidUrlForGate = 0;
+
   for (const e of inputData) {
     if (!e || typeof e.url !== "string" || !e.url) {
       const baseItem = makeBaseItem(e ?? {});
@@ -425,6 +486,31 @@ async function main() {
       });
       items.push(baseItem);
       continue;
+    }
+    // P3-10-N：source registry gate
+    if (approvedUrls) {
+      const classification = classifyUrlAgainstRegistry(e.url, sourceRegistry, approvedUrls);
+      if (!classification.matched) {
+        const baseItem = makeBaseItem(e);
+        baseItem.status = "skipped";
+        let message;
+        if (classification.reason === "skipped_not_in_source_registry") {
+          message = `URL 不在 source registry 中；gate 拒絕。normalizedUrl=${classification.normalizedUrl}`;
+          skippedNotInSourceRegistry += 1;
+        } else if (classification.reason === "skipped_source_not_approved_for_import") {
+          message = `source registry 中 sourceId=${classification.sourceId ?? "?"} reviewStatus="${classification.status}" ≠ "approved_for_import"；gate 拒絕`;
+          skippedSourceNotApprovedForImport += 1;
+        } else {
+          message = `URL 不可解析為合法 URL；gate 拒絕`;
+          skippedInvalidUrlForGate += 1;
+        }
+        baseItem.warnings.push({
+          code: classification.reason,
+          message,
+        });
+        items.push(baseItem);
+        continue;
+      }
     }
     eligible.push(e);
   }
@@ -459,6 +545,21 @@ async function main() {
   const dryRunCount = items.filter((it) => it.status === "dry_run").length;
   const skipped = items.filter((it) => it.status === "skipped").length;
   const failed = items.filter((it) => it.status === "failed").length;
+  const sourceRegistrySummary = sourceRegistryPath
+    ? {
+        sourceRegistryInput: sourceRegistryPath,
+        sourceRegistryEntries: sourceRegistry.length,
+        approvedSources: approvedUrls.size,
+        duplicateSourceIdsInRegistry: duplicateSourceIds,
+        skippedNotInSourceRegistry,
+        skippedSourceNotApprovedForImport,
+        skippedInvalidUrlForGate,
+      }
+    : {
+        sourceRegistryInput: null,
+        gateEnabled: false,
+        note: "source-first gate disabled; legacy / dev flow only",
+      };
   const payload = {
     batchId: makeBatchId(),
     createdAt: new Date().toISOString(),
@@ -472,6 +573,7 @@ async function main() {
       dryRun: dryRunCount,
       skipped,
       failed,
+      sourceRegistry: sourceRegistrySummary,
     },
     items,
   };
@@ -479,7 +581,13 @@ async function main() {
   await writeJson(outPath, payload);
   console.error(
     `[pipe] wrote batch to ${outPath} — totalInput=${totalInput} eligible=${eligibleCount} ` +
-      `collected=${collected} dryRun=${dryRunCount} skipped=${skipped} failed=${failed}`,
+      `collected=${collected} dryRun=${dryRunCount} skipped=${skipped} failed=${failed}` +
+      (sourceRegistryPath
+        ? ` | gate: approvedSources=${approvedUrls.size} ` +
+          `skippedNotInRegistry=${skippedNotInSourceRegistry} ` +
+          `skippedNotApproved=${skippedSourceNotApprovedForImport}` +
+          (skippedInvalidUrlForGate > 0 ? ` skippedInvalidUrl=${skippedInvalidUrlForGate}` : "")
+        : " | gate: disabled"),
   );
 }
 
