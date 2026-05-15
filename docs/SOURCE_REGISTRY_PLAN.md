@@ -328,6 +328,85 @@ collector / normalizer  ← gate 屬未來範圍（本輪不做）
 
 本流程**不取代** discovery / collector / normalizer，**也不修改它們的程式**。本輪僅加一段 discovery → registry 的中介轉換。
 
+### E-bis-6. Merge / preserve（P3-10-O，2026-05-15）
+
+P3-10-O 補上 build → re-build 之間的「reviewer 工作保護」。`scripts/build_source_registry.mjs` 升 **v0.2** 新增 optional `--merge-with <existing-source-registry.json>` flag：
+
+- **問題**：v0.1 是覆寫式 output。若 reviewer 已把某些 generated entries 改為 `approved_for_import` + 補 `rightsNotes` / 修 `partsCovered` 等欄位，下次重跑 build 會把 reviewer 工作洗掉。
+- **解法**：merge-with 模式下，**reviewer 已編輯欄位一律保留**；新 discovery 條目照原本規則產生 pending_review / needs_manual_check；既有條目若在新 discovery input 中找不到，保留為 **orphan**（不刪、不降級 reviewStatus）。
+
+#### E-bis-6-a. Merge key 規則
+
+對齊本檔 D-5 / `scripts/source_registry_gate.mjs`：
+
+1. 主要：`normalizeSourceUrlForGate(sourceUrl)` → `url:<normalized>`（lowercase host / strip trailing slash / 保留 search / 移除 fragment）
+2. Fallback（URL 無法 normalize 時）：`title (lower-trim) | raw sourceUrl` → `fallback:<title>|<raw>`
+3. **不**只用 sourceId（sourceId 依 input 順序產生，discovery 重跑時 input 位移會錯位）
+
+#### E-bis-6-b. Preserve 欄位（reviewer 編輯保護）
+
+命中既有條目時，下列欄位一律以 existing 值覆寫 new auto-generated 值：
+
+```
+sourceId / sourceKind / publisher / publisherType / language / level / exam /
+partsCovered / accessType / collectionStatus / reviewStatus /
+provenanceNotes / rightsNotes / collectedAt / lastCheckedAt
+```
+
+**特例**：
+
+- `title`：existing 若為 `(no title …)` placeholder 才以 new 值替換；否則保留 existing
+- `fileType`：existing 為 `"unknown"` 且 new 非 `"unknown"` 才以 new 值替換；否則保留
+- `sourceUrl`：一律保留 existing（避免 case / trailing slash 差異造成 spurious diff）
+
+#### E-bis-6-c. Orphan 規則
+
+若 existing entry 在新 discovery input 中找不到對應 mergeKey：
+
+- 整筆**保留**附加到 output 尾端（不刪、不修改）
+- `reviewStatus` **不降級**——若是 `approved_for_import`，merge 後**仍是** `approved_for_import`
+- 原因：reviewer 已花時間人工審核，不應因 discovery 結果變動就丟失
+- console summary 顯示 `orphaned=N`
+
+#### E-bis-6-d. sourceId 衝突避讓
+
+- 既有 entries 一律保留原 sourceId
+- 新 entries（無 merge 命中）的 sourceId 從 `src-gen-001` 開始；若 candidate id 已被既有 entry 用過，**自動 skip 到下一個**
+- 範例：existing 含 `src-gen-001` → 新 entries 從 `src-gen-002` 起算
+- 確保最終 output 通過 `validate_source_registry.mjs` 的 duplicate sourceId 檢查
+
+#### E-bis-6-e. --merge-with 防護（exit 2 觸發條件）
+
+下列任一情況 → exit 2 + 印錯誤訊息 + 提示 + **不寫 output**：
+
+| 條件 | 錯誤訊息 |
+| --- | --- |
+| 檔案不存在 | `讀檔失敗：<path>（ENOENT …）` |
+| JSON parse 失敗 | `JSON parse 失敗：<path>（…）` |
+| 最外層不是 array | `--merge-with JSON 必須是最外層陣列：<path>（讀到 <type>）` |
+| 任一 entry 缺 sourceId | `--merge-with entry <i> 缺 sourceId 或非字串：<path>` |
+| 任一 entry 缺 sourceUrl | `--merge-with entry <i> (sourceId=…) 缺 sourceUrl 或非字串：<path>` |
+| 含 duplicate sourceId | `--merge-with 含 duplicate sourceId：<id list>。請先用 scripts/validate_source_registry.mjs 修正後重試。` |
+
+#### E-bis-6-f. Console summary 新增 counters
+
+```
+Summary (merge mode): totalInput=<N>  existingTotal=<N>  written=<N>  skipped=<N>
+  merged=<N>  newEntries=<N>  orphaned=<N>  approvedPreserved=<N>
+  reviewStatus: {...}
+  sourceKind:   {...}
+```
+
+`approvedPreserved` = 在 merged 或 orphan 條目中 `reviewStatus === "approved_for_import"` 的計數，方便 reviewer 一眼看出有多少人工審核結果被保留。
+
+#### E-bis-6-g. 不在 P3-10-O 範圍
+
+- ❌ 不在 entry 內加 non-schema 欄位（merge metadata / warning 等放 console summary，避免污染 entry-level schema、避免 validator fail）
+- ❌ 不自動 approve 任何新 entry — `approved_for_import` 仍**只**由 reviewer 手動設定
+- ❌ 不改 URL hash deterministic id（屬未來 v0.3 評估範圍；本輪維持 `src-gen-NNN` + 衝突避讓）
+- ❌ 不解決 reviewer 把同一 URL 拆成 2 個 sourceId 的情境（reviewer 自我守則）
+- ❌ 不做 diff / merge preview 模式（屬未來範圍）
+
 ### E-bis-5. Collector / Normalizer source-first gate（P3-10-N，2026-05-15）
 
 P3-10-N 把 source-first 從**文件規範**升級到**程式層 gate**。共用 helper：
@@ -403,6 +482,7 @@ P3-10-N 把 source-first 從**文件規範**升級到**程式層 gate**。共用
 
 ## H. 版本
 
+- **v1.3**（2026-05-15，P3-10-O：Source Registry merge / preserve tool）：E-bis 段新增 E-bis-6 子段「Merge / preserve」共 7 個小節（E-bis-6-a Merge key 規則 / E-bis-6-b Preserve 欄位 + title / fileType / sourceUrl 特例 / E-bis-6-c Orphan 規則 / E-bis-6-d sourceId 衝突避讓 / E-bis-6-e --merge-with 防護 exit 2 觸發條件表 / E-bis-6-f Console summary 新增 counters / E-bis-6-g 不在 P3-10-O 範圍）。對應 `scripts/build_source_registry.mjs` v0.2：新增 `--merge-with` flag；merge 後 output 仍通過 validator；approved_for_import + rightsNotes preserve；orphans 保留。本檔不修改 schema / 不修改 D 段硬邊界。
 - **v1.2**（2026-05-15，P3-10-N：Collector / Normalizer approved_for_import gate）：E-bis 段新增 E-bis-5 子段「Collector / Normalizer source-first gate」，涵蓋（a）共用 helper `scripts/source_registry_gate.mjs` 4 個函式；（b）三個下游 CLI 新增 `--source-registry` flag（`collect_discovered_resources.mjs` v0.2 / `normalize_collected_sources.mjs` v0.2 / `web_resource_collect.mjs` v0.1）；（c）URL normalization v0.1 規則 6 條；（d）Gate 行為總覽表 8 種情境；（e）不在 P3-10-N 範圍 4 條硬邊界。本檔不修改 source registry schema / 不修改 source-first 原則 / 不修改 D 段硬邊界。
 - **v1.1**（2026-05-15，P3-10-M：Source registry generated workflow）：新增 E-bis 段落「Discovery → Source Registry Generated Workflow」共 4 個子段（E-bis-1 CLI 用法 / E-bis-2 flags / E-bis-3 console summary 範例 / E-bis-4 與既有 discovery / collector 的關係）；對應 `scripts/build_source_registry.mjs` v0.1：deterministic sourceId / dedup by normalizedUrl ?? url / 保守 publisher allowlist / sourceKind 與 publisherType 一致性自動降級 / **絕不**輸出 `approved_for_import` / 預設 `pending_review`；高風險自動升 `needs_manual_check`。**本輪不改 schema / 不改 source-first 原則 / 不改 D 段硬邊界**——只是補一段 discovery → registry 的中介工具。
 - **v1**（2026-05-14）：第一版——P3-10-L 規劃文件骨架；定義 7 種 sourceKind / 5 種 publisherType / 5 種 collectionStatus / 4 種 reviewStatus；source-first 原則 6 條；匯入規則 D-1 ~ D-6 硬邊界。

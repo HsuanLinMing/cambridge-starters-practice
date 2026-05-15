@@ -166,5 +166,5 @@ reports/              # Claude / Codex 回報檔案輸出位置
 - `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` — 網路資源 collector / crawler 規劃（P3-10-B）
 - `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` — 匯入題目轉正式 schema 的 normalize 流程（P3-10-C）
 - `docs/DISCOVERY_CRAWLER_PLAN.md` — 自動發現題庫 / 歷屆考題 / 學習資源來源的 discovery crawler 規劃（P3-10-D-2）
-- `docs/SOURCE_REGISTRY_PLAN.md` — 正式來源優先匯入規則 + Source Registry（P3-10-L）：正式匯入版只接受可追溯來源；`ai_generated` 不得補正式題庫數量；E-bis 段：discovery → source registry generated workflow（`scripts/build_source_registry.mjs` v0.1，P3-10-M）；E-bis-5 段：collector / normalizer / single-URL collector 三個 CLI 加 `--source-registry` gate（P3-10-N）
+- `docs/SOURCE_REGISTRY_PLAN.md` — 正式來源優先匯入規則 + Source Registry（P3-10-L）：正式匯入版只接受可追溯來源；`ai_generated` 不得補正式題庫數量；E-bis 段：discovery → source registry generated workflow（`scripts/build_source_registry.mjs` v0.1，P3-10-M）；E-bis-5 段：collector / normalizer / single-URL collector 三個 CLI 加 `--source-registry` gate（P3-10-N）；E-bis-6 段：build CLI `--merge-with` 保留 reviewer 編輯（`scripts/build_source_registry.mjs` v0.2，P3-10-O）
 - `reports/` — Claude / Codex 回報檔案輸出位置（例如 `reports/claude_last_report.md`）

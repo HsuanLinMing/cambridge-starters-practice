@@ -1,6 +1,6 @@
-# Claude Code 回報 — P3-10-N：Collector / Normalizer approved_for_import gate
+# Claude Code 回報 — P3-10-O：Source Registry merge / preserve tool
 
-> 任務：P3-10-N — 在 collector / normalizer / single-URL collector 三個 CLI 加上 source-registry approved_for_import 程式層 gate；把 P3-10-L / P3-10-M 已建立的 source-first 規則從**文件規範**升級為**強制執行**。
+> 任務：P3-10-O — 給 `scripts/build_source_registry.mjs` 補 `--merge-with` 旗標，避免 discovery 重跑時把 reviewer 已手動審核的 source registry 條目（reviewStatus / rightsNotes / provenanceNotes / publisher / publisherType / partsCovered 等）洗掉。
 >
 > 任務日期：2026-05-15。
 
@@ -8,189 +8,181 @@
 
 ## 【本輪修改摘要】
 
-1. **新增共用 helper `scripts/source_registry_gate.mjs`**：暴露 4 個函式 `normalizeSourceUrlForGate` / `loadSourceRegistry` / `buildApprovedUrlSet` / `classifyUrlAgainstRegistry`，避免在三個 CLI 重複 URL normalization / 載入 registry / 分類邏輯。
-2. **`scripts/collect_discovered_resources.mjs` v0.1 → v0.2**：新增 `--source-registry <path>` flag；提供時於 eligible 前過 gate；未命中 approved → skipped + reason code（**不 fetch / 不 HEAD / 不寫 source-document**）。
-3. **`scripts/normalize_collected_sources.mjs` v0.1 → v0.2**：新增 `--source-registry <path>` flag；提供時 gate 套用於 `source_document.url`；未命中 approved 一律僅輸出 skipped item（**不產 draft / observation**）。
-4. **`scripts/web_resource_collect.mjs` v0.1**（最小變更）：新增 `--source-registry <path>` optional flag；提供時於 fetch 前 gate；未命中 approved → exit 0 不 fetch / 不寫檔。CLI 介面與既有 JSON schema 完全不變。
-5. **URL normalization v0.1 規則**：lowercase host / strip trailing slash（pathname=/ 除外）/ 保留 search / 移除 fragment；**絕對不做** domain-level 放行 / **不做** fuzzy match / **不做** utm_* 清除。
-6. **5 種端到端 fixture 測試全綠**（A approved + not approved + not-in-registry / B 0 approved / C no flag legacy / D invalid registry exit 2 / E URL normalization 案例）。
-7. **文件同步**：4 份 docs + roadmap + README 索引補 P3-10-N 段。
-8. **未動**：`lib/types.ts` / `lib/data.ts` / `data/p3-example-questions.json` / `data/exam-papers.example.json` / `app/*` / `components/*` / `.gitignore` / `package.json` / 任何 npm 依賴。
+1. **`scripts/build_source_registry.mjs` v0.1 → v0.2**：新增 `--merge-with <existing-source-registry.json>` flag；BUILDER_VERSION 升至 `@v0.2`；HELP_TEXT 重寫含完整 merge key / preserve / orphan / 防護說明。
+2. **mergeKey 規則**：主要 `normalizeSourceUrlForGate(sourceUrl)`（與 P3-10-N gate 共用 helper、確保兩邊比對邏輯一致）、fallback `title(lower-trim)|raw-sourceUrl`；**不**只用 sourceId。
+3. **Preserve 規則**：命中既有條目時 14 欄位一律取 existing 值（包含 `reviewStatus` / `rightsNotes` / `provenanceNotes` / `sourceKind` / `publisher` / `publisherType` / `language` / `level` / `exam` / `partsCovered` / `accessType` / `collectionStatus` / `collectedAt` / `lastCheckedAt` / `sourceId`）；`title` / `fileType` / `sourceUrl` 用條件式 preserve（不污染 reviewer 編輯）。
+4. **Orphan 規則**：既有條目在新 discovery input 中無對應 → 整筆保留附加於 output 尾；**不降級** reviewStatus（即使是 `approved_for_import`）。
+5. **sourceId 衝突避讓**：existing entries 保留原 sourceId；新 entries 的 `src-gen-NNN` 編號自動跳過已被既有 entry 使用的 id。
+6. **`--merge-with` 防護**：檔案不存在 / JSON parse 失敗 / 非 array / 任一 entry 缺 sourceId / 任一 entry 缺 sourceUrl / 含 duplicate sourceId → exit 2 + 不寫 output。
+7. **Console summary 新增 counters**：`merged` / `newEntries` / `orphaned` / `approvedPreserved` / `existingTotal`。
+8. **End-to-end fixture 測試全綠**（happy path / duplicate / non-array / malformed / missing fields / non-existent / no-flag regression / sourceId 衝突避讓 / deterministic / idempotent）。
+9. **文件同步**：`docs/SOURCE_REGISTRY_PLAN.md` 升 v1.3 新增 E-bis-6 段 / `docs/PRACTICE_DATA_IMPORT_PLAN.md` 升 v1.4 / `docs/PRACTICE_DATA_PLAN.md` 升 v1.4 / `PROJECT_ROADMAP.md` 加 🟡 P3-10-O / `README.md` 索引補 E-bis-6 引用。
 
 ---
 
 ## 【修改檔案清單】
 
-新增：
-
-- `scripts/source_registry_gate.mjs`（共用 gate helper）
-
 修改：
 
-- `scripts/collect_discovered_resources.mjs`（v0.1 → v0.2）
-- `scripts/normalize_collected_sources.mjs`（v0.1 → v0.2）
-- `scripts/web_resource_collect.mjs`（v0.1，最小變更：top-level import 整理 + --source-registry flag）
-- `docs/SOURCE_REGISTRY_PLAN.md`（升 v1.2，新增 E-bis-5 段）
-- `docs/PRACTICE_DATA_IMPORT_PLAN.md`（升 v1.3，C 段第 0 步補 P3-10-N gate 落地）
-- `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`（升 v4.4，A 段補 P3-10-N 程式層 gate）
-- `docs/WEB_RESOURCE_COLLECTOR_PLAN.md`（升 v1.4，G 段重寫補 P3-10-N gate）
-- `docs/PRACTICE_DATA_PLAN.md`（升 v1.3，F 段加 🟡 P3-10-N + B 段保持）
-- `PROJECT_ROADMAP.md`（加 🟡 P3-10-N 子彈點，完整落地說明）
-- `README.md`（SOURCE_REGISTRY_PLAN 索引條目補 E-bis-5）
-- `reports/claude_last_report.md`（本檔；覆寫上一輪 P3-10-M 內容）
+- `scripts/build_source_registry.mjs`（v0.1 → v0.2）
+- `docs/SOURCE_REGISTRY_PLAN.md`（升 v1.3，新增 E-bis-6 段 7 子段）
+- `docs/PRACTICE_DATA_IMPORT_PLAN.md`（升 v1.4，C 段第 0 步補 P3-10-O merge）
+- `docs/PRACTICE_DATA_PLAN.md`（升 v1.4，F 段加 🟡 P3-10-O）
+- `PROJECT_ROADMAP.md`（加 🟡 P3-10-O 子彈點，完整本輪落地說明）
+- `README.md`（SOURCE_REGISTRY_PLAN 索引條目補 E-bis-6 引用）
+- `reports/claude_last_report.md`（本檔；覆寫上一輪 P3-10-N 內容）
 
 未動：
 
+- `scripts/source_registry_gate.mjs`（P3-10-N 共用 helper，本輪重用 `normalizeSourceUrlForGate`，未修改）
+- `scripts/validate_source_registry.mjs` / `scripts/collect_discovered_resources.mjs` / `scripts/normalize_collected_sources.mjs` / `scripts/web_resource_collect.mjs` / `scripts/discover_resources.mjs`
 - `data/p3-example-questions.json` / `data/exam-papers.example.json`
 - `data/imported/source-registry.example.json` / `data/imported/discovered-resources.example.json` / `data/imported/search-results.example.json`
 - `lib/types.ts` / `lib/data.ts` / `components/*` / `app/*`
-- `scripts/build_source_registry.mjs` / `scripts/validate_source_registry.mjs`（P3-10-M / P3-10-L 不動）
-- `scripts/discover_resources.mjs`（discovery 不在本輪範圍）
 - `.gitignore` / `package.json`
-- 其他既有 docs（OFFICIAL_RESOURCES / DISCOVERY_CRAWLER_PLAN / 等不再 touch）
 
 ---
 
-## 【Source registry gate 設計】
+## 【merge / preserve 設計】
 
-### Helper API（`scripts/source_registry_gate.mjs`）
+### Merge key 規則（避免依賴 sourceId 位移）
 
-| 函式 | 用途 |
+`computeMergeKey(entry)` 回傳穩定的字串 key：
+
+| 優先序 | 條件 | key 形式 |
+| --- | --- | --- |
+| 1 | `sourceUrl` 可被 `normalizeSourceUrlForGate` 處理 | `url:<normalized>` |
+| 2 | normalize 失敗 + title 與 raw sourceUrl 都非空 | `fallback:<title-lower-trim>\|<raw-sourceUrl>` |
+| 3 | 都失敗 | `null` → 該條目不參與 merge match |
+
+normalize 規則對齊 P3-10-N gate（lowercase host / strip trailing slash unless pathname=`/` / 保留 search / 移除 fragment）；確保「reviewer 手動編輯 URL 大小寫」或「discovery 下次抓到 URL 帶 fragment」都還能命中。
+
+### Preserve 欄位（14 個 + 3 特例）
+
+PRESERVED_FIELDS_FROM_EXISTING 一律取 existing 值：
+
+```
+sourceId / sourceKind / publisher / publisherType / language / level / exam /
+partsCovered / accessType / collectionStatus / reviewStatus / provenanceNotes /
+rightsNotes / collectedAt / lastCheckedAt
+```
+
+特例（條件式 preserve）：
+
+| 欄位 | 行為 |
 | --- | --- |
-| `normalizeSourceUrlForGate(value)` | 把任意 URL 字串 normalize 為比對用 canonical 字串；不可解析回 null |
-| `loadSourceRegistry(path, { readJsonFile })` | 讀 registry JSON；非 array 時 throw（caller 應接住、exit 2） |
-| `buildApprovedUrlSet(registry)` | 回 `{ approvedUrls: Map<normalizedUrl, entry>, duplicateIds: string[] }`，只收 `reviewStatus === "approved_for_import"` 條目 |
-| `classifyUrlAgainstRegistry(url, registry, approvedUrls)` | 對單一 URL 回 `{ matched, status, sourceId, normalizedUrl, reason }` |
+| `title` | existing 為 `(no title …)` placeholder 才以 new 替換；否則保留 existing |
+| `fileType` | existing 為 `"unknown"` 且 new 非 `"unknown"` 才以 new 替換；否則保留 existing |
+| `sourceUrl` | 一律保留 existing（避免大小寫 / trailing slash 差異造成 spurious diff） |
 
-caller 提供 `readJsonFile` helper（mirrors 既有 CLI 的錯誤訊息風格）；helper 本身不依賴 fs，便於未來測試替換。
+### Orphan 規則
 
-### 共用 reason codes
+- existing 但新 discovery input 找不到 mergeKey → 整筆保留附加到 output 尾
+- **不降級** reviewStatus；若 existing 是 `approved_for_import`，merge 後仍是 `approved_for_import`
+- 沒 mergeKey 的 existing 條目（罕見邊界）也視為 orphan-by-default 並保留
+
+### sourceId 衝突避讓
+
+- 既有 entries 一律保留原 sourceId
+- 新 entries（無 merge 命中）配發 `src-gen-NNN`：candidate id 已被既有 entry 用過 → 自動 skip 到下一個
+- 確保最終 output 通過 `validate_source_registry.mjs` 的 duplicate sourceId 檢查
+
+---
+
+## 【--merge-with CLI 行為】
+
+```bash
+node scripts/build_source_registry.mjs \
+  --input data/imported/discovered-resources.example.json \
+  --out data/imported/source-registry.generated.json \
+  --mode build \
+  --limit 20 \
+  --merge-with data/imported/source-registry.generated.json
+```
+
+stdout 範例：
 
 ```
-skipped_not_in_source_registry             URL 不在 source registry
-skipped_source_not_approved_for_import     URL 在 registry，但 reviewStatus ≠ approved_for_import
-skipped_invalid_url_for_gate               URL 不可解析為合法 URL
+build_source_registry.mjs@v0.2
+input:       /.../discovered-resources.example.json
+out:         /.../source-registry.generated.json
+mode:        build
+limit:       20
+merge-with:  /.../existing-source-registry.json
+
+Summary (merge mode): totalInput=3  existingTotal=3  written=4  skipped=0
+  merged=2  newEntries=1  orphaned=1  approvedPreserved=2
+  reviewStatus: {"approved_for_import":2,"needs_manual_check":1,"pending_review":1}
+  sourceKind:   {"official_sample":1,"third_party_practice":2,"past_paper":1}
+
+Reminder: all written entries are auto-generated unless preserved from --merge-with.
+  - This CLI never sets approved_for_import on new entries (P3-10-L hard boundary).
+  - merge-with preserves reviewer-edited fields (reviewStatus / rightsNotes / provenanceNotes /
+    sourceKind / publisher / publisherType / partsCovered / level / exam / accessType / etc.).
+  - Reviewer must still verify each entry; merge is preserve-only, not auto-approve.
+  - Run scripts/validate_source_registry.mjs on the output to confirm schema + sourceId uniqueness.
+  - source-registry.generated.json is gitignored; do NOT commit.
 ```
 
-每個 CLI 在套用 gate 時都把這三個 code push 到對應 entry 的 warnings；上游可從 warnings 一眼看出 gate 結果。
+無 `--merge-with` 時保留既有 overwrite 行為（v0.1 不變）。
 
-### Summary 區塊（per-CLI）
+---
 
-兩個 batch CLI（`collect_discovered_resources` / `normalize_collected_sources`）的 summary 都會多一個 `sourceRegistry` 區塊：
+## 【approved_for_import preserve 結果】
+
+Fixture A 中 existing `src-test-001`（`https://example.com/a`）有 `reviewStatus="approved_for_import"` + `rightsNotes="Reviewer approved rights boundary; license confirmed 2026-05-15."` + `sourceKind="official_sample"` + `partsCovered=["RW3"]`；對應的新 discovery entry 標 `sourceType="third_party"` + `score=6`，若不 merge 會被自動降級為 `third_party_practice` + `pending_review`。
+
+merge 後 output 顯示：
 
 ```jsonc
-"sourceRegistry": {
-  "sourceRegistryInput": "/abs/path/to/source-registry.generated.json",  // null when --source-registry not provided
-  "sourceRegistryEntries": 3,
-  "approvedSources": 1,
-  "duplicateSourceIdsInRegistry": [],
-  "skippedNotInSourceRegistry": 1,
-  "skippedSourceNotApprovedForImport": 2,
-  "skippedInvalidUrlForGate": 0
+{
+  "sourceId": "src-test-001",
+  "title": "Reviewer-approved A page",
+  "sourceKind": "official_sample",                                     // preserved
+  "sourceUrl": "https://example.com/a",                                // preserved (existing exact form)
+  "publisher": "Cambridge Assessment English",                         // preserved
+  "publisherType": "official",                                         // preserved
+  "partsCovered": ["RW3"],                                             // preserved (not overwritten to ["unknown"])
+  "reviewStatus": "approved_for_import",                               // preserved — the critical one
+  "rightsNotes": "Reviewer approved rights boundary; license confirmed 2026-05-15.",  // preserved
+  ...
 }
 ```
 
-當 `--source-registry` 未提供時：
-
-```jsonc
-"sourceRegistry": {
-  "sourceRegistryInput": null,
-  "gateEnabled": false,
-  "note": "source-first gate disabled; legacy / dev flow only"
-}
-```
-
-stderr 行也對應印 `gate: approvedSources=X skippedNotInRegistry=Y skippedNotApproved=Z` 摘要，方便 reviewer 在 console 快速看到 gate 結果。
+✅ Reviewer 的人工審核結果完整保留；新 discovery 的保守推論**不**覆蓋。
 
 ---
 
-## 【collect_discovered_resources gate 結果】
+## 【orphaned entry 保留結果】
 
-執行：
+Fixture A 中 existing `src-test-orphan`（`https://example.com/orphan`）在 existing registry 內但**不**在新 discovery input 中。它的初始狀態：
 
-```bash
-node scripts/collect_discovered_resources.mjs \
-  --input /tmp/p3-10-n/discovery.json \
-  --out /tmp/p3-10-n/batch.json \
-  --source-registry /tmp/p3-10-n/registry.json \
-  --limit 10 --dry-run yes
-```
+- `reviewStatus="approved_for_import"`
+- `rightsNotes="Reviewer confirmed YLE 台灣 official agent license OK for personal use."`
+- `sourceKind="past_paper"`
+- `partsCovered=["L1", "L2", "L3"]`
+- `publisher="YLE 台灣"` / `publisherType="school"`
+- `fileType="pdf"`
+- `collectedAt="2026-05-12T00:00:00.000Z"`
 
-Registry：1 approved（`/approved`）/ 1 pending_review（`/pending`）/ 1 needs_manual_check（`/check`）。
-Discovery：4 URLs（approved / pending / check / not-in-registry）。
-
-**結果**：
-
-| disc id | URL | status | reason code |
-| --- | --- | --- | --- |
-| disc-A | `/approved` | `dry_run`（gate 通過）| `dry_run` |
-| disc-B | `/pending` | `skipped` | `skipped_source_not_approved_for_import` |
-| disc-C | `/check` | `skipped` | `skipped_source_not_approved_for_import` |
-| disc-D | `/not-in-registry` | `skipped` | `skipped_not_in_source_registry` |
-
-Summary：`totalInput=4 eligible=1 collected=0 dryRun=1 skipped=3 failed=0`；
-sourceRegistry：`approvedSources=1 skippedNotInRegistry=1 skippedNotApproved=2 skippedInvalidUrl=0`。
+merge 後仍**整筆保留**附加到 output 尾，**所有欄位完全不動**。Console summary 顯示 `orphaned=1`、`approvedPreserved=2`（含 src-test-001 + src-test-orphan）。
 
 ---
 
-## 【normalize_collected_sources gate 結果】
+## 【duplicate / invalid merge-with 防護】
 
-執行：
+下列 6 種情況一律 **exit 2 + 不寫 output**：
 
-```bash
-node scripts/normalize_collected_sources.mjs \
-  --input /tmp/p3-10-n/source-docs-batch.json \
-  --out /tmp/p3-10-n/normalized.json \
-  --source-registry /tmp/p3-10-n/registry.json \
-  --mode rule-based --limit 10
-```
-
-Input batch 含 3 個 `status=collected` + `document.kind=source_document` 條目（approved / pending / not-in-registry），各帶 1 個 `extractedCandidate`。
-
-**結果**：
-
-| disc id | URL | status | draft 產出 | reason code |
-| --- | --- | --- | --- | --- |
-| disc-A | `/approved` | `draft`（gate 通過、產 draft） | ✅ 有 draft | `rule_based_no_answer_inferred` |
-| disc-B | `/pending` | `skipped`（gate 拒絕，**不產 draft / observation**）| ❌ | `skipped_source_not_approved_for_import` |
-| disc-D | `/not-in-registry` | `skipped`（gate 拒絕）| ❌ | `skipped_not_in_source_registry` |
-
-Summary：`totalInput=3 eligible=1 drafts=1 observations=0 skipped=2 failed=0`；
-sourceRegistry：`approvedSources=1 skippedNotInRegistry=1 skippedNotApproved=1 skippedInvalidUrl=0`。
-
-**驗收要點**：未命中 approved 的 source 一律**不產 draft、不產 observation**——避免題庫被未授權來源污染。
-
----
-
-## 【URL normalization 規則】
-
-對齊 `scripts/source_registry_gate.mjs` 的 `normalizeSourceUrlForGate(value)`：
-
-| Step | 規則 |
+| 情境 | 觸發訊息 |
 | --- | --- |
-| 1 | URL parse；不可解析回 null（caller 應分類為 `skipped_invalid_url_for_gate`） |
-| 2 | **protocol 保留**（`http` / `https` 視為不同 URL） |
-| 3 | **host 轉小寫**（`EXAMPLE.COM/x` 與 `example.com/x` 視為同 URL） |
-| 4 | **pathname**：結尾若為單一 `/` 保留（如 `https://example.com/`）；其他 trailing slash 移除（如 `/x/` → `/x`） |
-| 5 | **search**（query string）**保留** — 可能帶有意義（如 `?id=123` / `download.asp?file=xxx`） |
-| 6 | **fragment**（`#anchor`）**移除** — 純 client-side、不影響來源同一性 |
+| 含 duplicate sourceId（兩筆 `src-dup`） | `--merge-with 含 duplicate sourceId：src-dup。請先用 scripts/validate_source_registry.mjs 修正後重試。` |
+| Non-array JSON（`{"not": "an array"}`） | `--merge-with JSON 必須是最外層陣列：<path>（讀到 object）` |
+| Malformed JSON | `JSON parse 失敗：<path>（Expected property name …）` |
+| Entry 缺 sourceId | `--merge-with entry <i> 缺 sourceId 或非字串：<path>` |
+| Entry 缺 sourceUrl | `--merge-with entry <i> (sourceId=…) 缺 sourceUrl 或非字串：<path>` |
+| 檔案不存在 | `讀檔失敗：<path>（ENOENT …）` |
 
-**特別不做**：
-- ❌ 不做 utm_* / tracking param 清除（屬未來範圍；若 reviewer 需要更激進的 normalization，需在 registry 的 sourceUrl 與 caller 上游同步處理）
-- ❌ 不做 domain-only 放行（同網域不同 path 一律視為不同 source）
-- ❌ 不做 fuzzy match
-
-### Fixture E 驗收
-
-Registry 標 `https://example.com/approved/`（**尾斜線**）+ discovery 三個變體：
-
-| discovery URL | 比對結果 |
-| --- | --- |
-| `https://example.com/approved` | ✅ matched（尾斜線標準化） |
-| `https://EXAMPLE.COM/approved` | ✅ matched（host case 標準化） |
-| `https://example.com/approved#section1` | ✅ matched（fragment 移除） |
-
-3 URLs 都正確通過 gate。
+驗證：所有 6 種情境跑完後 `merged-x.json` 都**未產生**（檔案系統檢查確認）。
 
 ---
 
@@ -198,18 +190,18 @@ Registry 標 `https://example.com/approved/`（**尾斜線**）+ discovery 三�
 
 | Fixture | 內容 | 預期 | 實際 |
 | --- | --- | --- | --- |
-| **A：approved + not approved + not-in-registry** | registry 1 approved / 1 pending_review / 1 needs_manual_check；4 discovery URLs | 1 通過 / 3 skipped 並分類正確 | ✅ collect pipe：dryRun=1 / skipped=3（含 2× not_approved + 1× not_in_registry）；normalizer：drafts=1 / skipped=2 |
-| **B：0 approved sources** | registry 1 entry pending_review；4 discovery URLs | 全部 skipped、`approvedSources=0`、不 crash | ✅ collect pipe：eligible=0 / dryRun=0 / skipped=4；approvedSources=0 |
-| **C：no `--source-registry`** | flag 省略 | 既有行為（無 regression）+ warning 提示 | ✅ collect pipe：eligible=4 / dryRun=4 / skipped=0；stderr 印 warning；summary `sourceRegistry={gateEnabled:false}` |
-| **D：invalid registry JSON** | registry 是 `{ "not": "array" }` 物件 / 或 malformed JSON | exit 2 + 印 hint + **不寫輸出檔** | ✅ 兩種 invalid 路徑都 exit 2；batch.json 未建立 |
-| **E：URL normalization** | registry sourceUrl 帶尾斜線；discovery 3 變體（無尾斜線 / 大寫 host / 含 fragment） | 3 個都 matched | ✅ 全部 dry_run、approvedSources=1、skipped=0 |
-| **web_resource_collect gate rejection** | `--url /not-in-registry` + `--source-registry registry.json` | exit 0 不 fetch / 不寫檔、stderr 印原因 | ✅ exit=0；印 `skipped_not_in_source_registry` |
-| **web_resource_collect pending_review** | `--url /pending` + `--source-registry registry.json` | exit 0、印 sourceId + reviewStatus | ✅ 印 `sourceId=src-test-002 reviewStatus="pending_review"` |
-| **web_resource_collect invalid registry** | `--url /approved` + `--source-registry registry-bad-shape.json` | exit 2 + hint | ✅ exit 2 |
-| **normalize_collected_sources no gate** | `--source-registry` 省略 | 既有行為（3 個都產 draft）+ warning | ✅ drafts=3 / skipped=0；gate: disabled |
-| **normalize_collected_sources invalid registry** | invalid JSON | exit 2 | ✅ exit 2 |
+| **A: happy path merge** | existing 3 (approved A + rightsNotes / needs_manual_check B / approved orphan + rightsNotes) × discovery 3 (a / b / c) | 4 筆 output；a/b preserve；c 新 pending_review；orphan 保留 approved；validator pass | ✅ written=4 / merged=2 / newEntries=1 / orphaned=1 / approvedPreserved=2 / validator 4/4 PASS / duplicateSourceIds=0 |
+| **B: duplicate sourceId in merge-with** | existing 2 筆都用 `src-dup` | exit 2 + 不寫 output | ✅ exit=2；output 檔不存在 |
+| **C: non-array merge-with** | `{"not": "array"}` | exit 2 + 不寫 output | ✅ exit=2 |
+| **D: malformed JSON** | `{ this is not json` | exit 2 + 不寫 output | ✅ exit=2 |
+| **E: entry missing sourceUrl** | 1 筆 entry 缺 sourceUrl | exit 2 + 不寫 output | ✅ exit=2，錯誤訊息含 sourceId 標示 |
+| **F: nonexistent merge-with path** | `/tmp/.../does-not-exist.json` | exit 2 + 不寫 output | ✅ exit=2 |
+| **G: no --merge-with（既有行為）** | 用 example discovery 跑 build | 與既有 v0.1 行為相同；重跑 byte-identical | ✅ deterministic rerun: identical |
+| **H: sourceId 衝突避讓** | existing 占 `src-gen-001`；3 new discovery entries | 新 entries 配發 `src-gen-002` / `src-gen-003` / `src-gen-004`；validator 通過 | ✅ 4 sourceIds 不重複、validator 4/4 PASS |
+| **I: deterministic merge rerun** | 同 merge 輸入跑兩次 | byte-identical | ✅ deterministic |
+| **J: idempotent merge** | round1 output 當作 merge-with 再跑一次 → round2 | byte-identical | ✅ idempotent rerun: identical |
 
-所有 fixtures 跑完後 `/tmp/p3-10-n/` 已清除；fixture 內容**從未** commit。
+`/tmp/p3-10-o` 已清理；fixture 內容**從未** commit。
 
 ---
 
@@ -217,13 +209,11 @@ Registry 標 `https://example.com/approved/`（**尾斜線**）+ discovery 三�
 
 | 文件 | 變更 |
 | --- | --- |
-| `docs/SOURCE_REGISTRY_PLAN.md` | 升 v1.2；新增 E-bis-5 段「Collector / Normalizer source-first gate」含 helper API / Gate 行為總覽表（8 種情境）/ URL normalization 規則 6 條 / 「不在 P3-10-N 範圍」4 條硬邊界 |
-| `docs/PRACTICE_DATA_IMPORT_PLAN.md` | 升 v1.3；C 段第 0 步補 P3-10-N gate 已落地說明（三個 CLI 加 flag） |
-| `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` | 升 v4.4；A 段「關鍵原則」source-first 條補 P3-10-N 程式層 gate 說明 + 3 種 skipped reason 列舉 |
-| `docs/WEB_RESOURCE_COLLECTOR_PLAN.md` | 升 v1.4；G 段重寫補 P3-10-N gate 落地（單 URL 版 / pipe 版兩種 CLI 行為差異） |
-| `docs/PRACTICE_DATA_PLAN.md` | 升 v1.3；F 段加 🟡 P3-10-N 部分完成條目（位於 P3-10-M 之後） |
-| `PROJECT_ROADMAP.md` | P3-10 子分區加 🟡 P3-10-N 子彈點（完整本輪落地說明 + URL normalization 規則 + 5 種 fixture 測試結果 + 硬邊界 + 不擴大 scope） |
-| `README.md` | 文件索引 SOURCE_REGISTRY_PLAN 條目補 E-bis-5 P3-10-N gate 引用 |
+| `docs/SOURCE_REGISTRY_PLAN.md` | 升 v1.3；新增 E-bis-6 段「Merge / preserve」共 7 子段（merge key / preserve 欄位 / orphan 規則 / sourceId 衝突避讓 / --merge-with 防護 exit 2 觸發條件表 / Console summary counters / 不在 P3-10-O 範圍 5 條） |
+| `docs/PRACTICE_DATA_IMPORT_PLAN.md` | 升 v1.4；C 段第 0 步補 P3-10-O merge 已落地說明（reviewer 編輯保留欄位清單） |
+| `docs/PRACTICE_DATA_PLAN.md` | 升 v1.4；F 段加 🟡 P3-10-O 部分完成條目（位於 P3-10-N 之後） |
+| `PROJECT_ROADMAP.md` | P3-10 子分區加 🟡 P3-10-O 子彈點（含完整本輪落地說明 / mergeKey 規則 / preserve 14 欄位 + 3 特例 / orphan / sourceId 衝突避讓 / 防護 exit 2 / Console summary / 10 種 fixture 結果 / 硬邊界 / 不擴大 scope） |
+| `README.md` | 文件索引 SOURCE_REGISTRY_PLAN 條目補 E-bis-6 引用 |
 
 ---
 
@@ -234,36 +224,38 @@ Registry 標 `https://example.com/approved/`（**尾斜線**）+ discovery 三�
 | `npm run lint` | ✅ 0 errors / 0 warnings |
 | `npm run typecheck` | ✅ 通過（tsc --noEmit 無輸出） |
 | `npm run build` | ✅ Compiled successfully；88 pages prerendered（UI 完全未動） |
-| `node scripts/collect_discovered_resources.mjs --help` | ✅ exit 0；P3-10-D-3 / P3-10-N v0.2 標題；`--source-registry` flag 列出 + gate 行為段 |
-| `node scripts/normalize_collected_sources.mjs --help` | ✅ exit 0；P3-10-E / P3-10-N v0.2 標題；`--source-registry` flag 列出 + filter 段補 P3-10-N 3 種 skipped reason |
-| `node scripts/web_resource_collect.mjs --help` | ✅ exit 0；P3-10-B / P3-10-N 標題；`--source-registry` flag 列出 + Example 段補 source-first 範例 |
-| Fixture A（mixed approved / not approved / not-in-registry） | ✅ collect + normalize 兩個 CLI 都正確分流 |
-| Fixture B（0 approved） | ✅ 全部 skipped、不 crash、`approvedSources=0` |
-| Fixture C（no `--source-registry`） | ✅ 既有行為保留、stderr 印 warning |
-| Fixture D（invalid registry JSON × 2） | ✅ 兩種路徑都 exit 2 + 不寫輸出檔 |
-| Fixture E（URL normalization 3 變體） | ✅ 全部 matched |
-| `git diff --stat` for `data/p3-example-questions.json` / `data/exam-papers.example.json` / `lib/*` / `components/*` | ✅ 全部 0 變更 |
+| `node scripts/build_source_registry.mjs --help` | ✅ exit 0；P3-10-M / P3-10-O v0.2 標題；`--merge-with` flag 與規則完整列出 |
+| Fixture A merge happy path + validator | ✅ written=4 / merged=2 / newEntries=1 / orphaned=1 / approvedPreserved=2 / validator 4/4 PASS |
+| Per-entry preserve verification（src-test-001 / src-test-002 / src-gen-001 / src-test-orphan） | ✅ 全部欄位符合預期 |
+| Duplicate sourceId in merge-with | ✅ exit 2 |
+| Non-array / malformed / missing-field / nonexistent merge-with | ✅ 全部 exit 2 + 不寫 output |
+| No `--merge-with`（regression） | ✅ 既有 v0.1 行為保留；deterministic rerun byte-identical |
+| sourceId 衝突避讓 | ✅ existing 占 `src-gen-001` → 新 entries 從 `src-gen-002` 起 |
+| Deterministic merge rerun | ✅ byte-identical |
+| Idempotent merge（output → merge-with → 再 merge 一次） | ✅ byte-identical |
+| `git diff --stat` for `data/p3-example-questions.json` / `data/exam-papers.example.json` / `lib/*` / `components/*` / 其他 example JSON | ✅ 全部 0 變更 |
 
 ---
 
 ## 【仍未處理】
 
-- ⬜ **Multi-round merge / preserve**：若 reviewer 已對 generated registry 內某條目改 reviewStatus=approved_for_import + 加 rightsNotes，目前 build_source_registry 重跑會覆寫；需 merge tool（類似 P3-10-F 的 `--merge-with`）。
-- ⬜ **utm_* / tracking param 清除**：本輪刻意不做，避免 normalize 規則太激進；屬未來範圍。
-- ⬜ **`--strict` mode**：未提供 `--source-registry` 時目前印 warning + 繼續跑（legacy / dev flow）。未來可加 `--strict yes` 把 warning 升為 exit 2，強制正式匯入版必須啟用 gate。
-- ⬜ **Gate audit log**：可選擇把每筆 gate 決策（pass / skip + 原因）寫入獨立 audit log JSON，方便 reviewer 跨 batch 統計。
-- ⬜ **Connection 到 P3-10-F approved_for_practice**：本輪 gate 只到「來源層」approved_for_import；題目層級的 approved_for_practice 仍由 P3-10-F human review CLI 處理。整條 pipeline 端到端串接（discovery → registry → gate → collector → normalizer → review → approve → assemble paper → /quiz）仍未做。
+- ⬜ **URL hash deterministic id**：當前 `src-gen-NNN` 仍依新 entries 進入順序遞增；input 順序變動可能造成 sourceId 位移（但 merge-with 已可保留 existing ids）。屬未來 v0.3 評估範圍。
+- ⬜ **Diff / merge preview 模式**：目前 merge 直接寫 output；未來可加 `--dry-run yes` 顯示 merge 計畫但不寫檔。
+- ⬜ **Reviewer 編輯衝突 detection**：若 reviewer 把同一 URL 拆成兩個不同 sourceId、或把 sourceUrl 改成 normalize 後不同的形式，本輪 merge 不會主動報警。
+- ⬜ **多 reviewer 簽核 / merge audit log**：本輪是單 reviewer 模型；多 reviewer / merge history 屬未來範圍。
+- ⬜ **Schema 化 merge-with 額外驗證**：本輪只做 `sourceId` / `sourceUrl` 兩個必填基本檢查；完整 schema 驗證仍由 `scripts/validate_source_registry.mjs` 負責（reviewer 在 build 前應自行跑 validator）。
+- ⬜ **Automated test harness**：CLI fixtures 為手動驗證。
 
 ---
 
 ## 【風險點】
 
-1. **URL normalization 規則保守可能擋住合法 source**：例如 registry 標 `https://example.com/page?utm_source=newsletter`，discovery 抓到的可能是 `https://example.com/page?utm_source=twitter` — 兩個 query string 不同，gate 視為不同 URL → 拒絕。若 reviewer 預期同 path 同 source，需手動把 registry sourceUrl 與 discovery URL 對齊（或未來加 utm_* 清除）。
-2. **gate 通過 ≠ 題目通過 human review**：gate 是「來源層」通過。即使來源 approved，normalizer 仍會把 candidates 標 `reviewStatus: needs_human_review`、`isReadyForPractice: false`，必須走 P3-10-F human review 才能成為 approved_for_practice。文件 + 報告處處標示，避免 reviewer 誤把 gate 通過當「已通過審核」。
-3. **registry 含 duplicate sourceId 時 gate 仍可運作**：buildApprovedUrlSet 取第一個 entry；但 stderr 會印 warning，提醒 reviewer 用 `scripts/validate_source_registry.mjs` v0.1.1 修正。**不 crash** 是設計選擇——避免重跑 pipeline 時被 registry 上游問題阻斷。
-4. **三個 CLI 各自獨立檢查 gate**：reviewer 可能在不同 CLI 間用不同 `--source-registry` 路徑，造成 gate 行為不一致。建議 reviewer 在 pipeline 內始終用同一份 generated registry。
-5. **invalid URL 不會 crash 但會被分類為 `skipped_invalid_url_for_gate`**：URL 無法 parse 時直接 skipped；上游應自行確認 discovery output 不含垃圾 URL（discovery 階段已過 URL parse，本層只是再保險）。
-6. **`web_resource_collect.mjs` 的 gate 行為與其他 CLI 略不同**：單 URL CLI 在 gate 拒絕時是 `exit 0 不寫檔`，而 pipe CLI 是 `寫檔 + skipped item`。這是設計選擇——單 URL 模式對應「reviewer 手動測一個 URL」的 dev 流程，pipe 模式對應「batch 留 audit trail」。文件已說明此差異。
+1. **Reviewer 手動編輯 sourceUrl 改成不能 normalize 的 URL**：merge key 會 fallback 到 `title|sourceUrl`，但若 title 也被改 → 可能匹配不到 → 變 orphan（保留），新 entry 也會被另起。屬邊界情境；reviewer 守則：別亂改 sourceUrl 格式。
+2. **fileType / title 條件式 preserve 的邊界**：existing fileType=`unknown` + new 非 `unknown` → 以 new 替換。若 reviewer 早就把 fileType 改為 `pdf` 但 existing 出現 `unknown` 是 reviewer 編輯前的狀態 → 不會被覆寫。但 reviewer 若**故意**把 fileType 從 `pdf` 改回 `unknown` → 新 build 的 `html`（其他更明確值）會覆寫。這在實務上應該罕見；文件已說明特例規則。
+3. **sourceId 衝突避讓只看既有 ids，不看本輪輸出已配發 ids**：因為新 entries 是順序處理、`nextNewIdSuffix` 也是順序遞增，本輪內不會自我衝突；但設計上仍可改為「同時檢查 existing + 已配發 set」做雙重保險（屬未來 v0.3 範圍）。
+4. **Orphan 永遠保留可能導致 registry 越來越長**：若 reviewer 用 discovery 不同 query 跑多輪 build → 上輪命中、下輪變 orphan → 永遠保留 → registry 累積垃圾。屬使用流程問題；reviewer 可手動編輯 registry 刪除明確不再需要的 orphan。
+5. **`--merge-with` 與 `--out` 指到同一檔案是常見用法**：本輪實作是「先讀完 merge-with → 再寫 out」，所以同檔覆寫**安全**（已實測 idempotent fixture）。文件已說明該流程。
+6. **`approvedPreserved` 計數方式**：含 merged + orphan 中 `approved_for_import` 的總數；reviewer 可一眼看出「這次 merge 保護了 N 個 approved」。但未包含「approved → 仍 approved 但其他欄位變動」的情況（其他欄位變動屬 condition 特例，目前只有 fileType / title 可能變）。文件已說明 counter 意義。
 
 ---
 
@@ -271,26 +263,24 @@ Registry 標 `https://example.com/approved/`（**尾斜線**）+ discovery 三�
 
 依優先順序：
 
-1. **Codex 驗收 P3-10-N**：5 種 fixture + 3 個 CLI 已驗證；reviewer 應 spot-check 三個 CLI 的 `--help` 內容、跑一次 fixture A 確認 gate 行為與報告一致。
-2. **`--strict` mode**：把「未提供 `--source-registry`」從 warning 升為 exit 2（在獨立 flag 下開啟）。
-3. **merge / preserve tool for generated registry**：避免 reviewer 編輯被下次 build_source_registry 重跑覆寫。
-4. **utm_* 清除**：在 `normalizeSourceUrlForGate` 加可選 utm_* / fbclid / gclid 清除（透過旗標啟用，預設關閉以保留向後相容）。
-5. **Pipeline 端到端文件**：把 discovery → build_source_registry → human-approve → collect → normalize → review → approve → assemble paper → /quiz 整條串接寫進 `docs/PRACTICE_DATA_IMPORT_PLAN.md` C 段 / E-bis 段；目前各步驟散落在多個檔。
-6. **Gate audit log**：把每筆 gate 決策獨立寫入 audit log（reviewer 可跨 batch 統計、追蹤被拒絕來源的趨勢）。
+1. **Codex 驗收 P3-10-O**：10 種 fixture（含 idempotent + deterministic）已驗證；reviewer 應對範例 fixture 跑一次 happy path 確認行為與報告一致；spot-check 一份真實 reviewer-edited registry 跑 merge 看 output 是否符合預期。
+2. **Diff preview mode**：加 `--dry-run yes` 旗標印 merge 計畫（merged / newEntries / orphaned 摘要 + 列出哪些欄位會被 preserve）但不寫 output；reviewer 可先看再決定是否套用。
+3. **URL hash deterministic id**：未來 v0.3 把 sourceId 改為 URL hash（如 `src-url-abc123`），完全擺脫 input 順序依賴；建議在獨立刀數做。
+4. **Schema 化 merge-with 驗證**：在 `validateExistingRegistry` 內呼叫 `scripts/validate_source_registry.mjs` 的 `validateEntry` 邏輯（要先 export 該函式或 inline 簡化版），讓 merge-with 不只檢查 sourceId / sourceUrl，還包含 enum / 必填欄位。
+5. **Automated test harness**：把 10 種 fixture 抽成 `scripts/__tests__/` 或 `package.json` test script，方便 CI 重跑。
+6. **Pipeline 文件**：把 discovery → build / merge → review → gate → collect → normalize → review → approve → assemble paper → /quiz 整條串接寫進 `docs/PRACTICE_DATA_IMPORT_PLAN.md` C 段一條龍流程圖。
 
 ---
 
 ## 【Roadmap 同步檢查】
 
-- ✅ PROJECT_ROADMAP.md P3-10 子分區加 🟡 P3-10-N 部分完成子彈點（含完整本輪落地說明 + 三個 CLI 版本差異 + URL normalization 規則 + 5 種 fixture 測試結果 + 硬邊界）
-- ✅ docs/PRACTICE_DATA_PLAN.md F 段加 🟡 P3-10-N 部分完成條目（位於 P3-10-M 之後）
-- ✅ docs/SOURCE_REGISTRY_PLAN.md 升 v1.2（新增 E-bis-5 段）
-- ✅ docs/PRACTICE_DATA_IMPORT_PLAN.md 升 v1.3（C 段第 0 步補 P3-10-N gate 落地）
-- ✅ docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md 升 v4.4（A 段補 P3-10-N 程式層 gate 說明）
-- ✅ docs/WEB_RESOURCE_COLLECTOR_PLAN.md 升 v1.4（G 段重寫補 P3-10-N gate 落地）
-- ✅ P3-10-M 主條目維持 🟡（部分完成）；本輪未動其內容、僅補「未做」清單對應的下一刀已落地連結
-- ✅ P3-10-L 主條目維持 ✅；P3-10-L 修補子彈點維持 🟡（等 Codex 重新驗收）
-- ✅ P3-10-H / I / J 條目維持 source-first 方向修正註記，**不再** 是 AI 補題
+- ✅ PROJECT_ROADMAP.md P3-10 子分區加 🟡 P3-10-O 部分完成子彈點（含完整本輪落地說明）
+- ✅ docs/PRACTICE_DATA_PLAN.md F 段加 🟡 P3-10-O 條目（位於 P3-10-N 之後）
+- ✅ docs/SOURCE_REGISTRY_PLAN.md 升 v1.3（新增 E-bis-6 段「Merge / preserve」7 子段）
+- ✅ docs/PRACTICE_DATA_IMPORT_PLAN.md 升 v1.4（C 段第 0 步補 P3-10-O merge）
+- ✅ README.md 文件索引條目補 E-bis-6 引用
+- ✅ P3-10-N / P3-10-M / P3-10-L 主條目維持原狀，僅補「下一刀已落地」連結
+- ✅ P3-10-H / I / J 條目維持 source-first 方向修正註記
 - ✅ P3-10 整體仍 🟡（未標完成）
 - ✅ P3 整體仍 🟡（未標完成）
 - ✅ P4 / P5 仍 ⬜（未啟動）
@@ -299,12 +289,11 @@ Registry 標 `https://example.com/approved/`（**尾斜線**）+ discovery 三�
 
 **特別說明**
 
-本輪只做 **source registry approved_for_import gate**。
+本輪只做 **source registry merge / preserve**。
 
 - **不代表題目已匯入**——本 CLI 不碰任何 question schema、不寫 `data/p3-example-questions.json`。
-- **不代表題目已 human review 通過**——gate 是「來源層」通過；題目仍須走 P3-10-E normalizer 產 draft + P3-10-F human review 標 approved_for_practice。
+- **不代表來源自動 approved**——`--merge-with` 是 preserve-only；reviewer 若未手動把 entry 標為 `approved_for_import`，merge 仍不會自動升級；新 discovery 條目一律保守標 `pending_review` / `needs_manual_check`。
 - **不代表 /quiz 已使用 imported 題庫**——`lib/data.ts` 完全未動；`/quiz` 仍跑既有 13 題範例。
-- **不代表 source registry 自動填充**——`source-registry.generated.json` 由 P3-10-M build CLI 產出（pending_review / needs_manual_check）；**reviewer 仍須手動標 approved_for_import** 才有 URL 通過 gate。
-- **不做 domain-only 放行**——同網域不同 path 一律視為不同 source；硬邊界。
+- **不代表 reviewer 的編輯永遠不會被丟掉**——orphan 規則確實避免 discovery 重跑時刪掉 reviewer 工作；但若 reviewer 改 sourceUrl 改到 normalize 後不再對應到 discovery URL，merge 會走 fallback 或變 orphan（仍保留）。
 
-本輪硬邊界全守：未呼叫 OpenAI / Brave / 任何網路 API / 未發 HTTP 請求（測試全用 /tmp fixture + dry-run）/ 未下載任何外部資產 / 未自動產題 / 未修改正式題庫 / 未修改正式 paper / 未改 UI / 未改 schema / 未接後端 / DB / 登入 / 未紀錄真實 API key / 未把任何 generated source 標 approved_for_import / 未新增 npm 依賴 / 未處理 npm audit / 未部署 / 未 commit `.env.local` / 未 commit `*.generated.json` / 未 commit `.claude/settings.local.json`。
+本輪硬邊界全守：未呼叫 OpenAI / Brave / 任何網路 API / 未發 HTTP 請求 / 未下載任何外部資產 / 未自動產題 / 未修改正式題庫 / 未修改正式 paper / 未改 UI / 未改 schema / 未接後端 / DB / 登入 / 未紀錄真實 API key / 未把任何 generated source 自動標 `approved_for_import` / 未新增 npm 依賴 / 未處理 npm audit / 未部署 / 未 commit `.env.local` / 未 commit `*.generated.json` / 未 commit `.claude/settings.local.json`。
