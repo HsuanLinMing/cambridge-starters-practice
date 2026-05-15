@@ -17,8 +17,11 @@
 - Listening 自製 TTS 僅 q-lc-001 一題（OpenAI v2 examiner voice）。
 - 自製 SVG 11 張，距離 54 個 vocabulary 完整覆蓋仍差 43 張。
 - **目前 `/quiz` 仍是題型功能驗證版，尚非正式完整練習資料包**。
+- 目前 13 題大多是 `ai_generated` / `custom` 自製題（9 + 4）；**屬「題型驗證 dev / example seed」、不視為正式匯入版完成依據**。
 
 P3-10 的目標是建立一條**可重複、可審計、可擴張**的正式練習資料補齊路徑，後續才能逐步把題庫從 13 題擴張到「最小可玩資料包」乃至更完整。
+
+> **方向修正（P3-10-L，2026-05-14）**：正式匯入版**只接受可追溯來源**——以 **官方 sample paper / 官方學習資料 / 歷屆考題 / 可追溯來源的 Starters 練習資料**為主。**`ai_generated` 不得用來補正式題庫數量**；`custom` 只作輔助。詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)。
 
 ---
 
@@ -32,8 +35,9 @@ P3-10 的目標是建立一條**可重複、可審計、可擴張**的正式練�
 | **Web resource collector / crawler** | [`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`](./WEB_RESOURCE_COLLECTOR_PLAN.md)（P3-10-B） | crawler 規格 / 三種模式（index-only / full-text / asset-aware） / `scripts/web_resource_collect.mjs` 最小原型 |
 | **匯入題目 normalize 流程** | [`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`](./QUESTION_IMPORT_NORMALIZATION_PLAN.md)（P3-10-C） | 對齊 8 種題型 / reviewStatus 5 狀態機 / id 規則 / 必填 vs 選填 |
 | **Discovery crawler（自動找來源）** | [`docs/DISCOVERY_CRAWLER_PLAN.md`](./DISCOVERY_CRAWLER_PLAN.md)（P3-10-D-2） | search query → search provider → URL normalize / dedupe / classify → resource index → collector queue；`scripts/discover_resources.mjs` 最小原型 |
+| **正式來源優先匯入規則 + Source Registry** | [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)（P3-10-L / P3-10-M） | source-first 原則 / 7 種 sourceKind / source registry 欄位 / 匯入規則硬邊界 / 正式流程定位 / E-bis 段：discovery → source registry generated workflow（`scripts/build_source_registry.mjs` v0.1） |
 
-依序閱讀順序：先讀 import plan（了解目標與三層架構） → 讀 collector plan（了解 Layer 2 input） → 讀 normalize plan（了解 Layer 3 接口） → 讀 discovery plan（了解上游自動發現機制如何餵給 collector）。
+依序閱讀順序：先讀 source-registry plan（**了解來源優先規則與下游 gate**）→ 讀 import plan（了解目標與三層架構） → 讀 collector plan（了解 Layer 2 input） → 讀 normalize plan（了解 Layer 3 接口） → 讀 discovery plan（了解上游自動發現機制如何餵給 collector）。
 
 ---
 
@@ -57,6 +61,14 @@ P3-10 的目標是建立一條**可重複、可審計、可擴張**的正式練�
 
 這條規則對所有來源類型（包含 `custom` / `handmade`）一致，沒有例外。
 
+**source-first 原則（P3-10-L，2026-05-14）**：
+
+- 正式匯入版的主線是 `official_sample` / `official_learning_material` / `past_paper`。
+- **`ai_generated` 不得用來補正式題庫數量**——僅允許作為草稿 / 臨時練習 / 題型驗證 seed。
+- **`custom` 只作輔助 / fallback**，不應混入 official / past_paper 報告中。
+- `third_party_practice` **不可** 直接標成 `official_sample` 或 `past_paper`。
+- 來源不明的資料**不得**進 normalizer → 必須先進 source registry（[`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)）→ 人工審核 → 標 `approved_for_import`。
+
 ---
 
 ## D. 最小可玩正式練習資料包目標
@@ -79,6 +91,8 @@ P3-10 的目標是建立一條**可重複、可審計、可擴張**的正式練�
 
 **目前距離**：L3 缺 2 題、RW1 缺 2 題、RW3 缺 4 題；RW4 / matching 已達標。
 
+> **方向修正（P3-10-L，2026-05-14）**：上述「最小可玩」題量目標仍有效，但**補題方法**改為 **source-first**——不再用 AI 補題。**未達標的 part（L3 / RW1 / RW3）應透過 source registry approved sources 產生新題**；既有 ai_generated 題仍可保留為 dev / example seed，但**不計入正式匯入版完成度**。
+
 ---
 
 ## E. 與既有文件的關係
@@ -93,6 +107,7 @@ P3-10 的目標是建立一條**可重複、可審計、可擴張**的正式練�
 | [`docs/AI_QUESTION_GENERATION.md`](./AI_QUESTION_GENERATION.md) | AI 仿真題 prompt 規範（normalizer 可重用） |
 | [`docs/TTS_AUDIO_WORKFLOW.md`](./TTS_AUDIO_WORKFLOW.md) | 自製 TTS 流程（補多題 Listening 需要） |
 | [`docs/USER_TEST_NOTES.md`](./USER_TEST_NOTES.md) | 實機觀察影響「最小可玩資料包」規模決策 |
+| [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) | source-first 原則 / source registry 結構 / 下游 normalizer gate（P3-10-L） |
 
 ---
 
@@ -111,10 +126,11 @@ P3-10 的目標是建立一條**可重複、可審計、可擴張**的正式練�
 - 🟡 P3-10-F：匯入題目人工審核流程（CLI + JSON workflow 第一版）——**部分完成**（2026-05-13）：新增 `scripts/review_normalized_questions.mjs` v0.1（prepare-review / validate-reviewed 兩 mode）；prepare-review 從 P3-10-E normalizer 篩 `status=draft + reviewStatus=needs_human_review + isReadyForPractice=false + draft!=null` 條目 → 預填 reviewerFields template（`approved=false` / `approvedForPractice=false` / finalQuestion 留空 answer/options）→ 寫 `data/imported/reviewed-questions.generated.json`；validate-reviewed 對 reviewer 編輯後條目跑 schema + 題型驗證（true-false yes/no / CHOICE_TYPES options>=2 + answer 對應 options） → 印 console summary + 寫 `data/imported/review-validation.generated.json`；兩檔皆 gitignore；**仍不寫正式題庫**（`data/p3-example-questions.json` / `data/exam-papers.example.json` 完全未動）；正式寫入屬 P3-10-K。**未做**：approved → 正式題庫的轉換 CLI（P3-10-K） / Review UI dashboard / 多 reviewer 簽核 / openai mode
     - 🟡 P3-10-F 後續：reviewed output 覆寫保護 / merge-with——**部分完成**（2026-05-13）：CLI 升 v0.2；`--out` 已存在但未指定 `--overwrite` / `--merge-with` 時 **exit 2**（避免無聲覆寫 reviewer 編輯）；新增 `--overwrite yes|no`（預設 no）與 `--merge-with <existing>`（依 mergeKey 合併並保留 reviewerFields / reviewStatus；orphaned 條目保留標 `status: orphaned_existing_review`）；mergeKey 規則：優先 `sourceItemId + candidate_index`、fallback `sourceItemId + prompt + questionType + starterPart`；source provenance 以最新 input 為準；新增 summary 欄位 `merged` / `orphaned` / `overwritten` + top-level `batchWarnings[]` 收錄 `output_exists_requires_overwrite_or_merge` / `overwrite_enabled` / `merged_from_existing_review` / `orphaned_existing_review` 4 個 code；`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` 升 v3.1（F-pre-7 新增 5 個子段）；`docs/PRACTICE_DATA_IMPORT_PLAN.md` C-5 步補覆寫保護說明。CLI 5 種 regression 全綠：(1) out 不存在 → 正常建立 / (2) out 已存在 + 無 flag → exit 2 / (3) `--overwrite yes` → 覆寫 + batchWarnings 含 overwrite_enabled / (4) `--merge-with` fixture（fx-001 approved 保留 / fx-002 WIP 保留 / fx-003-new 新建 / fx-old orphaned）→ merged=2 / orphaned=1 / (5) validate-reviewed merge 結果 → passedValidation=1 / skippedNotApproved=3 全部正確
 - ⬜ P3-10-G：Vocabulary 圖片 / SVG 補齊第一批
-- ⬜ P3-10-H：RW3 spelling 題庫擴充到最小可玩數量
-- ⬜ P3-10-I：RW1 yes/no 題庫擴充
-- ⬜ P3-10-J：L3 listening 多題補齊
+- ⬜ P3-10-H：RW3 spelling **source-first** 題庫擴充（**不是 AI 補題**——必須透過 source registry approved sources 產生）
+- ⬜ P3-10-I：RW1 yes/no **source-first** 題庫擴充（**不是 AI 補題**）
+- ⬜ P3-10-J：L3 listening **source-first** 多題補齊（**不是 AI 補題**）
 - 🟡 P3-10-K 第二刀：first practice paper 組裝 / paper-level metadata——**部分完成**（2026-05-14）：新增 `scripts/assemble_practice_paper.mjs` v0.1（preview / write 兩 mode + `--write yes` 雙開關）；讀 `data/p3-example-questions.json` 全部 ExamQuestion → 依 `starterSection` 分組成 listening / reading-writing / speaking（沒題目的 section 不出現），統計 `sourceMix`（QuestionSource union 4 種），對 9 個 Cambridge Starters Parts（L1-L4 / RW1-RW5）檢查覆蓋率（缺少標 `insufficient_questions_for_part`），組成完整 `ExamPaper`（含 examPaperId / title / description / sections / sourceMix / createdAt / updatedAt 對齊 lib/types.ts）；duplicate paper id 偵測（preview 標 `duplicate_paper_id` / write 整批 exit 2）；empty questions 仍寫 preview + warning `no_questions_available`；**不挑題、不重排、不硬造題、不切換 `/quiz` 載入來源**（lib/data.ts 完全未動）。`.gitignore` 加 `data/imported/practice-paper.preview.generated.json`；`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` 升 v4.2（F-pre-8-g 7 子段）；`docs/PRACTICE_DATA_IMPORT_PLAN.md` C 段加第 7 步 + 原 7 步降為 8。**未做**：section 內題目排序 / Speaking section / lib/data.ts 載入邏輯整合（屬 P3-10-K 第三刀）/ Cambridge Starters 官方題量對齊（Listening 20Q / R&W 25Q）
+- 🟡 P3-10-M：Source registry generated workflow——**部分完成**（2026-05-15）：新增 `scripts/build_source_registry.mjs` v0.1，把 discovery output（`discovered-resources.{example,generated}.json`）保守轉成 `data/imported/source-registry.generated.json`（**全部 pending_review / needs_manual_check，絕不 approved_for_import**）；deterministic sourceId（`src-gen-001` ... 由 input 順序產生）；dedup by `normalizedUrl ?? url`；`publisher / publisherType / sourceKind` 保守推論 + 一致性自動降級（hostname 不在 OFFICIAL_HOSTNAMES allowlist → 自動降為 third_party_practice、不假裝 official）；`partsCovered` 從 disc.detectedExamParts 過濾 ALLOWED_PARTS（空則 `["unknown"]`，不亂猜）；CLI flags：`--input` / `--out` / `--mode build` / `--limit 20` / `--help`。CLI 跑 example input → 6/6 通過 `scripts/validate_source_registry.mjs`；deterministic 重跑驗證 identical；fixture 測試確認 duplicate URL / 無 URL / fake official hostname 都正確處理；`.gitignore` 已 ignore generated registry（P3-10-L 補入）；docs/SOURCE_REGISTRY_PLAN.md 補 E-bis 段（v1.1）；docs/DISCOVERY_CRAWLER_PLAN.md 升 v3.2；docs/PRACTICE_DATA_IMPORT_PLAN.md C 段第 0 步補 build CLI 用法（升 v1.2）。**未做**：collector / normalizer 的 program-layer source-registry gate；approved_for_import 後續整合；多輪 history / 進度追蹤
 - 🟡 P3-10-K：first practice paper 組裝與驗收 / approved → 正式題庫轉換 CLI——**部分完成（含 Codex 修補）**（2026-05-14）：新增 `scripts/approve_reviewed_questions.mjs` v0.1.1（preview / write 兩 mode + `--write yes` 雙開關）；讀 P3-10-F reviewed-questions + review-validation + target 三檔；5-AND 篩選；7 種題型轉換規則保守；matching / listening-image-choice → unsupported_question_type skip；preview JSON 永遠寫；starterPart 依 type fallback；不自動補 spellingHint / letterScramble / topic 等選填。**v0.1.1 修補**（Codex 有條件通過後）：(a) duplicate id 拆兩種：`duplicate_id_in_target`（target 既有同 id）+ `duplicate_id_in_batch`（同批 ready items 內 id 重複，**兩筆同時 skip 不 silent 寫入**），任一觸發 write mode 整批拒絕 exit 2；summary 補 `duplicateIdsInTarget` / `duplicateIdsInBatch`（`duplicateIds` 仍記聯集）；(b) `finalQuestion.source` 對齊 `QuestionSource` union（official_sample / past_paper / ai_generated / custom），空值預設 custom、非 union 值 → status=failed + error `invalid_question_source`（**不** silent fallback）；reviewer 若想表達 user_provided / third_party 應保留於 reviewerNotes / discovery provenance。**未做**：matching template 擴張；Review UI dashboard；`--rollback` flag；P3-10-K「first practice paper 組裝與驗收」的 paper-level metadata（sourceMix / sections）整合屬獨立刀數
 
 ---
@@ -122,3 +138,5 @@ P3-10 的目標是建立一條**可重複、可審計、可擴張**的正式練�
 ## G. 版本
 
 - **v1**（2026-05-13）：第一版——P3-10 umbrella 規劃；引用三份子文件（import / collector / normalize）；定義最小可玩資料包目標；列出後續刀數對應。
+- **v1.2**（2026-05-15）：新增 P3-10-M 條目——Source registry generated workflow（`scripts/build_source_registry.mjs` v0.1：discovery output → source-registry generated JSON，pending_review / needs_manual_check 預設、**絕不** approved_for_import、保守推論 + 一致性降級）；B 段表格 SOURCE_REGISTRY_PLAN 對應條目加 P3-10-M 引用 + E-bis 段補充說明；F 段加入 🟡 P3-10-M 部分完成條目。本次調整**不修改** schema / 正式題庫 / UI / `/quiz` 載入邏輯；僅新增一個 CLI + 文件同步。
+- **v1.1**（2026-05-14）：新增 P3-10-L 條目——正式來源優先匯入規則 + Source Registry；B 段補引用 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)；C 段補 source-first 5 條原則；D 段補方向修正（最小可玩 part 補題改 source-first）；E 段補 SOURCE_REGISTRY_PLAN 對齊關係；F 段 P3-10-H / I / J 改為 source-first 題庫擴充（**不是** AI 補題）。本次調整**不修改** schema / 正式題庫 / UI；僅文件 + example registry + 可選 validator CLI。

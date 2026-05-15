@@ -58,12 +58,16 @@ Discovery crawler 與 `web_resource_collect.mjs`（content collector）職責分
    ↓
 7. resource index             （discovered-resources.generated.json，每筆含 score / reasons / shouldCollect）
    ↓
-8. collector queue            （把 shouldCollect = true 的 entry 餵給 web_resource_collect.mjs；屬 P3-10-D-3）
+[7.5 source registry gate]    （**P3-10-L**：將 shouldCollect=true 條目登錄 source-registry，pending_review；人工審核 → approved_for_import）
+   ↓
+8. collector queue            （把 source registry `approved_for_import` 的條目餵給 web_resource_collect.mjs；屬 P3-10-D-3）
    ↓
 9. collector full-text / metadata 抓取（既有 P3-10-D collector）
    ↓
 10. AI normalizer             （屬 P3-10-E）
 ```
+
+> **步驟 7.5（source-first gate，P3-10-L，2026-05-14；P3-10-M build CLI 已落地，2026-05-15）**：discovery 找到的候選 URL **不直接餵 collector**；應先透過 `scripts/build_source_registry.mjs` 自動轉成 `data/imported/source-registry.generated.json` 的 pending_review / needs_manual_check entries，再人工審核標 `approved_for_import` 後才能進步驟 8+。**P3-10-M 已落地 build CLI**（discovery → registry generated 一步到位、deterministic、保守推論、絕不輸出 `approved_for_import`）；下一刀 collector / normalizer 的 program-layer source-registry gate 屬未來範圍。詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) E-bis 段。
 
 每一層都應該**可重跑、可審計**：
 
@@ -510,6 +514,7 @@ node scripts/discover_resources.mjs \
 | [`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`](./WEB_RESOURCE_COLLECTOR_PLAN.md) | discovery output 條目 shouldCollect = true 後可餵 collector |
 | [`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`](./QUESTION_IMPORT_NORMALIZATION_PLAN.md) | normalizer 的 input 來源 |
 | [`docs/OFFICIAL_RESOURCES.md`](./OFFICIAL_RESOURCES.md) | discovery 結果中 `sourceType: official` 仍走「人工瀏覽參考、不下載複製」邊界 |
+| [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) | source-first gate（P3-10-L）：discovery 找到的條目**不直接餵 collector**，先進 source registry 人工審核 |
 
 ---
 
@@ -642,6 +647,8 @@ happy path 驗證 **只代表「discovery 階段成功從 Brave 拿到候選 URL
 
 ## M. 版本
 
+- **v3.2**（2026-05-15，P3-10-M：Source registry generated workflow）：B 段步驟 7.5 補「P3-10-M build CLI 已落地」說明 —— `scripts/build_source_registry.mjs` v0.1 把 discovery 找到的 candidate URL 自動轉成 source-registry generated entries（**全部 pending_review / needs_manual_check，絕不 approved_for_import**），詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) E-bis 段。本輪**不改** discovery CLI 程式碼 / example JSON / scoring 規則；純文件補步驟 7.5 的工具落地說明。
+- **v3.1**（2026-05-14，P3-10-L：正式來源優先匯入規則 + Source Registry）：B 段資料流程補步驟 7.5「source registry gate」——discovery 找到的候選 URL **不直接餵 collector**，應先登錄 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) 規範的 source registry，人工審核 `approved_for_import` 後才能進步驟 8+；K 段「與既有文件的關係」加 `docs/SOURCE_REGISTRY_PLAN.md` 對齊條目。**本輪不改 CLI 程式碼、不改既有 example JSON、不實作 7.5 的 gate CLI**——純文件補一層 source-first 邊界說明；正式 gate CLI 屬未來範圍。
 - **v3**（2026-05-13，P3-10-D-3）：新增 `scripts/collect_discovered_resources.mjs` v0.1 discovery → collector pipe CLI；G 段補 pipe 與 collector 分工說明；`scripts/web_resource_collect.mjs` 小幅 refactor：把 `main()` 包進「是否為直接 CLI 呼叫」判斷 + 增加 `export { fetchUrl, buildResourceIndexEntry, buildSourceDocumentEntry, buildWarnings, COLLECTOR_VERSION, COLLECTOR_USER_AGENT, DEFAULT_TIMEOUT_MS }`（CLI 行為完全不變）；新增 `data/imported/source-documents.batch.generated.json` 排除到 `.gitignore`。**未做**：asset 下載 / PDF parser / AI normalizer / 多批次 history。
 - **v2.1**（2026-05-13，P3-10-D-2B 補充紀錄）：新增 N 段「Brave Search happy path 實測紀錄」——記錄使用者本機 `node --env-file=.env.local` 小量實測（query-limit=1 / limit-per-query=1）成功取得 1 筆 PDF candidate（`lebusanglais.com` Pre A1 Starters sample paper）；補充 N-1 推薦小量測試指令（三種 env 注入方式）/ N-2 實測結果欄位明細 / N-3 仍未進入正式題庫的後續刀數提示 / N-4 安全提醒（.env.local / *.generated.json / API key / shell typo 排除）。**本輪不動 CLI 程式碼、不接其他 provider、不做 D-3 pipe、不做 normalizer**——純文件 / roadmap 同步。
 - **v2**（2026-05-13，P3-10-D-2B）：新增 Brave Search 真實 provider（CLI v0.2）；補 D-1 5 provider 比較表 + D-2 硬邊界更新（API key 從 env 讀、缺 key exit 2 / 不偽裝 UA / 不爬搜尋結果頁）；I 段 CLI 設計補 `--query-file` / `--limit-per-query` / `--query-limit` / `--search-out` 4 個 flag + Rate limit / safety 段 + Search results generated 格式段；L 段後續擴充清單更新；J 段 search-results 格式向 example 相容。**未做**：Tavily / Bing / Google CSE / SerpAPI 落地；discovery → collector pipe；AI scoring；`.env.local` 自動載入。

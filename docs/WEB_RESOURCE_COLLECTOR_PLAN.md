@@ -251,6 +251,8 @@ P3-10-D 實測後對 collector 補了三種異常狀況的處理；v0.1 行為�
 
 **設計原則**：collector 是「最佳努力把抓到的東西寫進 generated JSON」，**不是 quality gate**——quality gate 屬 normalizer + human review。404 / 非 HTML 的內容仍寫檔以保留證據；warnings 陣列讓 reviewer 一眼看到需要注意的點。
 
+> **source-first 邊界（P3-10-L，2026-05-14）**：collector 設計上仍是「逐 URL 跑」的工具——但上游應該**只把 source registry `approved_for_import` 的 URL** 餵進來。未來批次模式 / pipe 模式應**先檢查 source registry**，避免抓不該抓的來源。詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)。本輪不改 collector 程式碼；屬未來範圍。
+
 ---
 
 ## H. Duplicate URL / 重抓策略
@@ -291,6 +293,7 @@ example JSON（`data/imported/*.example.json`）刻意**不補這三欄**——�
 
 ## J. 版本
 
+- **v1.3**（2026-05-14，P3-10-L：source-first 邊界補充）：G 段尾段補 source-first 邊界——上游應只把 source registry `approved_for_import` 的 URL 餵 collector；未來批次 / pipe 模式應檢查 source registry。**本輪不改 collector 程式碼、不改既有 example JSON**；純文件補一層 source-first 邊界說明。
 - **v1.2**（2026-05-13，P3-10-D-3 微調）：F 段尾段補 P3-10-D-3 pipe 落地說明；`scripts/web_resource_collect.mjs` 加 `export` + `main()` 包進 entry-script 判斷（CLI 行為完全不變）；新增 `data/imported/source-documents.batch.generated.json` 排除到 `.gitignore`。**collector 核心邏輯與輸出 JSON 結構皆未改**。
 - **v1.1**（2026-05-13，P3-10-D 補強）：補 `warnings: []` 陣列、`mode` 欄位、`retrievedAt` 對齊；non-HTML 跳過 regex 解析；non-2xx 仍寫檔但帶 warning；G / H / I 三段新增到本檔。collector 行為仍向後相容 example JSON，腳本 `COLLECTOR_VERSION` 仍為 `web_resource_collect.mjs@v0.1`（屬補強、非破壞性升級）。
 - **v1**（2026-05-13）：第一版——P3-10-B 規劃文件 + `scripts/web_resource_collect.mjs` 最小 CLI 原型；支援 index-only / full-text；候選偵測為簡單 regex；無依賴新增（Node 內建 fetch + regex）。

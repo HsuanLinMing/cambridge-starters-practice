@@ -39,6 +39,15 @@ P3-9-C 之前 `/quiz` 與 `/review` 都用**手寫範例 + 自家 SVG / TTS** �
 
 **所有題目進正式 practice data 都必須有 `source` 與 `sourceType`**——這是日後可追溯、可審計的基礎。
 
+> **source-first 原則（P3-10-L，2026-05-14）**：
+>
+> 上表 7 種 `sourceType` 仍維持。但**正式匯入版主線**只接受 `official` / `user_verified`（且來自官方代理發行的歷屆考題）+ 對齊 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) `sourceKind: official_sample / official_learning_material / past_paper` 的條目。
+>
+> - **`ai_generated` 不得用來補正式題庫數量**——可作為草稿 / 題型驗證 dev seed。
+> - **`custom` / `handmade` 只作輔助 / fallback**，不混入 official / past_paper 報告中。
+> - **`third_party` 不可被 reviewer 升級為 `official`**（即使對應 source 是練習網站宣稱「歷屆考題」）。
+> - 來源不明的條目**不得**進 normalizer → 必須先進 source registry → 人工審核標 `approved_for_import` → 才能流入下游。
+
 ---
 
 ## C. 匯入流程
@@ -46,15 +55,20 @@ P3-9-C 之前 `/quiz` 與 `/review` 都用**手寫範例 + 自家 SVG / TTS** �
 三層架構：
 
 ```
-Layer 1：resource index            （URL / title / 來源 metadata）
+Layer 0：source registry            （source-first gate：approved_for_import 才能進下游；P3-10-L）
   ↓
-Layer 2：imported source dataset   （crawler / collector 抓回的 raw / semi-structured）
+Layer 1：resource index             （URL / title / 來源 metadata）
   ↓
-Layer 3：formal practice data      （normalize 後 + reviewStatus + 進 quiz / review）
+Layer 2：imported source dataset    （crawler / collector 抓回的 raw / semi-structured）
+  ↓
+Layer 3：formal practice data       （normalize 後 + reviewStatus + 進 quiz / review）
 ```
+
+> **Layer 0 是 P3-10-L 補入的 gate**——詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)。每個來源在進 collector / normalizer 前都應先登錄 source registry 並人工標 `approved_for_import`。
 
 完整 7 步流程：
 
+0. **source registry 登錄與審核（P3-10-L，2026-05-14；P3-10-M build CLI 已落地，2026-05-15）**：discovery 找到候選 URL 後，跑 `scripts/build_source_registry.mjs --input data/imported/discovered-resources.generated.json --out data/imported/source-registry.generated.json --mode build` 自動產生 source registry generated entries（**全部 pending_review / needs_manual_check，絕不 approved_for_import**）；人工審核授權 / 發行機構 / 內容 → 標 `approved_for_import` 才能進步驟 1+；`pending_review` / `needs_manual_check` / `rejected` 一律**不可** 進 normalizer。`source-registry.generated.json` 已 `.gitignore` 排除、**不**commit。詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) E-bis 段。
 1. **resource index 建立**：人工或腳本把要追蹤的來源加進 `data/imported/resource-index.example.json`（或 `.generated.json`）；每筆記 `url` / `title` / `sourceDomain` / `sourceType` / `resourceType` / `level` / `detectedExamParts` / `language` / `summary` / `retrievedAt` / `notes`。
 2. **crawler / collector 抓取**：跑 `scripts/web_resource_collect.mjs`（見 [`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`](./WEB_RESOURCE_COLLECTOR_PLAN.md)）；index-only 模式只抓 metadata、full-text 模式抓 cleanedText + candidates。
 3. **imported source dataset 保存**：collector 寫入 `data/imported/source-document.generated.json`；每筆含 `id` / `resourceId` / `sourceUrl` / `sourceName` / `sourceType` / `importedAt` / `contentType` / `title` / `description` / `headings` / `cleanedText` / `links` / `assets` / `extractedCandidates` / `provenance` / `reviewStatus: "imported_raw"`。
@@ -146,9 +160,12 @@ Layer 3：formal practice data      （normalize 後 + reviewStatus + 進 quiz /
 | [`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`](./WEB_RESOURCE_COLLECTOR_PLAN.md) | crawler 規格與 CLI 模式 |
 | [`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`](./QUESTION_IMPORT_NORMALIZATION_PLAN.md) | normalize 規格與 reviewStatus 流程 |
 | [`docs/USER_TEST_NOTES.md`](./USER_TEST_NOTES.md) | 實機觀察影響「正式 paper 規模」決策（本檔 E 段） |
+| [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) | source-first 原則 / source registry gate（Layer 0，P3-10-L） |
 
 ---
 
 ## H. 版本
 
 - **v1**（2026-05-13）：第一版——P3-10-A 規劃文件骨架、定義 7 種 sourceType、三層架構流程、正式資料欄位要求、最小可玩資料包目標、後續擴充清單。本檔屬規劃層，不含實際 schema 變更；schema 變更走獨立刀數。
+- **v1.2**（2026-05-15）：對應 P3-10-M——C 段第 0 步「source registry 登錄與審核」更新：discovery 找到候選 URL 後可改用 `scripts/build_source_registry.mjs` 自動轉成 source-registry generated entries（替代純手寫 example）；其他流程不變、Layer 0 邊界不變、`approved_for_import` 仍須 reviewer 人工手動標。本檔仍屬規劃層，**未修改** schema / 未修改正式題庫 / 未實作 normalizer / collector gate。
+- **v1.1**（2026-05-14）：對應 P3-10-L——B 段補 source-first 原則（ai_generated 不得補正式題庫數量、custom 只作輔助、third_party 不可升 official、來源不明不得進 normalizer）；C 段架構圖補 Layer 0 source registry gate + 第 0 步「source registry 登錄與審核」；G 段加引用 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)。本檔仍屬規劃層，**未修改** schema 或正式題庫。

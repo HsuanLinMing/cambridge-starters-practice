@@ -18,6 +18,7 @@
 - **每題保留來源**：對應 [`docs/PRACTICE_DATA_IMPORT_PLAN.md`](./PRACTICE_DATA_IMPORT_PLAN.md) D 段欄位要求。
 - **可重跑、可回溯**：normalizer 重跑覆寫 `.generated.json`；正式 `data/*.json` 由維護者 commit、不被 normalizer 覆寫。
 - **不直接使用外部資產**：圖片 / 音檔仍改用自家 SVG / 自製 TTS；normalizer 只填邏輯欄位、不貼外部 URL 到 `image` / `audioSrc`。
+- **source-first（P3-10-L，2026-05-14）**：normalizer 只能接受**已在 source registry 中標 `approved_for_import`** 的來源；`pending_review` / `needs_manual_check` / `rejected` 一律拒絕。`ai_generated` **不得**用來補正式題庫數量。詳見 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md)。
 
 ---
 
@@ -712,11 +713,13 @@ preview / write 兩 mode 共用：
 | [`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`](./WEB_RESOURCE_COLLECTOR_PLAN.md) | normalizer 的 input 來源 |
 | [`docs/AI_QUESTION_GENERATION.md`](./AI_QUESTION_GENERATION.md) | AI normalizer prompt 可重用既有 AI 出題 prompt |
 | [`docs/STARTERS_PART_TEMPLATES.md`](./STARTERS_PART_TEMPLATES.md) | 各 Part 的題目互動方式與資料欄位建議 |
+| [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) | source-first gate：normalizer 只能接受 source registry `approved_for_import` 的條目（P3-10-L） |
 
 ---
 
 ## G. 版本
 
+- **v4.3**（2026-05-14，P3-10-L：正式來源優先匯入規則 + Source Registry）：A 段「關鍵原則」補 source-first 條（normalizer 只能接受 source registry `approved_for_import` 來源、ai_generated 不得補正式題庫數量）；F 段「與既有文件的關係」加 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) 對齊重點。本檔仍屬規劃層，**不修改** schema / 不修改正式題庫 / 不修改 normalizer 實作；後續刀數可在 normalizer 內補 source registry gate 檢查（屬未來範圍，本輪不做）。
 - **v4.2**（2026-05-14，P3-10-K 第二刀：first practice paper 組裝 / paper-level metadata）：F-pre-8 新增 F-pre-8-g 段共 7 個子段（兩 mode + 雙開關 / 組裝策略 / sourceMix 統計 / Part 覆蓋率檢查 / Duplicate paper id 保護 / Output schema / Warning code 表 / v0.1 不做清單）；原 F-pre-8-g「不在 v0.1 範圍」更名 F-pre-8-h。對應 `scripts/assemble_practice_paper.mjs` v0.1：預設 preview、雙開關（`--mode write` + `--write yes`）；duplicate paper id 全域 exit 2；不挑題不重排；不切換 `/quiz` 載入來源（lib/data.ts 未動）。
 - **v4.1**（2026-05-14，P3-10-K 修補：Codex 有條件通過後）：F-pre-8-d 改寫拆 `duplicate_id_in_target` / `duplicate_id_in_batch` 兩個 warning code + 對應 summary 欄位 `duplicateIdsInTarget` / `duplicateIdsInBatch`（`duplicateIds` 仍記聯集數量）；F-pre-8-e 補 `source` 規則對齊 `QuestionSource` union 4 種字面量、非 union 值不 silent fallback。對應 `scripts/approve_reviewed_questions.mjs` v0.1.1。
 - **v4**（2026-05-14，P3-10-K）：F-pre 段新增 F-pre-8 段「P3-10-K：approved reviewed item → 正式 ExamQuestion」含 7 個子段（兩 mode / 5-AND 篩選 / 題型支援表 9 種 / duplicate id 保護兩 mode 行為 / ExamQuestion 轉換規則 v0.1 保守 / preview output schema / v0.1 不做清單）；原 F-pre-8 更名 F-pre-9。對應 `scripts/approve_reviewed_questions.mjs` v0.1：preview 預設、絕對不動正式題庫；write 需雙開關（`--mode write` + `--write yes`）；duplicate id 全域 gate。**仍不自動 commit 正式題庫**——reviewer 跑 write 後自行 git diff 確認後 commit。
