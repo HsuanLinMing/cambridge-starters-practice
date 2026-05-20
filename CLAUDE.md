@@ -12,9 +12,13 @@
 
 ## Claude Code 的角色
 
-- 主要負責**實作**：寫 / 改檔、跑指令、修 bug。
-- 不負責驗收。如需驗收，交由 Codex 依 [`docs/CODEX_VALIDATION_RUNBOOK.md`](./docs/CODEX_VALIDATION_RUNBOOK.md) 執行。
-- 不主動修改 `PROJECT_ROADMAP.md` 的勾選狀態，除非任務明確指派。
+Claude Code 目前定位是**低風險文件 / 小修主力**，不再預設為所有程式的主要實作者。
+
+- 低風險任務：文件、README、Roadmap、`docs/*.md`、文案、小型 UI 文案、不影響核心流程的小修。
+- 中風險任務：可由 Claude Code 實作，但需依 ChatGPT 任務單判斷是否交 Codex 輕量驗收。
+- 高風險任務：交 Codex。若任務涉及 build / package / 平台 / 權限 / camera / ML Kit / lifecycle / 效能 / 需要實機驗證的核心流程，Claude 應停止並回報，不要硬修。
+- 不主動修改 `PROJECT_ROADMAP.md` 的勾選狀態，除非任務明確指派；Claude 完成後最多建議「待驗收」。
+- Claude Code 不自行 commit / push。
 
 ## 完成後
 

@@ -20,6 +20,22 @@
 
 優先採用簡單、清楚、可擴充的架構，不過度設計。
 
+## AI 協作流程
+
+本專案採 **ChatGPT 風險判斷 + Claude Code / Codex 分工** 模式（自 2026-05-20 起）：
+
+- **ChatGPT**：和使用者討論需求、判斷任務風險（低 / 中 / 高）、決定交給 Claude 或 Codex、產出任務單、收斂回報。
+- **Claude Code**：**低風險文件 / 小修主力**——README / Roadmap / `docs/*.md`、文案、AppStrings、不影響核心流程的小型 UI 調整。
+- **Codex**：**高風險工程 / debug / 驗收主力**——camera / 權限 / ML Kit / lifecycle / build / package 等高風險任務直接實作 + 自測；中風險任務可作為輕量驗收。
+
+通用規則：
+
+- AI 一律**不自行 commit / push**，由使用者決定。
+- Claude 完成後最多建議「待驗收」，Codex 驗收通過或直接實作自測通過才可標為已完成。
+- 高風險任務通常需使用者實機補驗後才 commit / push。
+
+詳細規則見 [`AI_DEV_WORKFLOW.md`](./AI_DEV_WORKFLOW.md)、[`docs/TASK_ROUTER.md`](./docs/TASK_ROUTER.md)、[`docs/CODEX_VALIDATION_RUNBOOK.md`](./docs/CODEX_VALIDATION_RUNBOOK.md)。
+
 ## 技術棧
 
 - [Next.js](https://nextjs.org/) (App Router)
@@ -41,9 +57,10 @@ npm run dev
 其他常用：
 
 ```bash
-npm run lint        # ESLint
-npm run typecheck   # tsc --noEmit
-npm run build       # 產出正式 build
+npm run lint            # ESLint
+npm run typecheck       # tsc --noEmit
+npm run build           # 產出正式 build
+npm run runbook:check   # P3-10-Q：source-first pipeline 離線 smoke check（不對外抓取、不改正式題庫）
 ```
 
 ## 在平板上使用（同 Wi-Fi 區網）
@@ -167,4 +184,5 @@ reports/              # Claude / Codex 回報檔案輸出位置
 - `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md` — 匯入題目轉正式 schema 的 normalize 流程（P3-10-C）
 - `docs/DISCOVERY_CRAWLER_PLAN.md` — 自動發現題庫 / 歷屆考題 / 學習資源來源的 discovery crawler 規劃（P3-10-D-2）
 - `docs/SOURCE_REGISTRY_PLAN.md` — 正式來源優先匯入規則 + Source Registry（P3-10-L）：正式匯入版只接受可追溯來源；`ai_generated` 不得補正式題庫數量；E-bis 段：discovery → source registry generated workflow（`scripts/build_source_registry.mjs` v0.1，P3-10-M）；E-bis-5 段：collector / normalizer / single-URL collector 三個 CLI 加 `--source-registry` gate（P3-10-N）；E-bis-6 段：build CLI `--merge-with` 保留 reviewer 編輯（`scripts/build_source_registry.mjs` v0.2，P3-10-O）
+- `docs/SOURCE_FIRST_PIPELINE_RUNBOOK.md` — **Reviewer 操作手冊（P3-10-P / Q / R）**：把 discovery → build registry → merge preserve → validate → 來源層審核 → gate collect → gate normalize → 題目層審核 → approve → assemble paper 整條 source-first pipeline 整理成 11 步可照跑命令；含 reviewer 審核 7 項標準、before/after 編輯範例、不可 commit 清單、10 條 troubleshooting、ASCII + Mermaid 流程圖、第 10 段離線 smoke check（`npm run runbook:check`，**P3-10-R 後** 涵蓋 review / approve / assemble preview 端到端）
 - `reports/` — Claude / Codex 回報檔案輸出位置（例如 `reports/claude_last_report.md`）

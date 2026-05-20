@@ -1,41 +1,101 @@
 # AI Dev Workflow
 
-本檔定義本專案的 AI 協作規範。所有人/Agent 在動工前先讀過這份文件。
+本檔定義本專案的 AI 協作規範。所有人 / Agent 在動工前先讀過這份文件。
+
+> 自 2026-05-20 起，本專案改採**風險分級協作模式**：由 ChatGPT 判斷任務風險（低 / 中 / 高），再依風險決定交給 Claude Code 或 Codex。**不再固定**「Claude 實作 → Codex 驗收」單一流程。
 
 ## 三個角色分工
 
 | 角色 | 主要用途 |
 | --- | --- |
-| **ChatGPT** | 規格討論、Roadmap 對齊、產品決策、資料設計、寫文件草稿。出口是「想清楚」。 |
-| **Claude Code（CLI 優先）** | 主要的程式實作者：寫 / 改檔、跑指令、跑測試、修 bug。出口是「程式可跑」。 |
-| **Codex（CLI 或桌面版）** | 補位角色：交叉檢查、第二意見、針對特定錯誤訊息排查、針對單一檔案做 review。 |
+| **ChatGPT** | 規格討論、優先順序、**風險判斷（低 / 中 / 高）**、決定分派對象、產出任務單、收斂回報、決定下一步、維護 Roadmap 方向。出口是「想清楚 + 分派清楚」。 |
+| **Claude Code（CLI 優先）** | **低風險任務主力**：文件更新、README / Roadmap / AppStrings 等文字整理、低風險 UI 文案、不涉及相機 / 權限 / iOS lifecycle / ML Kit / 效能 / package / build 的小型 widget 修改、文件一致性修正。**不再預設為所有程式實作者**。 |
+| **Codex（CLI 或桌面版）** | **高風險工程主力 / debug 主力 / 驗收主力**：高風險功能實作、bug 診斷與修正、iOS / Android build 問題、camera / ML Kit / 權限 / 效能 / package 導入、`flutter analyze` / `test` / `build`、emulator / 實機 smoke、git diff 檢查；可作為中風險任務的輕量驗收。 |
 
 原則：
 
-- **想清楚 → ChatGPT**
-- **動手做 → Claude Code**
-- **再看一次 / 排查 → Codex**
+- **想清楚 + 判風險 → ChatGPT**
+- **低風險文件 / 小修 → Claude Code**
+- **高風險工程 / debug / 驗收 → Codex**
+
+## 任務風險分級
+
+ChatGPT 在派工前先把任務歸到下列三級之一，**Claude / Codex 接到任務時也要再自我核對一次風險**：
+
+### 低風險
+
+涵蓋：
+
+- 文件更新（`README.md` / `PROJECT_ROADMAP.md` / `docs/*.md` / `AI_DEV_WORKFLOW.md` 等）
+- 文案 / AppStrings / 多語系前置字串整理
+- 小型 UI 文案調整、不影響核心流程的小修
+- Roadmap 狀態收尾（在規則允許範圍內）
+
+處理方式：
+
+- **Claude Code 處理**，Claude 自查即可
+- 通常不需要 Codex 重型驗收
+
+### 中風險
+
+涵蓋：
+
+- 一般功能、非核心 UI flow
+- 小型 widget
+- 不涉及平台 / 權限 / 相機 / ML Kit / 效能的功能調整
+
+處理方式：
+
+- **Claude Code 實作**
+- **Codex 視情況輕量驗收**（不一定開 emulator / 實機）
+
+### 高風險
+
+涵蓋：
+
+- iOS / Android 相關
+- camera / camera preview / camera lifecycle
+- ML Kit、bbox mapping、座標轉換
+- 權限 / 相簿保存 / 檔案儲存
+- 效能 / 卡頓 / ANR / lifecycle
+- build / test 失敗、package 導入
+- 需要實機確認的核心功能
+
+處理方式：
+
+- **Codex 直接實作或診斷 + 自測**
+- 使用者實機補驗
+- **Claude 不作為主要實作者**
+
+> 若任務原本判低 / 中風險，動工後發現實際風險明顯升級（例如修改範圍失控、混入 build / 平台層問題），應立刻停止當前 agent，將任務改派 Codex；同時請 ChatGPT 重新評估與切分。
 
 ## 工具使用規則
 
 ### Claude Code
 
-- **CLI 優先**。所有實作任務直接給 CLI，不要在桌面版用拖拉檔案的方式做大型修改。
-- 大任務先用一句話講清楚目標、範圍、不做什麼，再交給 CLI。
-- 完成後請用本檔下方的「回報格式」回覆。
+- **CLI 優先**。低風險文件 / 小修任務直接給 CLI，不要在桌面版用拖拉檔案的方式做大型修改。
+- 動工前先確認任務符合「低風險」描述；若任務出現高風險特徵（相機 / 權限 / build / lifecycle / ML Kit / 效能 / package），**先停下回報 ChatGPT 重新分派**，不要硬接。
+- 完成後請用本檔下方的「回報格式」回覆；**Claude 不自行 commit / push**。
+- 若連續多次修不到問題、或 ChatGPT 判斷 Claude 回報內容不可信，應停止讓 Claude 繼續修改該任務，改交 Codex。
 
 ### Codex
 
 - 可用 CLI 或桌面版。
 - 適合：
-  - 已經有錯誤訊息／stack trace，要找線索
-  - 想對某個檔案做獨立 review
-  - 需要第二意見驗證 Claude 的修改
+  - 高風險功能實作（camera / ML Kit / 權限 / 效能 / build / lifecycle / package）
+  - 已經有錯誤訊息 / stack trace，要找線索並修正
+  - 對單一檔案做獨立 review
+  - 驗收 Claude 寫好的修改（中風險時的輕量驗收 / 高風險時的完整驗收）
+  - `npm run lint` / `typecheck` / `build` / `runbook:check`，或未來 Flutter 專案的 `flutter analyze` / `test` / `build`
+- **Codex 不自行 commit / push**，除非使用者明確要求。
+- Codex 直接實作並自測通過時，可同步更新 `PROJECT_ROADMAP.md` 對應條目狀態；驗收若僅「部分通過」或「未通過」，只能在回報中提出 Roadmap 狀態建議，不得自行標記完成。
 
 ### ChatGPT
 
 - 不直接動程式碼。
-- 任務完成後，把 Claude 的回報貼回 ChatGPT，讓 ChatGPT 同步更新 roadmap 與下一步。
+- 負責**風險判斷**與**分派決定**：每個任務都要先標出風險、決定交給 Claude 或 Codex，再產出任務單。
+- 收斂 Claude / Codex 的回報，決定下一步（驗收、修正、commit / push）。
+- 維護 `PROJECT_ROADMAP.md` 方向；實際翻牌動作依下方「Roadmap 狀態規則」。
 
 ## 回報格式（Claude Code 完成任務後必填）
 
@@ -56,10 +116,24 @@
 ## Roadmap 同步規則
 
 - 主檔：`PROJECT_ROADMAP.md`
-- 完成一個 P 階段的事項時，Claude 在回報的「Roadmap 同步檢查」欄位明確指出：
-  - 哪一條從 ⬜ → ✅
+- **Claude 完成功能或文件修改後，最多只能建議「待驗收」**——在回報的「Roadmap 同步檢查」欄位明確指出：
+  - 哪一條建議從 ⬜ → 待驗收（不是直接 ✅）
   - 是否有新發現需要插入新項目
-- 由 ChatGPT 收斂後實際更新 roadmap 檔案；Claude 不主動改 roadmap 檔案除非被明確指派。
+- **Codex 驗收通過後，才可把對應項目改成「已完成」（✅）**。
+- **若任務由 Codex 直接實作並自測通過**，Codex 可同步更新 `PROJECT_ROADMAP.md` 對應條目狀態。
+- **Codex 若驗收部分通過或不通過**，不應改成已完成，只能提出 Roadmap 狀態建議。
+- 高風險任務即使 Codex 自測通過，也可能需要使用者實機補驗後才 commit / push。
+- 由 ChatGPT 收斂方向；Claude 不主動改 Roadmap 檔案除非被明確指派為文件更新任務。
+
+## Commit / Push 規則
+
+- **所有 commit / push 由使用者決定**，除非使用者明確要求 AI 代為操作。
+- Claude Code **不自行** commit / push。
+- Codex **不自行** commit / push（高風險自測通過後仍交回使用者實機補驗）。
+- 不得 commit 下列檔案（即使被指派為文件更新也一樣）：
+  - `.env.local`
+  - `*.generated.json`
+  - `.claude/settings.local.json`
 
 ## Scope 控制原則
 

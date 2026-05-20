@@ -32,23 +32,34 @@
 
 ## 2. Codex 的角色定位
 
-Codex 在本專案是補位角色，三個關鍵字：**第二意見、驗收、排查**。
+> 自 2026-05-20 起，本專案改採**風險分級協作模式**（詳見 `AI_DEV_WORKFLOW.md`）。Codex **不再只是驗收 / 第二意見工具**，同時升格為**高風險工程主力、debug 主力、build / test / smoke 主力**。
+
+Codex 在本專案是「**高風險工程 + debug + 驗收**」三合一主力，五個關鍵字：**高風險實作、debug、驗收、第二意見、排查**。
 
 Codex **應該**做：
 
-- 對 Claude Code 的修改做交叉檢查。
-- 跑 `npm run lint` / `typecheck` / `build`，回報結果。
+- **高風險任務直接實作 + 自測**：camera / camera preview / camera lifecycle、ML Kit、bbox mapping / 座標轉換、權限、相簿、檔案儲存、效能 / 卡頓 / ANR / lifecycle、build / test 失敗、package 導入、需要實機確認的核心功能。
+- bug 診斷與修正、iOS / Android build 問題排查。
+- 對 Claude Code 的修改做交叉檢查（中風險：輕量驗收；高風險：完整驗收）。
+- 跑 `npm run lint` / `typecheck` / `build` / `runbook:check`，未來 Flutter 專案的 `flutter analyze` / `test` / `build`，並回報結果。
+- emulator / 實機 smoke test。
+- git diff 檢查。
 - 對單一檔案 / 單一函式做 review。
-- 針對明確的錯誤訊息提供診斷與假設。
-- 比較兩種寫法的差異與取捨。
+- 針對明確的錯誤訊息提供診斷與假設；比較兩種寫法的差異與取捨。
 
 Codex **不應該**做：
 
+- **自行 commit / push**——除非使用者明確要求（高風險任務即使自測通過，也通常需要使用者實機補驗後才 commit）。
+- 在驗收**部分通過 / 未通過**時把 `PROJECT_ROADMAP.md` 對應條目改成已完成（✅）；此情況只能在回報中**提出 Roadmap 狀態建議**。
 - 主動擴大 scope，順手改不相關的檔案。
 - 在沒有錯誤證據時主動重構。
 - 替 Claude Code 把「下一輪」的功能寫掉。
-- 改 `PROJECT_ROADMAP.md` 的階段或勾選狀態（同步交給 ChatGPT）。
 - 安裝新依賴，除非任務明確指派。
+
+Codex **可以**做（新流程下）：
+
+- **直接實作 + 自測通過時**，可同步更新 `PROJECT_ROADMAP.md` 對應條目狀態為已完成；但 commit / push 仍交由使用者決定。
+- 在高風險任務中作為主要實作者，不必先等 Claude 動手。
 
 如果在驗收過程中發現「應該做但本輪沒做」的事，**寫進回報的「後續建議」欄位**，而不是直接動手。
 
@@ -161,7 +172,7 @@ npm run build
 
 ## 6. Codex 回報格式
 
-Codex 的工作是**驗收 / 排查**，不是動手實作，因此回報格式與 Claude Code 不同。請使用以下驗收導向 9 段格式：
+本段適用於 **Codex 驗收 / 排查任務**。若本輪是 Codex 直接實作高風險工程或 debug 修正，請依任務單要求回報修改檔案、測試結果與風險；若本輪是驗收，請使用以下驗收導向 9 段格式：
 
 ```
 ## 【本輪驗收摘要】
@@ -220,13 +231,17 @@ Codex 的工作是**驗收 / 排查**，不是動手實作，因此回報格式�
 ## 7. Roadmap 同步規則
 
 - 主檔：`PROJECT_ROADMAP.md`。
-- Codex **不直接修改** roadmap 檔案。
-- 在「Roadmap 同步檢查」欄位明確列出建議的勾選狀態變動，例如：
+- **Codex 驗收任務**：Codex **不直接修改** roadmap 檔案，只在「Roadmap 同步檢查」欄位列出建議的勾選狀態變動，例如：
 
   > 建議將 P1 的「`npm run lint` / `typecheck` / `build` 全綠」從 ⬜ 改為 ✅。
 
-- 由 ChatGPT 收斂後，再交由 Claude Code 實際更新檔案。
+  由 ChatGPT 收斂後，再交由 Claude Code 實際更新檔案。
+
+- **Codex 直接實作 + 自測通過**（新流程）：可同步更新 `PROJECT_ROADMAP.md` 對應條目狀態為已完成（✅），不需另開一輪 Claude 翻牌。但 commit / push 仍交由使用者決定，**高風險任務通常需使用者實機補驗後才 commit / push**。
+- **Codex 驗收結論為「有條件通過」或「未通過」**：**不得**把對應條目改成已完成；只能在回報中提出 Roadmap 狀態建議（例如「建議維持 ⬜」或「建議標為待驗收，待最小修補點完成後再升級」）。
 - 如果發現 roadmap 中漏了本輪實際完成的事，列入「後續建議」，由 ChatGPT 決定要不要新增條目。
+
+> Claude Code 在文件更新任務中，**最多只能把 roadmap 對應條目建議為「待驗收」**——升級成 ✅ 由 Codex 驗收通過後決定，或由 Codex 直接實作自測通過時同步翻牌。
 
 ---
 
@@ -240,4 +255,4 @@ Codex 的工作是**驗收 / 排查**，不是動手實作，因此回報格式�
 | Tailwind class 沒生效 | `app/globals.css` 是否載入、`@tailwindcss/postcss` 是否在 `postcss.config.mjs` |
 | ESLint 報 `parser` 相關錯 | `eslint.config.mjs`、`eslint-config-next` 版本 |
 
-排查時**只回報診斷與假設**，不要動手改檔；改檔交給 Claude Code（依 `docs/TASK_ROUTER.md` 第 3 節「先 Codex 排查、再 Claude 修正」流程）。
+排查任務若被明確要求「只診斷」，就只回報診斷與假設；若任務已交給 Codex 作為高風險 debug / 工程主力，Codex 可直接修正並自測。是否改派 Claude Code 或繼續由 Codex 動手，依 `docs/TASK_ROUTER.md` 的風險分級與任務單決定。

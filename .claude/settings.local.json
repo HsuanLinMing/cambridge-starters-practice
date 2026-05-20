@@ -183,7 +183,11 @@
       "Bash(echo \"exit_check=$?\")",
       "Bash(echo \"exit_examples=$? \\(預期 1 = 沒命中、沒被忽略\\)\")",
       "Bash(echo \"real exit=$?\")",
-      "Bash(echo \"help exit=$?\")"
+      "Bash(echo \"help exit=$?\")",
+      "Bash(/bin/ls)",
+      "Bash(/bin/ls docs/)",
+      "Bash(/bin/ls docs/SOURCE_FIRST_PIPELINE_RUNBOOK.md)",
+      "Bash(/bin/ls /Users/linxuanming/Documents/cambridge-starters-practice/docs/)"
     ]
   }
 }

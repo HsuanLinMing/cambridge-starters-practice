@@ -160,13 +160,15 @@ Layer 3：formal practice data       （normalize 後 + reviewStatus + 進 quiz 
 | [`docs/WEB_RESOURCE_COLLECTOR_PLAN.md`](./WEB_RESOURCE_COLLECTOR_PLAN.md) | crawler 規格與 CLI 模式 |
 | [`docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`](./QUESTION_IMPORT_NORMALIZATION_PLAN.md) | normalize 規格與 reviewStatus 流程 |
 | [`docs/USER_TEST_NOTES.md`](./USER_TEST_NOTES.md) | 實機觀察影響「正式 paper 規模」決策（本檔 E 段） |
-| [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) | source-first 原則 / source registry gate（Layer 0，P3-10-L） |
+| [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) | source-first 原則 / source registry gate（Layer 0，P3-10-L / M / N / O） |
+| [`docs/SOURCE_FIRST_PIPELINE_RUNBOOK.md`](./SOURCE_FIRST_PIPELINE_RUNBOOK.md) | Reviewer 端到端操作手冊（P3-10-P）：把本檔 C 段流程轉成 11 步可照跑的命令；reviewer 第一入口 |
 
 ---
 
 ## H. 版本
 
 - **v1**（2026-05-13）：第一版——P3-10-A 規劃文件骨架、定義 7 種 sourceType、三層架構流程、正式資料欄位要求、最小可玩資料包目標、後續擴充清單。本檔屬規劃層，不含實際 schema 變更；schema 變更走獨立刀數。
+- **v1.5**（2026-05-15）：對應 P3-10-P——G 段「與既有文件的關係」加 [`docs/SOURCE_FIRST_PIPELINE_RUNBOOK.md`](./SOURCE_FIRST_PIPELINE_RUNBOOK.md) 條目（reviewer 端到端操作手冊；本檔的 C 段流程轉換成 11 步可照跑命令）。本輪純文件交付，**未修改** script / schema / 正式題庫 / UI。
 - **v1.4**（2026-05-15）：對應 P3-10-O——C 段第 0 步補「P3-10-O merge / preserve 已落地」說明：`scripts/build_source_registry.mjs` v0.2 新增 `--merge-with` flag；reviewer 已編輯欄位（reviewStatus / rightsNotes / provenanceNotes / sourceKind / publisher / publisherType / partsCovered / level / exam / accessType / sourceId 等）保留；新 discovery 條目走原本規則；orphan 保留；sourceId 自動衝突避讓；invalid merge-with → exit 2。本檔仍屬規劃層、未修改 schema。
 - **v1.3**（2026-05-15）：對應 P3-10-N——C 段第 0 步補「P3-10-N collector / normalizer gate 已落地」說明，三個下游 CLI 新增 `--source-registry` flag（`collect_discovered_resources.mjs` / `normalize_collected_sources.mjs` / `web_resource_collect.mjs`）；URL normalization 規則：lowercase host / strip trailing slash（pathname=/ 除外）/ 保留 search / 移除 fragment；**不做** domain-level 放行。本檔仍屬規劃層，**未修改** schema / 未修改正式題庫。
 - **v1.2**（2026-05-15）：對應 P3-10-M——C 段第 0 步「source registry 登錄與審核」更新：discovery 找到候選 URL 後可改用 `scripts/build_source_registry.mjs` 自動轉成 source-registry generated entries（替代純手寫 example）；其他流程不變、Layer 0 邊界不變、`approved_for_import` 仍須 reviewer 人工手動標。本檔仍屬規劃層，**未修改** schema / 未修改正式題庫 / 未實作 normalizer / collector gate。

@@ -15,6 +15,16 @@
 
 文件有衝突時，以 `AI_DEV_WORKFLOW.md` 為準。
 
+## AI 協作分工（2026-05-20 起）
+
+本專案採**風險分級協作模式**，不再固定「Claude 實作 / Codex 驗收」作為唯一預設流程。每個任務先判斷低 / 中 / 高風險，再決定交付對象。
+
+- **ChatGPT**：需求討論、風險判斷、分派 Claude Code / Codex、整理回報、判斷下一步。
+- **Claude Code**：低風險文件 / 文案 / 小修主力；中風險任務可依任務單處理，但若發現高風險特徵應停止並回報。
+- **Codex**：高風險工程、debug、build / test / smoke、驗收主力；可直接處理高風險任務並自測。
+
+Claude Code / Codex 都不自行 commit / push，除非使用者明確要求。
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 

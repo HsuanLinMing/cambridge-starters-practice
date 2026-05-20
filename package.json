@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "runbook:check": "node scripts/runbook_smoke_check.mjs"
   },
   "dependencies": {
     "next": "16.2.5",
