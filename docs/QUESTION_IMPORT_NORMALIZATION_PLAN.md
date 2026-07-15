@@ -522,14 +522,19 @@ summary 對應欄位：
 | `duplicateIdsInTarget` | 只算 target 既有 dup 的 unique id 數 |
 | `duplicateIdsInBatch` | 只算 batch 內部 dup 的 unique id 數 |
 
-#### F-pre-8-e. ExamQuestion 轉換規則（v0.1.1 保守）
+#### F-pre-8-e. ExamQuestion 轉換規則（v0.1.2 保守）
 
-- `source`：依 QuestionSource union 規則（v0.1.1 補；見 F-pre-8-e-1）
+- `source`：依 QuestionSource union 規則（v0.1.1 補）
   - 對齊 `lib/types.ts` `QuestionSource` union 4 種：`official_sample` / `past_paper` / `ai_generated` / `custom`
   - finalQuestion.source 為空或缺值 → 預設 `custom`
   - finalQuestion.source 在 union → 使用該值
   - finalQuestion.source **非空但不在 union** → 條目 `status="failed"` + error `invalid_question_source`，**不** silent fallback 為 custom
   - reviewer 若想表達第三方來源（`user_provided` / `third_party` / 等），請保留於 `reviewerNotes` 或 discovery provenance；**不**寫入正式 `QuestionSource` union
+- `sourceProvenance`（v0.1.2 補）：若 finalQuestion / reviewed item / discovery provenance 任一來源能提供非空 `sourceUrl`，CLI 會在正式 `ExamQuestion` 保留 optional `sourceProvenance`
+  - `sourceUrl` 是唯一必要觸發條件；沒有 sourceUrl 時不寫 `sourceProvenance`，避免假追溯。
+  - 可保留欄位：`sourceId` / `sourceUrl` / `documentTitle` / `pageHint` / `sectionHint` / `sourceKind` / `publisher` / `publisherType` / `rightsNotes` / `provenanceNotes` / `reviewerNotes`。
+  - `sourceProvenance.sourceKind` 可保留 source registry 細分類，例如 `official_learning_material`；正式 `question.source` 仍只寫 `QuestionSource` union 值（例如映射為 `official_sample`）。
+  - `sourceProvenance` 只表示來源線索與 reviewer 註記，**不代表**來源授權、題目已通過 human review、或可複製官方圖片 / 音檔 / 原題素材。
 - `starterPart`：使用 finalQuestion.starterPart；缺值時依 type fallback（spelling→RW3、true-false→RW1、picture-choice→RW1、word-choice→RW3、multiple-choice→RW4、fill-blank→RW4、listening-choice→L3）
 - `starterSection`：listening-* → `listening`；其餘 → `reading-writing`
 - `image`：從 finalQuestion.imageSrc 抓；只在非空時填
@@ -543,7 +548,7 @@ summary 對應欄位：
 {
   "batchId": "approvebatch-<ISO>",
   "createdAt": "...",
-  "source": "approve_reviewed_questions.mjs@v0.1",
+  "source": "approve_reviewed_questions.mjs@v0.1.2",
   "mode": "preview" | "write",
   "write": true | false,
   "reviewedInput": "<absolute path>",
@@ -566,7 +571,7 @@ summary 對應欄位：
       "status": "ready | skipped | failed",
       "warnings": [...],
       "errors": [...],
-      "question": null | { ExamQuestion schema }
+      "question": null | { ExamQuestion schema, "sourceProvenance"?: { ... } }
     }
   ]
 }
@@ -719,6 +724,7 @@ preview / write 兩 mode 共用：
 
 ## G. 版本
 
+- **v4.5**（2026-07-07，P3-10-V：正式題庫 `sourceProvenance` 欄位與 approve 轉換保留）：F-pre-8-e 升為 `approve_reviewed_questions.mjs` v0.1.2，補正式 `ExamQuestion.sourceProvenance` optional 轉換規則；`source` 仍限 `QuestionSource` union 4 種，source registry 細分類（如 `official_learning_material`）保留在 `sourceProvenance.sourceKind`。F-pre-8-f preview schema 版本同步到 v0.1.2。本輪只保留來源追溯欄位，不寫正式題庫、不組裝正式 paper、不切 `/quiz`。
 - **v4.4**（2026-05-15，P3-10-N：Collector / Normalizer approved_for_import gate）：A 段「關鍵原則」source-first 條補「P3-10-N 程式層 gate 已落地」說明——`scripts/normalize_collected_sources.mjs` v0.2 新增 `--source-registry <path>` flag，gate 強制套用於 `source_document.url`；未命中 approved 的 source 一律只輸出 skipped item（不產 draft / observation），三種 skipped reason：`skipped_not_in_source_registry` / `skipped_source_not_approved_for_import` / `skipped_invalid_url_for_gate`。本檔不修改 normalizer 5 種 reviewStatus 狀態機 / 不修改 D 段流程；屬上游 gate 補強。
 - **v4.3**（2026-05-14，P3-10-L：正式來源優先匯入規則 + Source Registry）：A 段「關鍵原則」補 source-first 條（normalizer 只能接受 source registry `approved_for_import` 來源、ai_generated 不得補正式題庫數量）；F 段「與既有文件的關係」加 [`docs/SOURCE_REGISTRY_PLAN.md`](./SOURCE_REGISTRY_PLAN.md) 對齊重點。本檔仍屬規劃層，**不修改** schema / 不修改正式題庫 / 不修改 normalizer 實作；後續刀數可在 normalizer 內補 source registry gate 檢查（屬未來範圍，本輪不做）。
 - **v4.2**（2026-05-14，P3-10-K 第二刀：first practice paper 組裝 / paper-level metadata）：F-pre-8 新增 F-pre-8-g 段共 7 個子段（兩 mode + 雙開關 / 組裝策略 / sourceMix 統計 / Part 覆蓋率檢查 / Duplicate paper id 保護 / Output schema / Warning code 表 / v0.1 不做清單）；原 F-pre-8-g「不在 v0.1 範圍」更名 F-pre-8-h。對應 `scripts/assemble_practice_paper.mjs` v0.1：預設 preview、雙開關（`--mode write` + `--write yes`）；duplicate paper id 全域 exit 2；不挑題不重排；不切換 `/quiz` 載入來源（lib/data.ts 未動）。

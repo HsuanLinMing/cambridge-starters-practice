@@ -129,6 +129,7 @@ npm run runbook:check   # P3-10-Q：source-first pipeline 離線 smoke check（�
 - 完整 Listening + Reading & Writing + Speaking 模擬考流程
 - TTS 假考官貫穿全流程（Listening 提示 + Speaking 互動）
 - **正式題庫主線（source-first，P3-10-L）**：以 `official_sample` / `official_learning_material` / `past_paper` / 可追溯來源的 Starters 練習資料為主；每題必須先進 [`docs/SOURCE_REGISTRY_PLAN.md`](./docs/SOURCE_REGISTRY_PLAN.md) 規範的 source registry → 人工審核 `approved_for_import` → 才能走 normalizer / review / approve
+- **題目來源追溯（P3-10-V）**：正式題目仍用 4 值 `QuestionSource`（`official_sample` / `past_paper` / `ai_generated` / `custom`）做粗分類；source-first 匯入題可另保留 optional `sourceProvenance`（sourceId / sourceUrl / sourceKind / rightsNotes / provenanceNotes 等），方便 reviewer 從正式題庫回溯來源。`sourceProvenance` 不代表授權或可複製官方素材。
 - **AI 延伸題（未來輔助模式，非正式題庫主線）**：等正式題庫完成後再做；**只**能基於已匯入、可追溯的官方學習資料與題庫；**不可**跳脫學習資料範圍、**不可**用來補正式題庫數量、**不可**偽裝成 `official_sample` / `past_paper`；UI / 報告必須與正式 / 歷史題庫明確區分（標示「AI 延伸題」），人工審核仍走 `source_materials/ai_generated/`
 - 家長檢視 / 錯題複習 / 弱點分析（皆走本機 localStorage）
 

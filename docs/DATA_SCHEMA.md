@@ -76,6 +76,36 @@
 | `ai_generated` | 由 AI 依題型風格生成的仿真題 |
 | `custom` | 使用者自製或老師補充的題目 |
 
+### 題目層來源追溯（`sourceProvenance`）
+
+`source` 仍是正式題庫的粗粒度 4 值分類；若題目來自 source-first 匯入流程，可另外在題目上保留 optional `sourceProvenance` 物件，記錄 reviewer 看到的來源線索。
+
+```jsonc
+{
+  "sourceProvenance": {
+    "sourceId": "src-manual-001",              // source registry id，可省略
+    "sourceUrl": "https://example.com/source", // 若 sourceProvenance 存在則必填
+    "documentTitle": "Starters worksheet",
+    "pageHint": "p. 3",
+    "sectionHint": "Reading & Writing Part 3",
+    "sourceKind": "official_learning_material",
+    "publisher": "Cambridge Assessment English",
+    "publisherType": "official",
+    "rightsNotes": "Reviewer confirmed usage boundary for internal practice.",
+    "provenanceNotes": "Reviewer verified source manually.",
+    "reviewerNotes": "Adapted as source-first practice question."
+  }
+}
+```
+
+規則：
+
+- `sourceProvenance` 是 optional；若存在，`sourceUrl` 必須是非空字串。
+- `sourceKind` 可保留 source registry 的細分類（例如 `official_learning_material` / `third_party_practice`），**不等同** `QuestionSource` union。
+- `official_learning_material` 進正式題庫時，`source` 仍需映射到既有 `QuestionSource`（通常為 `official_sample`），細節保留在 `sourceProvenance.sourceKind`。
+- `sourceProvenance` 只代表來源可追溯與 reviewer 註記，**不代表**官方授權、題目已通過 human review、或可複製官方圖片 / 音檔 / 原題素材。
+- 正式題目仍不可直接包含外部官方 / 歷屆圖片、音檔或受保護原文；只保留來源線索與審核註記。
+
 ### 共用題目欄位（`BaseQuestion`）
 
 ```jsonc
@@ -89,7 +119,20 @@
   "audio": "/audio/q1.mp3",            // 題目音檔（listening 題型必填）
   "difficulty": "easy",                 // easy | medium | hard（可省略）
   "topic": "food",                      // 主題（可對應 vocabulary category）
-  "promptVersion": "starters-rw-v1"     // AI 生成題的 prompt 版本（僅 ai_generated 用）
+  "promptVersion": "starters-rw-v1",    // AI 生成題的 prompt 版本（僅 ai_generated 用）
+  "sourceProvenance": {                 // 可省略；source-first 匯入題的來源追溯
+    "sourceId": "src-manual-001",
+    "sourceUrl": "https://example.com/source",
+    "documentTitle": "Starters worksheet",
+    "pageHint": "p. 3",
+    "sectionHint": "Reading & Writing Part 3",
+    "sourceKind": "official_learning_material",
+    "publisher": "Cambridge Assessment English",
+    "publisherType": "official",
+    "rightsNotes": "Reviewer confirmed usage boundary for internal practice.",
+    "provenanceNotes": "Reviewer verified source manually.",
+    "reviewerNotes": "Adapted as source-first practice question."
+  }
 }
 ```
 

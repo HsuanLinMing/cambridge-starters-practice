@@ -23,7 +23,7 @@
  *   - ❌ 不自動產生題目；不呼叫 OpenAI；不下載 PDF / image / audio；不解析 PDF
  *   - ❌ 不讓非 approved_for_practice 條目進正式題庫
  *   - ❌ 不覆蓋既有正式題目（duplicate id 在 write mode 整批 exit 2）
- *   - ❌ 不接後端 / DB / 登入；不改 schema
+ *   - ❌ 不接後端 / DB / 登入；不改題目核心欄位語意
  *   - ✅ preview mode 永遠安全（不動正式題庫，不管 --write 是什麼）
  *   - ✅ write mode 必須同時 --mode write + --write yes 才寫
  *
@@ -59,7 +59,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 0. 常數
 // ===========================================================================
 
-const APPROVE_VERSION = "approve_reviewed_questions.mjs@v0.1.1";
+const APPROVE_VERSION = "approve_reviewed_questions.mjs@v0.1.2";
 const SUPPORTED_MODES = new Set(["preview", "write"]);
 const DEFAULT_LIMIT = 10;
 
@@ -127,7 +127,8 @@ const DEFAULT_OUT = resolve(
   "approved-questions.preview.generated.json",
 );
 
-const HELP_TEXT = `\napprove_reviewed_questions.mjs — P3-10-K approved → 正式題庫轉換 CLI v0.1.1\n
+const HELP_TEXT = `\napprove_reviewed_questions.mjs — P3-10-K approved → 正式題庫轉換 CLI v0.1.2\n
+（v0.1.2：P3-10-V 修補，2026-07-07；正式 question 保留 sourceProvenance）\n
 （v0.1.1：P3-10-K 修補，2026-05-14；新增 batch duplicate id 偵測 + finalQuestion.source union 驗證）\n
 Usage:
   preview（預設、絕對安全；**不動正式題庫**）：
@@ -191,8 +192,13 @@ QuestionSource union（finalQuestion.source 規則；v0.1.1 新增）：
   - reviewer 若想表示第三方來源（user_provided / third_party / 等），請保留於
     reviewerNotes / sourceType（discovery provenance）；**不要**寫入正式 QuestionSource union
 
-ExamQuestion 轉換規則（v0.1.1 保守）：
+ExamQuestion 轉換規則（v0.1.2 保守）：
   - source：依 QuestionSource union 規則（見上）；reviewer 可在 finalQuestion.source 提供，預設 "custom"
+  - sourceProvenance（v0.1.2）：若 finalQuestion / reviewed item / discoveryProvenance 有 sourceUrl，
+    會保留到正式 question.sourceProvenance；sourceUrl 必填，其他欄位有值才寫入。
+    來源細節包含 sourceId / documentTitle / pageHint / sectionHint / sourceKind / publisher /
+    publisherType / rightsNotes / provenanceNotes / reviewerNotes。此欄只作來源追溯與 reviewer 記錄，
+    不代表授權，也不會把官方素材寫入題庫。
   - starterPart：使用 finalQuestion.starterPart；缺值時依 type fallback（spelling→RW3 / true-false→RW1 / ...）
   - image：使用 finalQuestion.imageSrc 對應 BaseQuestion.image；只在非空時填
   - audioSrc：listening-choice 才透傳；audio legacy field 用 audioSrc 同值（v0.1 簡化）
@@ -323,6 +329,122 @@ function nonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (nonEmptyString(value)) return value.trim();
+  }
+  return undefined;
+}
+
+function objectOrEmpty(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function buildQuestionSourceProvenance(fq, reviewedItem) {
+  const finalProvenance = objectOrEmpty(fq?.sourceProvenance);
+  const discoveryProvenance = objectOrEmpty(reviewedItem?.discoveryProvenance);
+  const originalDraft = objectOrEmpty(reviewedItem?.originalDraft);
+  const draftProvenance = objectOrEmpty(originalDraft?.provenance);
+  const reviewerFields = objectOrEmpty(reviewedItem?.reviewerFields);
+
+  const sourceUrl = firstNonEmptyString(
+    finalProvenance.sourceUrl,
+    fq?.sourceUrl,
+    reviewedItem?.sourceUrl,
+    discoveryProvenance.sourceUrl,
+    originalDraft.sourceUrl,
+    draftProvenance.sourceUrl,
+  );
+  if (!sourceUrl) return undefined;
+
+  const out = {
+    sourceId: firstNonEmptyString(
+      finalProvenance.sourceId,
+      fq?.sourceId,
+      reviewedItem?.sourceId,
+      discoveryProvenance.sourceId,
+      originalDraft.sourceId,
+      draftProvenance.sourceId,
+    ),
+    sourceUrl,
+    documentTitle: firstNonEmptyString(
+      finalProvenance.documentTitle,
+      fq?.documentTitle,
+      reviewedItem?.documentTitle,
+      discoveryProvenance.documentTitle,
+      discoveryProvenance.title,
+      originalDraft.documentTitle,
+      draftProvenance.documentTitle,
+    ),
+    pageHint: firstNonEmptyString(
+      finalProvenance.pageHint,
+      fq?.pageHint,
+      reviewedItem?.pageHint,
+      discoveryProvenance.pageHint,
+      originalDraft.pageHint,
+      draftProvenance.pageHint,
+    ),
+    sectionHint: firstNonEmptyString(
+      finalProvenance.sectionHint,
+      fq?.sectionHint,
+      reviewedItem?.sectionHint,
+      discoveryProvenance.sectionHint,
+      originalDraft.sectionHint,
+      draftProvenance.sectionHint,
+    ),
+    sourceKind: firstNonEmptyString(
+      finalProvenance.sourceKind,
+      fq?.sourceKind,
+      reviewedItem?.sourceKind,
+      discoveryProvenance.sourceKind,
+      originalDraft.sourceKind,
+      draftProvenance.sourceKind,
+      reviewedItem?.sourceType,
+    ),
+    publisher: firstNonEmptyString(
+      finalProvenance.publisher,
+      fq?.publisher,
+      reviewedItem?.publisher,
+      discoveryProvenance.publisher,
+      originalDraft.publisher,
+      draftProvenance.publisher,
+    ),
+    publisherType: firstNonEmptyString(
+      finalProvenance.publisherType,
+      fq?.publisherType,
+      reviewedItem?.publisherType,
+      discoveryProvenance.publisherType,
+      originalDraft.publisherType,
+      draftProvenance.publisherType,
+    ),
+    rightsNotes: firstNonEmptyString(
+      finalProvenance.rightsNotes,
+      fq?.rightsNotes,
+      reviewedItem?.rightsNotes,
+      discoveryProvenance.rightsNotes,
+      originalDraft.rightsNotes,
+      draftProvenance.rightsNotes,
+    ),
+    provenanceNotes: firstNonEmptyString(
+      finalProvenance.provenanceNotes,
+      fq?.provenanceNotes,
+      reviewedItem?.provenanceNotes,
+      discoveryProvenance.provenanceNotes,
+      originalDraft.provenanceNotes,
+      draftProvenance.provenanceNotes,
+      draftProvenance.notes,
+    ),
+    reviewerNotes: firstNonEmptyString(
+      finalProvenance.reviewerNotes,
+      fq?.reviewerNotes,
+      reviewerFields.reviewerNotes,
+      reviewedItem?.reviewerNotes,
+    ),
+  };
+
+  return Object.fromEntries(Object.entries(out).filter(([, value]) => value !== undefined));
+}
+
 // ===========================================================================
 // 3. ExamQuestion 轉換（finalQuestion → ExamQuestion）
 // ===========================================================================
@@ -377,7 +499,7 @@ function normalizeImageOptions(options) {
  * 把 reviewerFields.finalQuestion 扁平化為正式 ExamQuestion。
  * 回傳 { ok: true, question } 或 { ok: false, errors: [...] }。
  */
-function convertFinalQuestionToExamQuestion(fq) {
+function convertFinalQuestionToExamQuestion(fq, reviewedItem = null) {
   const errors = [];
   if (!fq || typeof fq !== "object") {
     return { ok: false, errors: [{ code: "missing_final_question", message: "finalQuestion 缺" }] };
@@ -461,6 +583,7 @@ function convertFinalQuestionToExamQuestion(fq) {
 
   // 基本欄位
   const starterPart = normalizeStarterPart(fq.starterPart, type);
+  const sourceProvenance = buildQuestionSourceProvenance(fq, reviewedItem);
   const base = {
     id: fq.id,
     type,
@@ -473,6 +596,7 @@ function convertFinalQuestionToExamQuestion(fq) {
         ? "reading-writing"
         : "reading-writing",
   };
+  if (sourceProvenance) base.sourceProvenance = sourceProvenance;
   if (starterPart) base.starterPart = starterPart;
   if (nonEmptyString(fq.imageSrc)) base.image = fq.imageSrc;
 
@@ -867,7 +991,7 @@ async function main() {
     }
     validationPassedCount += 1;
     // 轉換
-    const conv = convertFinalQuestionToExamQuestion(r.reviewerFields.finalQuestion);
+    const conv = convertFinalQuestionToExamQuestion(r.reviewerFields.finalQuestion, r);
     if (!conv.ok) {
       // unsupported_question_type → status=skipped；其他（含 invalid_question_source）→ status=failed
       const isUnsupported = conv.errors.some((e) => e.code === "unsupported_question_type");

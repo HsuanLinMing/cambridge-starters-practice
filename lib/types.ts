@@ -67,6 +67,32 @@ export type QuestionSource =
   | "ai_generated" // AI 依題型風格生成的仿真題
   | "custom"; // 使用者自製或老師補充
 
+/** 題目層來源追溯資訊；只記錄來源與 reviewer 判斷，不代表授權或可複製官方素材。 */
+export type QuestionSourceProvenance = {
+  /** 對應 source registry / manual fixture 的來源 id。 */
+  sourceId?: string;
+  /** 可重現來源的 URL。正式 source-first 題目若有來源追溯，必填此欄。 */
+  sourceUrl: string;
+  /** 來源文件或頁面標題。 */
+  documentTitle?: string;
+  /** PDF 頁碼 / 網頁位置提示。 */
+  pageHint?: string;
+  /** 文件段落 / 題型區塊提示。 */
+  sectionHint?: string;
+  /** source registry 的細分類，例如 official_learning_material。 */
+  sourceKind?: string;
+  /** 發行機構。 */
+  publisher?: string;
+  /** 發行機構類型，例如 official / school / third_party。 */
+  publisherType?: string;
+  /** reviewer 對授權 / 使用邊界的筆記；不是授權證明。 */
+  rightsNotes?: string;
+  /** 來源追溯與人工審核筆記。 */
+  provenanceNotes?: string;
+  /** 題目層 reviewer 備註。 */
+  reviewerNotes?: string;
+};
+
 /** 題型 discriminator。 */
 export type QuestionType =
   | "multiple-choice" // 通用文字 4 選 1
@@ -157,6 +183,8 @@ export type BaseQuestion = {
   topic?: string;
   /** AI 生成題的 prompt 版本號，便於回溯出題品質。 */
   promptVersion?: string;
+  /** source-first 題目的來源追溯；舊題可省略。 */
+  sourceProvenance?: QuestionSourceProvenance;
   /** Starters 段落 metadata（P3-9-B；optional，缺值時 UI fallback 依 `type` 推導）。 */
   starterSection?: StarterSection;
   /** Starters Part metadata（P3-9-B；optional，對齊 `docs/STARTERS_PART_TEMPLATES.md`）。 */

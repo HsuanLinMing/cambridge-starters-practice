@@ -303,6 +303,7 @@ node scripts/approve_reviewed_questions.mjs \
 - preview mode **絕對不動正式題庫**；只寫 preview JSON
 - 5-AND 篩選：validate-reviewed `passed` + reviewed `approved_for_practice` + `approved=true` + `approvedForPractice=true` + `finalQuestion` 存在
 - duplicate id（target 既有 / 同批內）→ 標 warning（preview 仍寫，write mode 整批拒絕）
+- P3-10-V 起，若 approved item 有 `sourceUrl`，preview 的 `question.sourceProvenance` 應保留來源追溯（sourceId / sourceUrl / documentTitle / pageHint / sectionHint / sourceKind / publisher / publisherType / rightsNotes / provenanceNotes / reviewerNotes）；`sourceProvenance` **不代表**授權或題目審核自動通過
 
 #### 9B. write（**請先讓 Codex 驗收 preview JSON 後再跑**）
 
@@ -558,9 +559,10 @@ data/imported/source-registry.generated.json
 2. ✅ preview summary 顯示的 `readyToAppend` / `duplicateIds` / `warnings` 都符合預期
 3. ✅ Codex 已驗收 preview JSON
 4. ✅ reviewer 親自確認 `data/imported/approved-questions.preview.generated.json` 內容
-5. ✅ 寫完後 **立刻** `git diff data/p3-example-questions.json` 比對
-6. ✅ 確認沒有非預期的題目被加入 / 既有題目被改動
-7. ✅ commit 訊息寫明：來源 sourceId / reviewer 名字 / 來源 URL / 審核日期
+5. ✅ source-first 匯入題的 preview `question.sourceProvenance.sourceUrl` / `rightsNotes` / `provenanceNotes` 符合 reviewer 審核紀錄
+6. ✅ 寫完後 **立刻** `git diff data/p3-example-questions.json` 比對
+7. ✅ 確認沒有非預期的題目被加入 / 既有題目被改動
+8. ✅ commit 訊息寫明：來源 sourceId / reviewer 名字 / 來源 URL / 審核日期
 
 ---
 
@@ -887,6 +889,7 @@ console 會印每個檢查的 PASS / FAIL，失敗的還會印對應 stderr / �
 
 ## 11. 版本
 
+- **v1.3**（2026-07-07，P3-10-V：formal question `sourceProvenance`）：第 9 段 approve preview / write checklist 補 `sourceProvenance` 檢查；source-first 匯入題若有 `sourceUrl`，正式 `ExamQuestion` preview 應保留來源追溯欄位，但此欄位不代表授權、題目 human review 自動通過或 `/quiz` 已切換。本輪不修改 runbook 命令、不新增 CLI 行為。
 - **v1.2**（2026-05-17，P3-10-R：runbook extended offline smoke for review / approve / assemble preview）：第 10 段「離線 smoke check」段補新增 4 個檢查（[9] review prepare-review fixture / [10] validate-reviewed fixture / [11] approve reviewed preview fixture / [12] assemble paper preview fixture）；safety 段補 3 個新檢查（forbidden generated paths 存在狀態 / approve preview target hash / assemble preview papers hash）；強化 cleanup（包進 main() try/finally；未預期 exception 也會清 workdir；workdir 未建立則跳過、不 crash）。**順帶修 P3-10-Q Codex Low**：本檔章節順序由「9 / 11 / 10」修正為「9 / 10 / 11」（smoke 在版本紀錄之前）。Runbook 整體仍 11 步、僅章節順序與 smoke 段擴充；未修改 1~9 段內容、未修改任何 CLI 行為。
 - **v1.1**（2026-05-16，P3-10-Q：runbook offline smoke check）：第 1 段流程總覽明確把 `validate source registry` 列為步驟 4（Codex Low fix）；補充小段提示「P3-10-Q 已新增 `npm run runbook:check` 離線 smoke」；新增本檔離線 smoke check 段共 6 個子段（用法 / 檢查項目 / 安全保證 / 不代表的事 / 何時跑 / 失敗時排查）。**未修改任何 CLI 行為**；scripts/* 內既有 9 個 CLI 一律不動。
 - **v1**（2026-05-15，P3-10-P 第一版）：第一版操作手冊；整合 P3-10-L / M / N / O 已落地工具；9 個 CLI 命令逐一驗證對齊實際 `--help` 輸出；雙層審核 + 雙開關保護 + .gitignore 提醒 + troubleshooting + ASCII / Mermaid 流程圖。**未修改任何 script 行為**；純文件。

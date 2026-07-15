@@ -1,97 +1,150 @@
-# Codex 回報 · AI 協作分工文件殘留修正
+# Codex 回報 · P3-10-V sourceProvenance schema + approve conversion
 
-## 【本輪修改摘要】
+## 【本輪結論】
 
-本輪依 2026-05-20 新版風險分級協作模式，修正仍停留在「Claude 主要實作 / Codex 驗收」舊敘述的入口文件。同步補強 `CLAUDE.md`、`AGENTS.md` 與 `docs/CODEX_VALIDATION_RUNBOOK.md` 的角色描述，並保留歷史紀錄中的舊字樣作為過去任務背景。
+成功補上 `sourceProvenance` schema + approve conversion。
+
+本輪已讓正式 `ExamQuestion` 可選擇保留 question-level provenance；`approve_reviewed_questions.mjs` v0.1.2 在 preview 與 `/tmp` write target 都會把 P3-10-U 三題的來源追溯寫入 `question.sourceProvenance`。本輪沒有正式 write `data/p3-example-questions.json`，也沒有修改正式 paper 或 `/quiz`。
 
 ## 【修改檔案清單】
 
-- `CLAUDE.md`
-- `AGENTS.md`
-- `docs/CODEX_VALIDATION_RUNBOOK.md`
+- `lib/types.ts`
+- `scripts/approve_reviewed_questions.mjs`
+- `docs/DATA_SCHEMA.md`
+- `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`
+- `docs/PRACTICE_DATA_IMPORT_PLAN.md`
+- `docs/SOURCE_FIRST_PIPELINE_RUNBOOK.md`
+- `docs/PRACTICE_DATA_PLAN.md`
+- `PROJECT_ROADMAP.md`
+- `README.md`
 - `reports/claude_last_report.md`
 
-## 【舊分工殘留檢查】
+## 【sourceProvenance schema 設計】
 
-搜尋關鍵字 / 模式：
+新增 `QuestionSourceProvenance`，並在 `BaseQuestion` 加 optional `sourceProvenance?: QuestionSourceProvenance`。
 
-- `Claude.*實作`
-- `實作.*Claude`
-- `Codex.*驗收`
-- `驗收.*Codex`
-- `主要負責實作`
-- `Codex.*第二意見`
-- `Claude.*Codex`
-- `Claude.*→.*Codex`
-- `固定.*Claude`
-- `Codex 只`
-- `改檔交給 Claude`
-- `先 Codex 排查、再 Claude 修正`
+欄位：
 
-發現並修正：
+- `sourceUrl: string`：若 `sourceProvenance` 存在則必填。
+- `sourceId?`
+- `documentTitle?`
+- `pageHint?`
+- `sectionHint?`
+- `sourceKind?`
+- `publisher?`
+- `publisherType?`
+- `rightsNotes?`
+- `provenanceNotes?`
+- `reviewerNotes?`
 
-- `CLAUDE.md`：原本寫「主要負責實作」與「不負責驗收，交由 Codex」，已改為 Claude Code 低風險文件 / 小修主力，中風險視任務單，高風險停止並回報交 Codex。
-- `AGENTS.md`：原本只有必讀文件，缺新版角色摘要；已補 ChatGPT / Claude Code / Codex 三方風險分級分工。
-- `docs/CODEX_VALIDATION_RUNBOOK.md`：原本回報格式段落仍說 Codex「不是動手實作」，排查段落仍說「改檔交給 Claude Code」；已改成驗收 / 排查任務適用該格式，高風險 debug / 工程任務可由 Codex 直接修正並自測。
-- `reports/claude_last_report.md`：上一份報告明確指出 `CLAUDE.md` / `AGENTS.md` 尚未修，已用本輪 Codex 回報覆蓋。
+`sourceProvenance` optional，不要求既有 13 題 dev seed 補欄位；`QuestionSource` union 沒有改，`official_learning_material` 等細分類保留在 `sourceProvenance.sourceKind`。
 
-判斷可保留的歷史 / 合理字樣：
+## 【approve conversion 行為】
 
-- `AI_DEV_WORKFLOW.md` / `docs/TASK_ROUTER.md` 中「不再固定 Claude 實作 → Codex 驗收」是新版規則說明，不是舊流程殘留。
-- `docs/TASK_ROUTER.md` 中「中風險任務可由 Claude 實作，後續視情況由 Codex 輕量驗收」符合新版分級。
-- `docs/SOURCE_FIRST_PIPELINE_RUNBOOK.md` 中正式題庫 preview / write 前需要 Codex 驗收，是 P3-10 source-first pipeline 的安全 gate，不是通用固定 Claude → Codex 流程。
-- `PROJECT_ROADMAP.md` 的過往變更紀錄保留歷史語境，未改功能階段狀態。
+`scripts/approve_reviewed_questions.mjs` 升為 v0.1.2。
 
-## 【新分工同步內容】
+來源取值優先支援：
 
-`CLAUDE.md`：
+- `reviewerFields.finalQuestion.sourceProvenance`
+- `reviewerFields.finalQuestion` 直接欄位
+- reviewed item 本身欄位
+- `reviewedItem.discoveryProvenance`
+- `reviewedItem.originalDraft`
+- `originalDraft.provenance`
+- `reviewerFields.reviewerNotes` / `reviewedItem.reviewerNotes`
 
-- 明確寫 Claude Code 是低風險文件 / 小修主力。
-- 明確寫 Claude Code 不再是所有程式主要實作者。
-- 補低 / 中 / 高風險處理方式。
-- 補 build / package / 平台 / 權限 / camera / ML Kit / lifecycle / 效能 / 實機核心流程等高風險特徵時停止並回報。
-- 補 Claude Code 不自行 commit / push。
+轉換規則：
 
-`AGENTS.md`：
+- 有非空 `sourceUrl` 才寫 `question.sourceProvenance`。
+- 其他 provenance 欄位有非空字串才寫入。
+- 透過 `Object.fromEntries(...filter)` 清掉 `undefined`，不寫 `null` / `undefined` 到 JSON。
+- preview / write 共用同一 conversion，因此兩者都會保留。
+- 若沒有 `sourceUrl`，不產生 `sourceProvenance`，避免假追溯。
+- 不把 provenance 混進 `prompt` / `explanation` / answer / options / image / audio。
 
-- 補 ChatGPT：需求討論、風險判斷、分派、整理回報、判斷下一步。
-- 補 Claude Code：低風險文件 / 文案 / 小修主力，中風險依任務單，高風險停止回報。
-- 補 Codex：高風險工程、debug、build / test / smoke、驗收主力。
-- 明確不再固定 Claude 實作 / Codex 驗收。
-- 明確 Claude Code / Codex 都不自行 commit / push。
+## 【P3-10-U 三題 fixture 重跑結果】
 
-`docs/CODEX_VALIDATION_RUNBOOK.md`：
+使用 `/tmp/cambridge-starters-p3-10-u-validation/reviewed-questions.approved.json` 與 `review-validation.json`。
 
-- 將 Codex 回報格式限定為「驗收 / 排查任務」適用。
-- 補 Codex 直接實作高風險工程或 debug 修正時，依任務單回報修改檔案、測試結果與風險。
-- 將排查速查末段改為依任務單判斷：只診斷時不改檔；若 Codex 是高風險 debug / 工程主力，可直接修正並自測。
+- approve preview exit 0。
+- `readyToAppend=3`
+- `duplicateIds=0`
+- `duplicateIdsInTarget=0`
+- `duplicateIdsInBatch=0`
+- ready questions with `sourceProvenance`: 3/3
+- `official_sample` count: 3/3
+- `sourceProvenance.sourceKind`: 3/3 為 `official_learning_material`
+- `documentTitle` / `pageHint` / `rightsNotes` / `provenanceNotes` 均有保留。
+
+Assemble preview 使用 `/tmp` write target：
+
+- exit 0
+- totalAvailable=16
+- totalSelected=16
+- sections=2
+- `sourceMix={ official_sample: 3, ai_generated: 9, custom: 4 }`
+- `reading-writing` section 包含三題 `q-src-rw3-001` / `q-src-rw1-001` / `q-src-rw4-001`
+
+## 【/tmp write target 測試結果】
+
+只寫入 `/tmp/cambridge-starters-p3-10-v-validation/target-questions.json`。
+
+- `/tmp` target 由正式題庫複製而來。
+- approve write exit 0。
+- target 從 13 題變 16 題。
+- append 題數：3。
+- appended ids：`q-src-rw3-001` / `q-src-rw1-001` / `q-src-rw4-001`。
+- appended 3/3 都有 `sourceProvenance.sourceUrl`。
+- appended 3/3 都沒有 `undefined` / `null` provenance 值。
+- 正式 `data/p3-example-questions.json` 不變。
+
+## 【文件同步內容】
+
+- `docs/DATA_SCHEMA.md`：新增 `sourceProvenance` schema、範例與硬邊界。
+- `docs/QUESTION_IMPORT_NORMALIZATION_PLAN.md`：F-pre-8 升 v0.1.2，補 approve conversion / preview schema / v4.5 版本紀錄。
+- `docs/PRACTICE_DATA_IMPORT_PLAN.md`：第 6 步升 v0.1.2，正式資料欄位表新增 `sourceProvenance`。
+- `docs/SOURCE_FIRST_PIPELINE_RUNBOOK.md`：approve preview / write checklist 補 provenance 檢查。
+- `docs/PRACTICE_DATA_PLAN.md`：新增 P3-10-V 部分完成條目。
+- `PROJECT_ROADMAP.md`：新增 P3-10-V 部分完成條目，未把 P3-10 / P3 標完成。
+- `README.md`：長期方向補題目來源追溯說明。
 
 ## 【測試結果】
 
+- `node scripts/approve_reviewed_questions.mjs ... --mode preview --limit 10`：通過，readyToAppend=3。
+- `node scripts/approve_reviewed_questions.mjs ... --target /tmp/.../target-questions.json --mode write --write yes --limit 10`：通過，只寫 `/tmp` target。
+- `node scripts/assemble_practice_paper.mjs --questions /tmp/.../target-questions.json ... --mode preview --paper-id starters-source-preview-001 --limit 20`：通過。
 - `npm run lint`：通過。
 - `npm run typecheck`：通過。
-- `npm run build`：通過，Next.js build 成功，static pages 仍為 88。
+- `npm run build`：通過，Next.js static pages 仍為 88。
 - `npm run runbook:check`：通過，overall PASS。
 
-## 【Roadmap 狀態檢查】
+## 【安全檢查】
 
-- 沒有修改 `PROJECT_ROADMAP.md` 的任何功能階段狀態。
-- 沒有把任何未完成功能標成完成。
-- 本輪只是 AI 協作分工文件一致性修正。
-- P3-10 / P3 / P4 / P5 狀態沒有被本輪誤改。
+- 未修改正式題庫 `data/p3-example-questions.json`。
+- 未修改正式 paper `data/exam-papers.example.json`。
+- 未切 `/quiz`。
+- 未修改 `lib/data.ts`。
+- 未修改 app / components / public。
+- 未下載官方 PDF / image / audio。
+- 未 OCR、未新增 PDF parser。
+- 未新增 npm 依賴；`package.json` / `package-lock.json` 無 diff。
+- 未 stage / commit / push。
+- `.env` / `.env.local` / `.claude/settings.local.json` / generated JSON 沒有 staged 或新增狀態。
 
 ## 【仍未處理】
 
-- 無本輪必修項目。
-- 歷史紀錄中的舊字樣仍保留作為過去任務脈絡；目前判斷不影響新版規則。
+- 三題尚未正式寫入 `data/p3-example-questions.json`。
+- 尚未重新跑 P3-10-U write 前驗收。
+- `/quiz` 尚未使用 imported 題庫。
 
 ## 【風險點】
 
-- 工作樹中既有 `.claude/settings.local.json` 仍顯示 modified；本輪未修改、未 stage，但 commit 前仍需確認不要納入。
-- 專案內歷史紀錄很長，未來搜尋「Claude 實作 / Codex 驗收」仍會命中歷史段落；判讀時需區分「現在規則」與「過去紀錄」。
+- `sourceProvenance` 是來源追溯欄位，不代表授權證明；正式 write 前仍需 reviewer 再確認 `rightsNotes` / `provenanceNotes`。
+- `QuestionSource` 仍是 4 值粗分類；`official_learning_material` 暫由 `question.source=official_sample` 承接，真實語義靠 `sourceProvenance.sourceKind` 保存。
+- 本輪只驗證 P3-10-U 三題 fixture 與 `/tmp` target，不能直接視為正式 write 放行。
 
 ## 【後續建議】
 
-- 後續任務單可固定加一行「風險等級：低 / 中 / 高」，避免 agent 自行套舊流程。
-- 若未來再新增 agent 入口文件，請直接引用 `AI_DEV_WORKFLOW.md` 與 `docs/TASK_ROUTER.md`，不要重新手寫一份容易漂移的角色分工。
-
+- 下一輪重新跑 P3-10-U write 前驗收，檢查新的 preview JSON 是否保留 `sourceProvenance`。
+- 若驗收通過，再由使用者明確授權正式 write；write 後立刻 `git diff data/p3-example-questions.json`。
+- 後續若 source registry 欄位逐步穩定，可把 `sourceKind` / `publisherType` 收斂成更嚴格 union，但本輪先保持 string，避免擴大 schema blast radius。
