@@ -227,5 +227,77 @@
     "starterPart": "RW1",
     "skillFocus": ["reading", "vocabulary"],
     "expectedAnswerType": "choice"
+  },
+  {
+    "id": "q-src-rw3-001",
+    "type": "spelling",
+    "source": "official_sample",
+    "prompt": "Look at the picture. Write the word.",
+    "explanation": "The picture shows a cat. The word is cat.",
+    "starterSection": "reading-writing",
+    "sourceProvenance": {
+      "sourceId": "src-manual-cambridge-wordlist-2018",
+      "sourceUrl": "https://www.cambridgeenglish.org/Images/396158-yle-starters-word-list-picture-book-2018.pdf",
+      "documentTitle": "Pre A1 Starters Wordlist Picture Book",
+      "pageHint": "PDF p. 15, At home vocabulary list; word: cat",
+      "sectionHint": "At home",
+      "sourceKind": "official_learning_material",
+      "publisher": "Cambridge Assessment English",
+      "publisherType": "official",
+      "rightsNotes": "Manual preview fixture only: official Cambridge public wordlist used as provenance; no official images, audio, or PDF binary copied into the repo.",
+      "provenanceNotes": "Manual RW3 preview based on the Cambridge official wordlist entry for cat; local /images/cat.svg is used instead of official artwork.",
+      "reviewerNotes": "P3-10-T /tmp reviewer-approved preview fixture. Question content is manual source-first preview based on official Cambridge wordlist provenance. finalQuestion.source uses official_sample because current QuestionSource union has no official_learning_material literal. Formal write still requires Codex/user review; this fixture is not committed."
+    },
+    "starterPart": "RW3",
+    "image": "/images/cat.svg",
+    "answer": "cat"
+  },
+  {
+    "id": "q-src-rw1-001",
+    "type": "true-false",
+    "source": "official_sample",
+    "prompt": "It is a cat.",
+    "explanation": "The picture shows a cat, so the answer is Yes.",
+    "starterSection": "reading-writing",
+    "sourceProvenance": {
+      "sourceId": "src-manual-cambridge-wordlist-2018",
+      "sourceUrl": "https://www.cambridgeenglish.org/Images/396158-yle-starters-word-list-picture-book-2018.pdf",
+      "documentTitle": "Pre A1 Starters Wordlist Picture Book",
+      "pageHint": "PDF p. 15, At home vocabulary list; word: cat",
+      "sectionHint": "At home",
+      "sourceKind": "official_learning_material",
+      "publisher": "Cambridge Assessment English",
+      "publisherType": "official",
+      "rightsNotes": "Manual preview fixture only: official Cambridge public wordlist used as provenance; no official images, audio, or PDF binary copied into the repo.",
+      "provenanceNotes": "Manual RW1 yes/no preview based on the Cambridge official wordlist entry for cat; local /images/cat.svg is used instead of official artwork.",
+      "reviewerNotes": "P3-10-T /tmp reviewer-approved preview fixture. Question content is manual source-first preview based on official Cambridge wordlist provenance. finalQuestion.source uses official_sample because current QuestionSource union has no official_learning_material literal. Formal write still requires Codex/user review; this fixture is not committed."
+    },
+    "starterPart": "RW1",
+    "image": "/images/cat.svg",
+    "answer": "yes"
+  },
+  {
+    "id": "q-src-rw4-001",
+    "type": "fill-blank",
+    "source": "official_sample",
+    "prompt": "The ___ is on the table.",
+    "explanation": "Book is the word that completes the sentence.",
+    "starterSection": "reading-writing",
+    "sourceProvenance": {
+      "sourceId": "src-manual-cambridge-wordlist-2018",
+      "sourceUrl": "https://www.cambridgeenglish.org/Images/396158-yle-starters-word-list-picture-book-2018.pdf",
+      "documentTitle": "Pre A1 Starters Wordlist Picture Book",
+      "pageHint": "PDF p. 16-17, At school vocabulary list; word: book; supporting wordlist entries: cat/apple/book",
+      "sectionHint": "At school / My favourite food / At home",
+      "sourceKind": "official_learning_material",
+      "publisher": "Cambridge Assessment English",
+      "publisherType": "official",
+      "rightsNotes": "Manual preview fixture only: official Cambridge public wordlist used as provenance; no official images, audio, or PDF binary copied into the repo.",
+      "provenanceNotes": "Manual RW4 preview using Cambridge official wordlist vocabulary; sentence is reviewer-authored and must be checked before any formal write.",
+      "reviewerNotes": "P3-10-T /tmp reviewer-approved preview fixture. Question content is manual source-first preview based on official Cambridge wordlist provenance. finalQuestion.source uses official_sample because current QuestionSource union has no official_learning_material literal. Formal write still requires Codex/user review; this fixture is not committed."
+    },
+    "starterPart": "RW4",
+    "answer": "book",
+    "options": ["book", "cat", "apple"]
   }
 ]
